@@ -1,0 +1,1 @@
+# hal-minting-contracts
