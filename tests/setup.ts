@@ -46,10 +46,10 @@ const MIN_LOVELACE = 5_000_000n;
 const dbPath = "./tests/test-db";
 
 const settingsAssetClass = makeAssetClass(
-  "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14073657474696e67734068616c5f6d696e74"
+  "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c4068616e646c655f73657474696e6773"
 );
 const mintingDataAssetClass = makeAssetClass(
-  "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de140726f6f744068616c5f6d696e74"
+  "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c5f726f6f744068616e646c655f73657474696e6773"
 );
 
 const HAL_NFT_PRICE = 180_000_000n;
