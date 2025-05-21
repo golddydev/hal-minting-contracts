@@ -36,8 +36,8 @@ export const CONTRACT_NAMES = [
 export const LEGACY_POLICY_ID =
   "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a";
 
-export const SETTINGS_HANDLE_NAME = "settings@hal_mint";
-export const MINTING_DATA_HANDLE_NAME = "root@hal_mint";
+export const SETTINGS_HANDLE_NAME = "hal@handle_settings";
+export const MINTING_DATA_HANDLE_NAME = "hal_root@handle_settings";
 
 export const MPT_MINTED_VALUE = "minted";
 

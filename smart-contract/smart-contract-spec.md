@@ -36,13 +36,13 @@
 
   - Policy Id: `"f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"` Legacy Ada Handle's policy id (Defined in `hal_nft_mint/settings.ak`)
 
-  - Asset Name: `"settings@hal_mint"` (Defined in `hal_nft_mint/settings.ak`)
+  - Asset Name: `"hal@handle_settings"` (Defined in `hal_nft_mint/settings.ak`)
 
 - Minting Data NFT: This is NFT which holds Merkle Patricia Forestry's root hash in the form of datum in `minting_data` spending validator. This root hash is updated every time NFT is minted.
 
   - Policy Id: `"f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"` Legacy Ada Handle's policy id (Defined in `hal_nft_mint/minting_data.ak`)
 
-  - Asset Name: `"root@hal_mint"` (Defined in `hal_nft_mint/minting_data.ak`)
+  - Asset Name: `"hal_root@handle_settings"` (Defined in `hal_nft_mint/minting_data.ak`)
 
 ### 2.3 Smart Contracts
 
