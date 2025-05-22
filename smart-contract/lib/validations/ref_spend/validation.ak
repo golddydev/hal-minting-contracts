@@ -8,14 +8,14 @@ use common/utils.{get_own_script_hash,
   get_own_utxo, get_own_utxos_count} as common_utils
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
-use validations/cip68/utils.{does_spend_user_asset}
+use validations/ref_spend/utils.{does_spend_user_asset}
 
 // Validation:
 // When user tries to update H.A.L. NFT datum
 //
 // Checks:
 // - must attach Settings in reference inputs
-// - must be signed by cip68_admin
+// - must be signed by ref_spend_admin
 // - spending UTxO must have only one reference asset with asset_name from redeemer
 // - there must be H.A.L. user asset in transaction inputs
 // - there must be only one UTxO spending in inputs from this script
@@ -34,14 +34,15 @@ pub fn can_update(
   expect settings_datum: SettingsV1 = settings_data
   let SettingsV1 {
     policy_id: hal_policy_id,
-    cip68_script_address,
-    cip68_admin,
+    ref_spend_script_address,
+    ref_spend_admin,
     ..
   } = settings_datum
 
-  // must be signed by cip68_admin
-  let is_signed_by_cip68_admin = list.has(extra_signatories, cip68_admin)
-  expect is_signed_by_cip68_admin
+  // must be signed by ref_spend_admin
+  let is_signed_by_ref_spend_admin =
+    list.has(extra_signatories, ref_spend_admin)
+  expect is_signed_by_ref_spend_admin
 
   // make ref asset name and user asset name from asset_name
   let ref_asset_name = bytearray.concat(prefix_100, asset_name)
@@ -73,10 +74,10 @@ pub fn can_update(
     reference_script: output_reference_script,
     ..
   } = output
-  // output address must stay same or be cip68_script_address
+  // output address must stay same or be ref_spend_script_address
   let is_output_address_valid = or {
       output_address == own_utxo_address,
-      output_address == cip68_script_address,
+      output_address == ref_spend_script_address,
     }
   expect is_output_address_valid
   // must not spend any asset
@@ -92,12 +93,12 @@ pub fn can_update(
 }
 
 // Validation:
-// When user tries to migrate H.A.L. NFT to 
-// latest cip68_script_address
+// When user tries to migrate H.A.L. NFT to
+// latest ref_spend_script_address
 //
 // Checks:
 // - must attach Setting in reference inputs
-// - first output must be UTxO with reference asset to cip68_script_address
+// - first output must be UTxO with reference asset to ref_spend_script_address
 //   with same value and datum as spending UTxO
 //
 pub fn can_migrate(
@@ -109,9 +110,9 @@ pub fn can_migrate(
   // must attach Setting in reference inputs
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { cip68_script_address, .. } = settings_datum
+  let SettingsV1 { ref_spend_script_address, .. } = settings_datum
 
-  // first output must be UTxO with reference asset to cip68_script_address
+  // first output must be UTxO with reference asset to ref_spend_script_address
   // with same value and datum as spending UTxO
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
   let Output { value: own_utxo_value, datum: own_utxo_datum, .. } = own_utxo
@@ -122,8 +123,8 @@ pub fn can_migrate(
     datum: output_datum,
     reference_script: output_reference_script,
   } = output
-  // output address must be cip68_script_address
-  let is_output_address_valid = output_address == cip68_script_address
+  // output address must be ref_spend_script_address
+  let is_output_address_valid = output_address == ref_spend_script_address
   expect is_output_address_valid
   // value must stay same
   let value_stay_same = output_value == own_utxo_value

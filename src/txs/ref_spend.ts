@@ -11,7 +11,7 @@ import { Err, Ok, Result } from "ts-res";
 
 import { fetchSettings } from "../configs/index.js";
 import { PREFIX_100, PREFIX_222 } from "../constants/index.js";
-import { buildCip68UpdateRedeemer } from "../contracts/index.js";
+import { buildRefSpendUpdateRedeemer } from "../contracts/index.js";
 import { DeployedScripts } from "./deploy.js";
 
 /**
@@ -52,14 +52,14 @@ const update = async (
   const isMainnet = network == "mainnet";
   const assetHexName = Buffer.from(assetUtf8Name).toString("hex");
 
-  const { cip68ScriptTxInput } = deployedScripts;
+  const { refSpendScriptTxInput } = deployedScripts;
 
   // fetch settings
   const settingsResult = await fetchSettings(network);
   if (!settingsResult.ok)
     return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
   const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-  const { policy_id, cip68_admin, cip68_script_address } = settingsV1;
+  const { policy_id, ref_spend_admin, ref_spend_script_address } = settingsV1;
 
   // reference asset value
   const refAssetName = `${PREFIX_100}${assetHexName}`;
@@ -82,7 +82,7 @@ const update = async (
   }
 
   // make redeemer
-  const cip68UpdateRedeemer = buildCip68UpdateRedeemer(assetHexName);
+  const refSpendUpdateRedeemer = buildRefSpendUpdateRedeemer(assetHexName);
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -92,20 +92,24 @@ const update = async (
   // <-- attach Settings asset
   txBuilder.refer(settingsAssetTxInput);
 
-  // <-- attach CIP68 script
-  txBuilder.refer(cip68ScriptTxInput);
+  // <-- attach ref_spend script
+  txBuilder.refer(refSpendScriptTxInput);
 
-  // <-- add cip68_admin signer
-  txBuilder.addSigners(makePubKeyHash(cip68_admin));
+  // <-- add ref_spend_admin signer
+  txBuilder.addSigners(makePubKeyHash(ref_spend_admin));
 
   // <-- spend refTxInput
-  txBuilder.spendUnsafe(refTxInput, cip68UpdateRedeemer);
+  txBuilder.spendUnsafe(refTxInput, refSpendUpdateRedeemer);
 
   // <-- spend userTxInput
   txBuilder.spendUnsafe(userTxInput);
 
   // <-- pay ref asset with updated datum
-  txBuilder.payUnsafe(cip68_script_address, makeValue(0n, refAsset), newDatum);
+  txBuilder.payUnsafe(
+    ref_spend_script_address,
+    makeValue(0n, refAsset),
+    newDatum
+  );
 
   return Ok(txBuilder);
 };

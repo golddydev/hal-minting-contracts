@@ -130,8 +130,8 @@ const setup = async () => {
   const ordersMinterPubKeyHash: string =
     ordersMinterWallet.spendingPubKeyHash.toHex();
 
-  // cip68 admin wallet
-  const cip68AdminWallet = emulator.createWallet(ACCOUNT_LOVELACE);
+  // ref spend admin wallet
+  const refSpendAdminWallet = emulator.createWallet(ACCOUNT_LOVELACE);
   emulator.tick(200);
 
   // payment wallet
@@ -164,7 +164,7 @@ const setup = async () => {
     mintingData: mintingDataConfig,
     ordersMint: ordersMintConfig,
     ordersSpend: ordersSpendConfig,
-    cip68: cip68Config,
+    refSpend: refSpendConfig,
   } = contractsConfig;
 
   // ============ prepare settings data ============
@@ -173,13 +173,13 @@ const setup = async () => {
     allowed_minter: allowedMinterPubKeyHash,
     hal_nft_price: HAL_NFT_PRICE,
     payment_address: paymentWallet.address,
-    cip68_script_address: cip68Config.cip68ValidatorAddress,
+    ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
     orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
     orders_mint_policy_id: ordersMintConfig.ordersMintPolicyHash.toHex(),
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
     orders_minter: ordersMinterPubKeyHash,
-    cip68_admin: cip68AdminWallet.spendingPubKeyHash.toHex(),
+    ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
   };
   const settings: Settings = {
     mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),
@@ -268,11 +268,11 @@ const setup = async () => {
         ordersSpendConfig.ordersSpendUplcProgram
       )
     );
-  const [cip68ScriptDetails, cip68ScriptTxInput] = await deployScript(
+  const [refSpendScriptDetails, refSpendScriptTxInput] = await deployScript(
     ScriptType.DEMI_ORDERS,
     emulator,
     fundWallet,
-    ...extractScriptCborsFromUplcProgram(cip68Config.cip68UplcProgram)
+    ...extractScriptCborsFromUplcProgram(refSpendConfig.refSpendUplcProgram)
   );
 
   // ============ mock modules ============
@@ -298,8 +298,8 @@ const setup = async () => {
     ordersMintScriptTxInput,
     ordersSpendScriptDetails,
     ordersSpendScriptTxInput,
-    cip68ScriptDetails,
-    cip68ScriptTxInput,
+    refSpendScriptDetails,
+    refSpendScriptTxInput,
   };
 
   // hoist mocked functions
@@ -388,7 +388,7 @@ const setup = async () => {
       adminWallet,
       allowedMinterWallet,
       ordersMinterWallet,
-      cip68AdminWallet,
+      refSpendAdminWallet,
       paymentWallet,
       usersWallets,
     },

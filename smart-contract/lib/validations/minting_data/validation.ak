@@ -48,7 +48,7 @@ pub fn can_mint(
     policy_id,
     allowed_minter,
     payment_address,
-    cip68_script_address,
+    ref_spend_script_address,
     orders_spend_script_address,
     orders_mint_policy_id,
     ..
@@ -83,7 +83,7 @@ pub fn can_mint(
       inputs,
       rest_outputs,
       policy_id,
-      cip68_script_address,
+      ref_spend_script_address,
       proofs,
       root,
       value.zero(),

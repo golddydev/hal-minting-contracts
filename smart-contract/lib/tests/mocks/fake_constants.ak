@@ -35,7 +35,7 @@ pub fn payment_address() -> Address {
     |> credential.with_delegation_key(#"8989")
 }
 
-pub fn cip68_script_address() -> Address {
+pub fn ref_spend_script_address() -> Address {
   credential.from_verification_key(#"8888")
     |> credential.with_delegation_key(#"9999")
 }
@@ -52,7 +52,7 @@ pub const minting_data_script_hash: ScriptHash = #"3333"
 
 pub const orders_minter: VerificationKeyHash = #"11113333"
 
-pub const cip68_admin: VerificationKeyHash = #"22223333"
+pub const ref_spend_admin: VerificationKeyHash = #"22223333"
 
 // other constants
 pub const min_order_lovelace = 3_000_000

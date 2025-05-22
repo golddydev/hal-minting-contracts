@@ -1,8 +1,8 @@
 use aiken/transaction.{ScriptContext, Spend}
 use aiken/transaction/value.{AssetName}
-use validations/cip68/validation.{can_migrate, can_update}
+use validations/ref_spend/validation.{can_migrate, can_update}
 
-type CIP68Redeemer {
+type RefSpendRedeemer {
   Update(AssetName)
   Migrate
 }
@@ -11,7 +11,7 @@ type CIP68Redeemer {
 // Where H.A.L. reference asset is saved with datum
 //
 validator {
-  fn spend(_d: Data, redeemer: CIP68Redeemer, ctx: ScriptContext) -> Bool {
+  fn spend(_d: Data, redeemer: RefSpendRedeemer, ctx: ScriptContext) -> Bool {
     let ScriptContext(transaction, purpose) = ctx
     expect Spend(spending_output_reference) = purpose
 

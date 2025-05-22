@@ -208,7 +208,11 @@ const mint = async (params: MintParams): Promise<Result<TxBuilder, Error>> => {
 
     txBuilder
       .spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer)
-      .payUnsafe(settingsV1.cip68_script_address, refHandleValue, assetDatum)
+      .payUnsafe(
+        settingsV1.ref_spend_script_address,
+        refHandleValue,
+        assetDatum
+      )
       .payUnsafe(destinationAddress, userHandleValue);
   }
 

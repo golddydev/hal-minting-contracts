@@ -8,9 +8,9 @@ interface SettingsV1 {
   hal_nft_price: bigint;
   // address to collect HAL NFT's cost
   payment_address: Address;
-  // CIP68 Spending validator address
+  // ref_spend Spending validator address
   // ref asset is sent to this address
-  cip68_script_address: Address;
+  ref_spend_script_address: Address;
   // user makes an order (as UTxO) to this address
   orders_spend_script_address: Address;
   // this is policy id of token
@@ -23,8 +23,8 @@ interface SettingsV1 {
   // required when mint Orders NFT
   orders_minter: string;
   // required when spending H.A.L. reference asset
-  // from CIP68 Spending validator
-  cip68_admin: string;
+  // from Ref Spend Spending validator
+  ref_spend_admin: string;
 }
 
 export type { SettingsV1 };

@@ -9,12 +9,12 @@ import {
 import { NetworkName } from "@helios-lang/tx-utils";
 
 import {
-  getCip68UplcProgram,
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
   getMintV1WithdrawUplcProgram,
   getOrdersMintUplcProgram,
   getOrdersSpendUplcProgram,
+  getRefSpendUplcProgram,
 } from "./validators.js";
 
 /**
@@ -91,10 +91,13 @@ const buildContracts = (params: BuildContractsParams) => {
     ordersValidatorHash
   );
 
-  // "cip68.spend"
-  const cip68UplcProgram = getCip68UplcProgram();
-  const cip68ValidatorHash = makeValidatorHash(cip68UplcProgram.hash());
-  const cip68ValidatorAddress = makeAddress(isMainnet, cip68ValidatorHash);
+  // "ref_spend.spend"
+  const refSpendUplcProgram = getRefSpendUplcProgram();
+  const refSpendValidatorHash = makeValidatorHash(refSpendUplcProgram.hash());
+  const refSpendValidatorAddress = makeAddress(
+    isMainnet,
+    refSpendValidatorHash
+  );
 
   return {
     halPolicyHash,
@@ -123,10 +126,10 @@ const buildContracts = (params: BuildContractsParams) => {
       ordersValidatorHash,
       ordersSpendValidatorAddress,
     },
-    cip68: {
-      cip68UplcProgram,
-      cip68ValidatorHash,
-      cip68ValidatorAddress,
+    refSpend: {
+      refSpendUplcProgram,
+      refSpendValidatorHash,
+      refSpendValidatorAddress,
     },
   };
 };

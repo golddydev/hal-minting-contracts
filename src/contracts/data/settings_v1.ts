@@ -19,12 +19,12 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     allowed_minter,
     hal_nft_price,
     payment_address,
-    cip68_script_address,
+    ref_spend_script_address,
     orders_spend_script_address,
     orders_mint_policy_id,
     minting_data_script_hash,
     orders_minter,
-    cip68_admin,
+    ref_spend_admin,
   } = settings;
 
   return makeConstrData(0, [
@@ -32,12 +32,12 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     makeByteArrayData(allowed_minter),
     makeIntData(hal_nft_price),
     buildAddressData(payment_address as ShelleyAddress),
-    buildAddressData(cip68_script_address as ShelleyAddress),
+    buildAddressData(ref_spend_script_address as ShelleyAddress),
     buildAddressData(orders_spend_script_address as ShelleyAddress),
     makeByteArrayData(orders_mint_policy_id),
     makeByteArrayData(minting_data_script_hash),
     makeByteArrayData(orders_minter),
-    makeByteArrayData(cip68_admin),
+    makeByteArrayData(ref_spend_admin),
   ]);
 };
 
@@ -70,8 +70,8 @@ const decodeSettingsV1Data = (
     network
   );
 
-  // cip68_script_address
-  const cip68_script_address = decodeAddressFromData(
+  // ref_spend_script_address
+  const ref_spend_script_address = decodeAddressFromData(
     settingsV1ConstrData.fields[4],
     network
   );
@@ -100,10 +100,10 @@ const decodeSettingsV1Data = (
     "orders_minter must be ByteArray"
   ).toHex();
 
-  // cip68_admin
-  const cip68_admin = expectByteArrayData(
+  // ref_spend_admin
+  const ref_spend_admin = expectByteArrayData(
     settingsV1ConstrData.fields[9],
-    "cip68_admin must be ByteArray"
+    "ref_spend_admin must be ByteArray"
   ).toHex();
 
   return {
@@ -111,12 +111,12 @@ const decodeSettingsV1Data = (
     allowed_minter,
     hal_nft_price,
     payment_address,
-    cip68_script_address,
+    ref_spend_script_address,
     orders_spend_script_address,
     orders_mint_policy_id,
     minting_data_script_hash,
     orders_minter,
-    cip68_admin,
+    ref_spend_admin,
   };
 };
 

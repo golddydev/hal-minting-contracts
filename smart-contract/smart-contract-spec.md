@@ -58,7 +58,7 @@ H.A.L. minting engine works by the combination of 6 smart contracts.
 
 - `orders_spend` spending validator
 
-- `cip68` spending validator
+- `ref_spend` spending validator
 
 ## 3. Smart Contracts Detail
 
@@ -168,7 +168,7 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
     - rest_outputs: List of Pair of (`reference output`, `user_output`).
 
-      - `reference_output` address must be `cip68_script_address` in smart contract.
+      - `reference_output` address must be `ref_spend_script_address` in smart contract.
 
       - `reference_output` must have reference H.A.L. asset with `asset_name`. (100 asset name label)
 
@@ -280,7 +280,7 @@ None (minting policy)
 
   - must burn only one `Order NFT`
 
-### 3.6 `cip68` spending validator
+### 3.6 `ref_spend` spending validator
 
 #### 3.6.1 Parameter
 
@@ -302,7 +302,7 @@ Anything
 
   - must attach `Settings` NFT in reference inputs.
 
-  - must be signed by `cip68_admin` from `Settings`.
+  - must be signed by `ref_spend_admin` from `Settings`.
 
   - spending UTxO must have only one reference asset with `asset_name` from redeemer.
 
@@ -316,15 +316,15 @@ Anything
 
     - must NOT have reference_script.
 
-    - output address must be same as spending input or `cip68_script_address` from `Settings`.
+    - output address must be same as spending input or `ref_spend_script_address` from `Settings`.
 
-- `Migrate`: called when user (or admin) tries to migrate reference asset to latest CIP68 script.
+- `Migrate`: called when user (or admin) tries to migrate reference asset to latest Ref Spend script.
 
   - must attach `Settings` NFT in reference inputs.
 
   - first output must be UTxO with reference asset.
 
-    - output address must be same as `cip68_script_address` from `Settings`.
+    - output address must be same as `ref_spend_script_address` from `Settings`.
 
     - must have same value as spending input.
 
