@@ -15,7 +15,7 @@ pub fn all_orders_are_satisfied(
   inputs: List<Input>,
   outputs: List<Output>,
   policy_id: PolicyId,
-  cip68_script_address: Address,
+  ref_spend_script_address: Address,
   proofs: List<Proof>,
   root: mpt.MerklePatriciaForestry,
   expected_mint_value: Value,
@@ -59,7 +59,7 @@ pub fn all_orders_are_satisfied(
               user_output,
               policy_id,
               asset_name,
-              cip68_script_address,
+              ref_spend_script_address,
               destination_address,
               expected_mint_value,
               orders_mint_policy_id,
@@ -79,7 +79,7 @@ pub fn all_orders_are_satisfied(
             rest_inputs,
             rest_outputs,
             policy_id,
-            cip68_script_address,
+            ref_spend_script_address,
             rest_proofs,
             new_root,
             new_expected_mint_value,
@@ -95,7 +95,7 @@ pub fn all_orders_are_satisfied(
             rest_inputs,
             outputs,
             policy_id,
-            cip68_script_address,
+            ref_spend_script_address,
             proofs,
             root,
             expected_mint_value,
@@ -129,7 +129,7 @@ fn check_ref_and_user_outputs(
   user_output: Output,
   policy_id: PolicyId,
   asset_name: ByteArray,
-  cip68_script_address: Address,
+  ref_spend_script_address: Address,
   destination_address: Address,
   mint_value: Value,
   orders_mint_policy_id: PolicyId,
@@ -148,7 +148,7 @@ fn check_ref_and_user_outputs(
     user_output
 
   // check ref output
-  expect ref_output_address == cip68_script_address
+  expect ref_output_address == ref_spend_script_address
   let expected_ref_value =
     value.zero()
       |> value.add(policy_id, ref_asset_name, 1)
