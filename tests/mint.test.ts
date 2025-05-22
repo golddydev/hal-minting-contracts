@@ -126,11 +126,11 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsV1 } = settingsResult.data;
-      const { cip68_script_address } = settingsV1;
+      const { ref_spend_script_address } = settingsV1;
       const user1Balance = await balanceOfWallet(user1Wallet);
-      const cip68Balance = await balanceOfAddress(
+      const refSpendBalance = await balanceOfAddress(
         emulator,
-        cip68_script_address
+        ref_spend_script_address
       );
 
       assert(
@@ -140,10 +140,10 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "User 1 Wallet Balance is not correct"
       );
       assert(
-        cip68Balance.isGreaterOrEqual(
+        refSpendBalance.isGreaterOrEqual(
           referenceAssetValue(settingsV1.policy_id, assetNames[0])
         ) == true,
-        "CIP68 Wallet Balance is not correct"
+        "Ref Spend Wallet Balance is not correct"
       );
 
       // update minting data input
@@ -174,14 +174,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "user_1 can update <hal-1> datum",
     async ({ network, emulator, wallets, deployedScripts }) => {
-      const { usersWallets, cip68AdminWallet } = wallets;
+      const { usersWallets, refSpendAdminWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsV1 } = settingsResult.data;
-      const { policy_id, cip68_script_address } = settingsV1;
-      const refUtxos = await emulator.getUtxos(cip68_script_address);
+      const { policy_id, ref_spend_script_address } = settingsV1;
+      const refUtxos = await emulator.getUtxos(ref_spend_script_address);
 
       const assetUtf8Name = "hal-1";
       const assetHexName = Buffer.from(assetUtf8Name).toString("hex");
@@ -224,7 +224,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures([
-        ...(await cip68AdminWallet.signTx(tx)),
+        ...(await refSpendAdminWallet.signTx(tx)),
         ...(await user1Wallet.signTx(tx)),
       ]);
       const txId = await user1Wallet.submitTx(tx);
@@ -494,11 +494,11 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsV1 } = settingsResult.data;
-      const { cip68_script_address } = settingsV1;
+      const { ref_spend_script_address } = settingsV1;
       const user1Balance = await balanceOfWallet(user1Wallet);
-      const cip68Balance = await balanceOfAddress(
+      const refSpendBalance = await balanceOfAddress(
         emulator,
-        cip68_script_address
+        ref_spend_script_address
       );
 
       orders.map((order) => {
@@ -509,10 +509,10 @@ describe.sequential("Koralab H.A.L Tests", () => {
           "User 1 Wallet Balance is not correct"
         );
         assert(
-          cip68Balance.isGreaterOrEqual(
+          refSpendBalance.isGreaterOrEqual(
             referenceAssetValue(settingsV1.policy_id, order.assetUtf8Name)
           ) == true,
-          "CIP68 Wallet Balance is not correct"
+          "Ref Spend Wallet Balance is not correct"
         );
       });
 

@@ -189,7 +189,7 @@ const prepareMintTransaction = async (
   // After call this function
   // using txBuilder (returned value)
   // they have to continue with minting assets (ref and user assets)
-  // and sending them to correct addresses (to cip68 script address and destination addresses)
+  // and sending them to correct addresses (to ref spend script address and destination addresses)
 
   return Ok({
     txBuilder,

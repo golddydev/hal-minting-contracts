@@ -158,8 +158,8 @@ interface DeployedScripts {
   ordersMintScriptTxInput: TxInput;
   ordersSpendScriptDetails: ScriptDetails;
   ordersSpendScriptTxInput: TxInput;
-  cip68ScriptDetails: ScriptDetails;
-  cip68ScriptTxInput: TxInput;
+  refSpendScriptDetails: ScriptDetails;
+  refSpendScriptTxInput: TxInput;
 }
 
 const fetchAllDeployedScripts = async (
@@ -254,19 +254,22 @@ const fetchAllDeployedScripts = async (
         decodeUplcProgramV2FromCbor(ordersSpendScriptDetails.unoptimizedCbor)
       );
 
-    // "cip68.spend"
-    const cip68ScriptDetails = await fetchDeployedScript(
+    // "ref_spend.spend"
+    const refSpendScriptDetails = await fetchDeployedScript(
       ScriptType.DEMI_ORDERS
     );
-    invariant(cip68ScriptDetails.refScriptUtxo, "CIP68 has no Ref script UTxO");
-    const cip68ScriptTxInput = await blockfrostV0Client.getUtxo(
-      makeTxOutputId(cip68ScriptDetails.refScriptUtxo)
+    invariant(
+      refSpendScriptDetails.refScriptUtxo,
+      "Ref Spend has no Ref script UTxO"
     );
-    if (cip68ScriptDetails.unoptimizedCbor)
-      cip68ScriptTxInput.output.refScript = (
-        cip68ScriptTxInput.output.refScript as UplcProgramV2
+    const refSpendScriptTxInput = await blockfrostV0Client.getUtxo(
+      makeTxOutputId(refSpendScriptDetails.refScriptUtxo)
+    );
+    if (refSpendScriptDetails.unoptimizedCbor)
+      refSpendScriptTxInput.output.refScript = (
+        refSpendScriptTxInput.output.refScript as UplcProgramV2
       )?.withAlt(
-        decodeUplcProgramV2FromCbor(cip68ScriptDetails.unoptimizedCbor)
+        decodeUplcProgramV2FromCbor(refSpendScriptDetails.unoptimizedCbor)
       );
 
     return Ok({
@@ -280,8 +283,8 @@ const fetchAllDeployedScripts = async (
       ordersMintScriptTxInput,
       ordersSpendScriptDetails,
       ordersSpendScriptTxInput,
-      cip68ScriptDetails,
-      cip68ScriptTxInput,
+      refSpendScriptDetails,
+      refSpendScriptTxInput,
     });
   } catch (err) {
     return Err(convertError(err));

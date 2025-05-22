@@ -124,16 +124,16 @@ const getOrdersSpendUplcProgram = (
     );
 };
 
-const getCip68UplcProgram = (): UplcProgramV2 => {
+const getRefSpendUplcProgram = (): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "cip68.spend"
+    (validator) => validator.title == "ref_spend.spend"
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "cip68.spend"
+    (validator) => validator.title == "ref_spend.spend"
   );
   invariant(
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
-    "CIP68 Validator not found"
+    "Ref Spend Validator not found"
   );
   return decodeUplcProgramV2FromCbor(
     optimizedFoundValidator.compiledCode
@@ -143,10 +143,10 @@ const getCip68UplcProgram = (): UplcProgramV2 => {
 };
 
 export {
-  getCip68UplcProgram,
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
   getMintV1WithdrawUplcProgram,
   getOrdersMintUplcProgram,
   getOrdersSpendUplcProgram,
+  getRefSpendUplcProgram,
 };

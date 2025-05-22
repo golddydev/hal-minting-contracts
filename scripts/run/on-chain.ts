@@ -134,7 +134,7 @@ const buildSettingsDataCbor = () => {
     HAL_NFT_PRICE,
     PAYMENT_ADDRESS,
     ORDERS_MINTER,
-    CIP68_ADMIN,
+    REF_SPEND_ADMIN,
   } = configs;
 
   const contractsConfig = buildContracts({
@@ -148,7 +148,7 @@ const buildSettingsDataCbor = () => {
     mintingData: mintingDataConfig,
     ordersMint: ordersMintConfig,
     ordersSpend: ordersSpendConfig,
-    cip68: cip68Config,
+    refSpend: refSpendConfig,
   } = contractsConfig;
 
   // we already have settings asset using legacy handle.
@@ -157,13 +157,13 @@ const buildSettingsDataCbor = () => {
     allowed_minter: ALLOWED_MINTER,
     hal_nft_price: HAL_NFT_PRICE,
     payment_address: PAYMENT_ADDRESS,
-    cip68_script_address: cip68Config.cip68ValidatorAddress,
+    ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
     orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
     orders_mint_policy_id: ordersMintConfig.ordersMintPolicyHash.toHex(),
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
     orders_minter: ORDERS_MINTER,
-    cip68_admin: CIP68_ADMIN,
+    ref_spend_admin: REF_SPEND_ADMIN,
   };
   const settings: Settings = {
     mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),

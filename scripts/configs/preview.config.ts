@@ -24,8 +24,8 @@ export const PAYMENT_ADDRESS = makeAddress(
 export const ORDERS_MINTER =
   "976ec349c3a14f58959088e13e98f6cd5a1e8f27f6f3160b25e415ca";
 
-// cip68_admin
-export const CIP68_ADMIN =
+// ref_spend_admin
+export const REF_SPEND_ADMIN =
   "976ec349c3a14f58959088e13e98f6cd5a1e8f27f6f3160b25e415ca";
 
 // ------- End Settings Data -------
