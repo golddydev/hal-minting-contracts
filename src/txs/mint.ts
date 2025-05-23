@@ -4,14 +4,18 @@ import {
   Address,
   makeAssetClass,
   makeAssets,
+  makeInlineTxOutputDatum,
   makeMintingPolicyHash,
+  makeTxOutput,
   makeValidatorHash,
   makeValue,
+  TxOutput,
 } from "@helios-lang/ledger";
 import { NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
 import {
+  MAX_TRANSACTION_FEE,
   ORDER_ASSET_HEX_NAME,
   PREFIX_100,
   PREFIX_222,
@@ -22,6 +26,7 @@ import {
   decodeOrderDatum,
   makeVoidData,
 } from "../contracts/index.js";
+import { fetchNetworkParameters } from "../utils/index.js";
 import { DeployedScripts } from "./deploy.js";
 import { isValidOrderTxInput } from "./order.js";
 import { prepareMintTransaction } from "./prepareMint.js";
@@ -76,6 +81,15 @@ const mint = async (params: MintParams): Promise<Result<TxBuilder, Error>> => {
     };
   });
 
+  // fetch network params
+  const networkParamsResult = await fetchNetworkParameters(network);
+  if (!networkParamsResult.ok) {
+    return Err(
+      new Error(`Failed to fetch Network Params: ${networkParamsResult.error}`)
+    );
+  }
+  const networkParams = networkParamsResult.data;
+
   const preparedTxBuilderResult = await prepareMintTransaction({
     ...params,
     orderedAssets,
@@ -88,7 +102,7 @@ const mint = async (params: MintParams): Promise<Result<TxBuilder, Error>> => {
       )
     );
   }
-  const { txBuilder, settingsV1 } = preparedTxBuilderResult.data;
+  const { txBuilder, settingsV1, totalHalPrice } = preparedTxBuilderResult.data;
   const {
     mintProxyScriptDetails,
     ordersSpendScriptDetails,
@@ -197,6 +211,8 @@ const mint = async (params: MintParams): Promise<Result<TxBuilder, Error>> => {
 
   // <-- spend order utxos and mint handle
   // and send minted handle to destination with datum
+  let totalMinLovelace: bigint = 0n;
+  const halNftOutputs: TxOutput[] = [];
   for (const mintingHandle of mintingHandlesData) {
     const {
       orderTxInput,
@@ -206,15 +222,29 @@ const mint = async (params: MintParams): Promise<Result<TxBuilder, Error>> => {
       assetDatum,
     } = mintingHandle;
 
-    txBuilder
-      .spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer)
-      .payUnsafe(
-        settingsV1.ref_spend_script_address,
-        refHandleValue,
-        assetDatum
-      )
-      .payUnsafe(destinationAddress, userHandleValue);
+    const refOutput = makeTxOutput(
+      settingsV1.ref_spend_script_address,
+      refHandleValue,
+      assetDatum
+    );
+    refOutput.correctLovelace(networkParams);
+    const userOutput = makeTxOutput(destinationAddress, userHandleValue);
+    userOutput.correctLovelace(networkParams);
+    totalMinLovelace += refOutput.value.lovelace + userOutput.value.lovelace;
+    halNftOutputs.push(refOutput, userOutput);
+
+    txBuilder.spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer);
   }
+
+  // insert payment output as second output
+  const requiredPaymentLovelace =
+    totalHalPrice - totalMinLovelace - MAX_TRANSACTION_FEE;
+  const paymentOutput = makeTxOutput(
+    settingsV1.payment_address,
+    makeValue(requiredPaymentLovelace),
+    makeInlineTxOutputDatum(makeVoidData())
+  );
+  txBuilder.addOutput(paymentOutput, ...halNftOutputs);
 
   return Ok(txBuilder);
 };

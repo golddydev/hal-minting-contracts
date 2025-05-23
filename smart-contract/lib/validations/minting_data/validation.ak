@@ -6,10 +6,13 @@ use aiken/transaction.{
 use aiken/transaction/value
 use common/hashes.{VerificationKeyHash}
 use hal_nft_mint/minting_data.{MintingData, resolve_minting_data}
+use hal_nft_mint/orders.{order_asset_name}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/minting_data/types.{Proof}
 use validations/minting_data/utils.{all_orders_are_satisfied}
+
+const max_transaction_fee: Int = 5_000_000
 
 // Validation:
 // All H.A.L. Minting logic is here
@@ -24,7 +27,9 @@ use validations/minting_data/utils.{all_orders_are_satisfied}
 // - first output must be minting_data output with updated root hash
 //   with same value as spending UTxO
 // - second output must be payment output with total H.A.L. NFTs price
-// - must mint only H.A.L. NFTs and burn Order NFTs
+//   subtracted by total min lovelace and transaction fee
+// - must mint only H.A.L. NFTs
+// - must burn Order NFTs (total hal nft count)
 //
 pub fn can_mint(
   transaction: Transaction,
@@ -74,8 +79,10 @@ pub fn can_mint(
   // with proofs from redeemer
   let
     new_root,
-    expected_mint_value,
+    expected_hal_value,
     total_price,
+    total_hal_nft_count,
+    total_min_lovelace,
   <-
     all_orders_are_satisfied(
       orders_spend_script_address,
@@ -87,6 +94,8 @@ pub fn can_mint(
       proofs,
       root,
       value.zero(),
+      0,
+      0,
       0,
     )
 
@@ -107,16 +116,32 @@ pub fn can_mint(
   expect minting_data_output.reference_script == None
 
   // second output must be payment output with total H.A.L. NFTs price
+  // subtract total min lovelace and max transaction fee from total price
   let Output {
     address: payment_output_address,
     value: payment_output_value,
     ..
   } = payment_output
   expect payment_output_address == payment_address
-  expect value.lovelace_of(payment_output_value) >= total_price
+  let expected_payment = total_price - total_min_lovelace - max_transaction_fee
+  expect expected_payment > 0
+  let payment_correctly_paid =
+    value.lovelace_of(payment_output_value) >= expected_payment
+  expect payment_correctly_paid
 
   // must mint only H.A.L. NFTs and burn Order NFTs
-  expect value.from_minted_value(mint) == expected_mint_value
+  let minted_value = value.from_minted_value(mint)
+  let hal_nfts_minted_correctly =
+    value.tokens(minted_value, policy_id) == value.tokens(
+      expected_hal_value,
+      policy_id,
+    )
+  expect hal_nfts_minted_correctly
+
+  // must burn Order NFTs
+  let order_nfts_burnt_correctly =
+    value.quantity_of(minted_value, orders_mint_policy_id, order_asset_name) == -total_hal_nft_count
+  expect order_nfts_burnt_correctly
 
   True
 }

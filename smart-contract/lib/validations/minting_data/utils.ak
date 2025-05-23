@@ -8,7 +8,9 @@ use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{OrderDatum, order_asset_name}
 use validations/minting_data/types.{Proof}
 
-// This function checks only new handles orders are satisfied
+const max_min_lovelace: Int = 2_000_000
+
+// This function checks orders are satisfied
 pub fn all_orders_are_satisfied(
   orders_spend_script_address: Address,
   orders_mint_policy_id: PolicyId,
@@ -18,13 +20,22 @@ pub fn all_orders_are_satisfied(
   ref_spend_script_address: Address,
   proofs: List<Proof>,
   root: mpt.MerklePatriciaForestry,
-  expected_mint_value: Value,
+  expected_hal_value: Value,
   total_price: Int,
-  continuation: fn(mpt.MerklePatriciaForestry, Value, Int) -> result,
+  total_hal_nft_count: Int,
+  total_min_lovelace: Int,
+  continuation: fn(mpt.MerklePatriciaForestry, Value, Int, Int, Int) -> result,
 ) -> result {
   // go through inputs and process order UTxO
   when inputs is {
-    [] -> continuation(root, expected_mint_value, total_price)
+    [] ->
+      continuation(
+        root,
+        expected_hal_value,
+        total_price,
+        total_hal_nft_count,
+        total_min_lovelace,
+      )
     [order_input, ..rest_inputs] -> {
       let Output { address, datum, value: order_input_value, .. } =
         order_input.output
@@ -53,7 +64,7 @@ pub fn all_orders_are_satisfied(
           // check minted assets are correctly sent to correct address
           // and new_mint_value and ref output's datum hash (to update mpt)
           expect [ref_output, user_output, ..rest_outputs] = outputs
-          let new_expected_mint_value =
+          let (new_expected_hal_value, min_lovelace) =
             check_ref_and_user_outputs(
               ref_output,
               user_output,
@@ -61,8 +72,7 @@ pub fn all_orders_are_satisfied(
               asset_name,
               ref_spend_script_address,
               destination_address,
-              expected_mint_value,
-              orders_mint_policy_id,
+              expected_hal_value,
             )
 
           // update root
@@ -70,8 +80,12 @@ pub fn all_orders_are_satisfied(
           // with old value (empty bytearray)
           let new_root = update_root(root, asset_name, mpt_proof)
 
-          // update total price
+          // update total price and count
           let new_total_price = total_price + price
+          let new_total_hal_nft_count = total_hal_nft_count + 1
+
+          // update total min lovelace
+          let new_total_min_lovelace = total_min_lovelace + min_lovelace
 
           all_orders_are_satisfied(
             orders_spend_script_address,
@@ -82,8 +96,10 @@ pub fn all_orders_are_satisfied(
             ref_spend_script_address,
             rest_proofs,
             new_root,
-            new_expected_mint_value,
+            new_expected_hal_value,
             new_total_price,
+            new_total_hal_nft_count,
+            new_total_min_lovelace,
             continuation,
           )
         }
@@ -98,8 +114,10 @@ pub fn all_orders_are_satisfied(
             ref_spend_script_address,
             proofs,
             root,
-            expected_mint_value,
+            expected_hal_value,
             total_price,
+            total_hal_nft_count,
+            total_min_lovelace,
             continuation,
           )
       }
@@ -120,9 +138,10 @@ pub fn is_asset_name_valid(
 }
 
 // This function checks ref and user outputs
-// and returns new mint value
+// and returns new hal tokens
 // and returns asset's datum's hash
 // we expect datum not to be NoDatum
+// and return min lovelace used for ref and user output
 //
 fn check_ref_and_user_outputs(
   ref_output: Output,
@@ -131,9 +150,8 @@ fn check_ref_and_user_outputs(
   asset_name: ByteArray,
   ref_spend_script_address: Address,
   destination_address: Address,
-  mint_value: Value,
-  orders_mint_policy_id: PolicyId,
-) -> Value {
+  hal_value: Value,
+) -> (Value, Int) {
   // make ref asset name and user asset name from asset_name
   let ref_asset_name = bytearray.concat(prefix_100, asset_name)
   let user_asset_name = bytearray.concat(prefix_222, asset_name)
@@ -152,7 +170,13 @@ fn check_ref_and_user_outputs(
   let expected_ref_value =
     value.zero()
       |> value.add(policy_id, ref_asset_name, 1)
-  expect value.without_lovelace(ref_output_value) == expected_ref_value
+  let does_ref_output_have_asset =
+    value.without_lovelace(ref_output_value) == expected_ref_value
+  expect does_ref_output_have_asset
+  // get min lovelace and check that must be smaller than 2 ada
+  let ref_min_lovelace = value.lovelace_of(ref_output_value)
+  expect ref_min_lovelace <= max_min_lovelace
+
   // set reference asset's datum
   expect ref_output_reference_script == None
 
@@ -161,16 +185,17 @@ fn check_ref_and_user_outputs(
   let does_user_output_value_have_asset =
     value.quantity_of(user_output_value, policy_id, user_asset_name) == 1
   expect does_user_output_value_have_asset
+  // get min lovelace and check that must be smaller than 2 ada
+  let user_min_lovelace = value.lovelace_of(user_output_value)
+  expect user_min_lovelace <= max_min_lovelace
 
-  // update mint value
-  // and burn order token
-  let new_mint_value =
-    mint_value
+  // update hal tokens
+  let new_hal_value =
+    hal_value
       |> value.add(policy_id, ref_asset_name, 1)
       |> value.add(policy_id, user_asset_name, 1)
-      |> value.add(orders_mint_policy_id, order_asset_name, -1)
 
-  new_mint_value
+  (new_hal_value, ref_min_lovelace + user_min_lovelace)
 }
 
 // This function updates the mpt root

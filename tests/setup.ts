@@ -117,8 +117,7 @@ const setup = async () => {
   emulator.tick(200);
 
   // allowed minter wallet
-  const allowedMinterWallet: SimpleWallet =
-    emulator.createWallet(ACCOUNT_LOVELACE);
+  const allowedMinterWallet: SimpleWallet = emulator.createWallet(5_000_000n);
   emulator.tick(200);
   const allowedMinterPubKeyHash: string =
     allowedMinterWallet.spendingPubKeyHash.toHex();

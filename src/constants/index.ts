@@ -31,6 +31,7 @@ export const CONTRACT_NAMES = [
   "minting_data.spend",
   "orders_mint.mint",
   "orders_spend.spend",
+  "ref_spend.spend",
 ];
 
 export const LEGACY_POLICY_ID =
@@ -43,3 +44,6 @@ export const MPT_MINTED_VALUE = "minted";
 
 export const ORDER_ASSET_UTF8_NAME = "HAL_ORDER";
 export const ORDER_ASSET_HEX_NAME = "48414c5f4f52444552";
+
+// max transaction fee
+export const MAX_TRANSACTION_FEE = 5_000_000n;
