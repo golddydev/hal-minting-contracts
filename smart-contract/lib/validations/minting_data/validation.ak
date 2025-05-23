@@ -12,6 +12,8 @@ use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/minting_data/types.{Proof}
 use validations/minting_data/utils.{all_orders_are_satisfied}
 
+const max_transaction_fee: Int = 5_000_000
+
 // Validation:
 // All H.A.L. Minting logic is here
 //
@@ -39,7 +41,6 @@ pub fn can_mint(
     inputs,
     reference_inputs,
     outputs,
-    fee,
     extra_signatories,
     mint,
     ..
@@ -115,15 +116,14 @@ pub fn can_mint(
   expect minting_data_output.reference_script == None
 
   // second output must be payment output with total H.A.L. NFTs price
-  // subtract total min lovelace and transaction fee from total price
+  // subtract total min lovelace and max transaction fee from total price
   let Output {
     address: payment_output_address,
     value: payment_output_value,
     ..
   } = payment_output
   expect payment_output_address == payment_address
-  let expected_payment =
-    total_price - total_min_lovelace - value.lovelace_of(fee)
+  let expected_payment = total_price - total_min_lovelace - max_transaction_fee
   expect expected_payment > 0
   let payment_correctly_paid =
     value.lovelace_of(payment_output_value) >= expected_payment

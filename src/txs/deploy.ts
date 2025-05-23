@@ -62,6 +62,7 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
     mintingData: mintingDataConfig,
     ordersMint: ordersMintConfig,
     ordersSpend: ordersSpendConfig,
+    refSpend: refSpendConfig,
   } = contractsConfig;
 
   switch (contractName) {
@@ -129,9 +130,17 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
         validatorHash: ordersSpendConfig.ordersValidatorHash.toHex(),
         scriptAddress: ordersSpendConfig.ordersSpendValidatorAddress.toBech32(),
       };
+    case "ref_spend.spend":
+      return {
+        ...extractScriptCborsFromUplcProgram(
+          refSpendConfig.refSpendUplcProgram
+        ),
+        validatorHash: refSpendConfig.refSpendValidatorHash.toHex(),
+        scriptAddress: refSpendConfig.refSpendValidatorAddress.toBech32(),
+      };
     default:
       throw new Error(
-        `Contract name must be one of "mint_proxy.mint" | "mint_v1.withdraw" | "minting_data_proxy.spend" | "minting_data_v1.withdraw" | "orders_spend.spend" | "orders_mint.mint"`
+        `Contract name must be one of "mint_proxy.mint" | "mint_v1.withdraw" | "minting_data_proxy.spend" | "minting_data_v1.withdraw" | "orders_spend.spend" | "orders_mint.mint" | "ref_spend.spend"`
       );
   }
 };

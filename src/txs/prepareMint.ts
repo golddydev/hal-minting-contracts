@@ -16,7 +16,6 @@ import {
   buildMintingData,
   buildMintingDataMintRedeemer,
   buildMintV1MintHandlesRedeemer,
-  makeVoidData,
   MintingData,
   parseMPTProofJSON,
   Proof,
@@ -56,6 +55,7 @@ const prepareMintTransaction = async (
       txBuilder: TxBuilder;
       settings: Settings;
       settingsV1: SettingsV1;
+      totalHalPrice: bigint;
     },
     Error
   >
@@ -79,7 +79,7 @@ const prepareMintTransaction = async (
   if (!settingsResult.ok)
     return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
   const { settings, settingsV1, settingsAssetTxInput } = settingsResult.data;
-  const { hal_nft_price, allowed_minter, payment_address } = settingsV1;
+  const { hal_nft_price, allowed_minter } = settingsV1;
 
   const mintingDataResult = await fetchMintingData();
   if (!mintingDataResult.ok)
@@ -178,13 +178,6 @@ const prepareMintTransaction = async (
     mintV1MintHandlesRedeemer
   );
 
-  // <-- pay hal nft price to payment address
-  txBuilder.payUnsafe(
-    payment_address,
-    makeValue(totalPrice),
-    makeInlineTxOutputDatum(makeVoidData())
-  );
-
   // NOTE:
   // After call this function
   // using txBuilder (returned value)
@@ -195,6 +188,7 @@ const prepareMintTransaction = async (
     txBuilder,
     settings,
     settingsV1,
+    totalHalPrice: totalPrice,
   });
 };
 

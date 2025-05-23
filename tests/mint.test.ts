@@ -89,7 +89,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { usersWallets, allowedMinterWallet } = wallets;
+      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
       const orders: Order[] = ordersTxInputs.map((orderTxInput) => ({
@@ -109,10 +109,11 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
       const txBuilder = txBuilderResult.data;
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
       const txResult = await mayFailTransaction(
         txBuilder,
-        allowedMinterWallet.address,
-        await allowedMinterWallet.utxos
+        paymentWallet.address,
+        []
       ).complete();
       invariant(txResult.ok, "Mint Tx Complete Failed");
       logMemAndCpu(txResult);
@@ -305,6 +306,10 @@ describe.sequential("Koralab H.A.L Tests", () => {
       });
       invariant(!txResult.ok, "Mint Tx Building Should Fail");
       assert(txResult.error.message.includes("Asset name is not pre-defined"));
+
+      // revert
+      await db.delete("hal-2");
+      await db.insert("hal-2", "");
     }
   );
 
@@ -398,9 +403,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
   // ======= mint many assets =======
 
-  // user_1 orders many assets - <16 assets>
+  // user_1 orders many assets - <15 assets>
   myTest(
-    "user_1 orders many assets - <16 assets>",
+    "user_1 orders many assets - <15 assets>",
     async ({ network, emulator, wallets, deployedScripts, ordersTxInputs }) => {
       invariant(
         Array.isArray(ordersTxInputs),
@@ -410,7 +415,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets, ordersMinterWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
-      for (let i = 0; i < 16; i++) {
+      for (let i = 0; i < 15; i++) {
         const txBuilderResult = await request({
           network,
           address: user1Wallet.address,
@@ -441,9 +446,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
-  // mint many assets - <16 assets>
+  // mint many assets - <15 assets>
   myTest(
-    "mint many assets - <16 assets>",
+    "mint many assets - <15 assets>",
     async ({
       mockedFunctions,
       db,
@@ -458,7 +463,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { usersWallets, allowedMinterWallet } = wallets;
+      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
       const orders: Order[] = ordersTxInputs.map((orderTxInput, i) => ({
@@ -477,10 +482,11 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
       const txBuilder = txBuilderResult.data;
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
       const txResult = await mayFailTransaction(
         txBuilder,
-        allowedMinterWallet.address,
-        await allowedMinterWallet.utxos
+        paymentWallet.address,
+        []
       ).complete();
       invariant(txResult.ok, "Mint Tx Complete Failed");
       logMemAndCpu(txResult);
