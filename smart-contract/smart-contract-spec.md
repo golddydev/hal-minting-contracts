@@ -164,7 +164,9 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
     - payment_output: Output for H.A.L. NFTs minting cost.
 
-      - must have more or equal lovelace to H.A.L. NFTs minting cost which is sum of `price` from `OrderDatum` of all `Order UTxOs`
+      - must have more or equal lovelace to H.A.L. NFTs minting cost which is sum of `price` from `OrderDatum` of all `Order UTxOs` substracted by min lovelace used for `reference_output` and `user_output` and transaction fee.
+
+        > Order UTxO must pay everything.
 
     - rest_outputs: List of Pair of (`reference output`, `user_output`).
 
@@ -180,7 +182,9 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
       > The pairs must be in same order as `Order UTxOs` in transaction inputs and `Proofs` in redeemer.
 
-    - assure that only Pair of H.A.L. `reference_asset` and `user_asset` for `Proofs` are minted
+    - assure that Pair of H.A.L. `reference_asset` and `user_asset` for `Proofs` are minted
+
+    - assure that Order NFTs are burnt (same amount as H.A.L. NFTs. `Ref` and `User` NFTs correspond one Order NFT.)
 
 - `UpdateMPT`: called when `Admin` tries to update `MPF` `root_hash`.
 
