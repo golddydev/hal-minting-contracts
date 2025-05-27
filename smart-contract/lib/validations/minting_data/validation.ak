@@ -12,6 +12,7 @@ use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/minting_data/types.{Proof}
 use validations/minting_data/utils.{
   all_orders_are_satisfied, calculate_total_min_lovelace,
+  filter_order_inputs_to_order_datum_list,
 }
 
 // enough to pay transaction fee
@@ -81,6 +82,15 @@ pub fn can_mint(
   // build merkle patricia trie from old root hash
   let root = mpt.from_root(mpt_root_hash)
 
+  // filter order inputs to order datum list
+  let order_datum_list <-
+    filter_order_inputs_to_order_datum_list(
+      inputs,
+      orders_spend_script_address,
+      orders_mint_policy_id,
+      [],
+    )
+
   // all orders are satisfied correctly
   // and minted values are sent to correct addresses
   // and order NFTs are burnt correctly
@@ -91,9 +101,7 @@ pub fn can_mint(
     total_price,
   <-
     all_orders_are_satisfied(
-      orders_spend_script_address,
-      orders_mint_policy_id,
-      inputs,
+      order_datum_list,
       rest_outputs,
       policy_id,
       ref_spend_script_address,

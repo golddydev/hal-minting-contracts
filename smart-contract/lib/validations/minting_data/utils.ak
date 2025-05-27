@@ -12,9 +12,7 @@ const max_min_lovelace: Int = 2_000_000
 
 // This function checks orders are satisfied
 pub fn all_orders_are_satisfied(
-  orders_spend_script_address: Address,
-  orders_mint_policy_id: PolicyId,
-  inputs: List<Input>,
+  order_datum_list: List<OrderDatum>,
   outputs: List<Output>,
   policy_id: PolicyId,
   ref_spend_script_address: Address,
@@ -25,85 +23,49 @@ pub fn all_orders_are_satisfied(
   continuation: fn(mpt.MerklePatriciaForestry, Value, Int) -> result,
 ) -> result {
   // go through inputs and process order UTxO
-  when inputs is {
+  when order_datum_list is {
     [] -> continuation(root, expected_hal_value, total_price)
-    [order_input, ..rest_inputs] -> {
-      let Output { address, datum, value: order_input_value, .. } =
-        order_input.output
-      let is_order = address == orders_spend_script_address
-      when is_order is {
-        True -> {
-          // parse order datum
-          expect InlineDatum(datum) = datum
-          expect order_datum: OrderDatum = datum
-          let OrderDatum { price, destination_address, .. } = order_datum
+    [order_datum, ..rest_order_datum_list] -> {
+      let OrderDatum { price, destination_address, .. } = order_datum
 
-          // check order has order token
-          let has_order_token =
-            value.quantity_of(
-              order_input_value,
-              orders_mint_policy_id,
-              order_asset_name,
-            ) == 1
-          expect has_order_token
+      // parse proofs
+      expect [proof, ..rest_proofs] = proofs
+      let Proof { mpt_proof, asset_name } = proof
 
-          // parse proofs
-          expect [proof, ..rest_proofs] = proofs
-          let Proof { mpt_proof, asset_name } = proof
+      // extract ref & user output
+      // check minted assets are correctly sent to correct address
+      // and new_mint_value and ref output's datum hash (to update mpt)
+      expect [ref_output, user_output, ..rest_outputs] = outputs
+      let new_expected_hal_value =
+        check_ref_and_user_outputs(
+          ref_output,
+          user_output,
+          policy_id,
+          asset_name,
+          ref_spend_script_address,
+          destination_address,
+          expected_hal_value,
+        )
 
-          // extract ref & user output
-          // check minted assets are correctly sent to correct address
-          // and new_mint_value and ref output's datum hash (to update mpt)
-          expect [ref_output, user_output, ..rest_outputs] = outputs
-          let new_expected_hal_value =
-            check_ref_and_user_outputs(
-              ref_output,
-              user_output,
-              policy_id,
-              asset_name,
-              ref_spend_script_address,
-              destination_address,
-              expected_hal_value,
-            )
+      // update root
+      // this function also checks asset name is in trie
+      // with old value (empty bytearray)
+      let new_root = update_root(root, asset_name, mpt_proof)
 
-          // update root
-          // this function also checks asset name is in trie
-          // with old value (empty bytearray)
-          let new_root = update_root(root, asset_name, mpt_proof)
+      // update total price and count
+      let new_total_price = total_price + price
 
-          // update total price and count
-          let new_total_price = total_price + price
-
-          all_orders_are_satisfied(
-            orders_spend_script_address,
-            orders_mint_policy_id,
-            rest_inputs,
-            rest_outputs,
-            policy_id,
-            ref_spend_script_address,
-            rest_proofs,
-            new_root,
-            new_expected_hal_value,
-            new_total_price,
-            continuation,
-          )
-        }
-
-        False ->
-          all_orders_are_satisfied(
-            orders_spend_script_address,
-            orders_mint_policy_id,
-            rest_inputs,
-            outputs,
-            policy_id,
-            ref_spend_script_address,
-            proofs,
-            root,
-            expected_hal_value,
-            total_price,
-            continuation,
-          )
-      }
+      all_orders_are_satisfied(
+        rest_order_datum_list,
+        rest_outputs,
+        policy_id,
+        ref_spend_script_address,
+        rest_proofs,
+        new_root,
+        new_expected_hal_value,
+        new_total_price,
+        continuation,
+      )
     }
   }
 }
@@ -188,6 +150,55 @@ fn update_root(
   mpt_proof: mpt.Proof,
 ) -> mpt.MerklePatriciaForestry {
   root |> mpt.update(asset_name, mpt_proof, #"", mpt_minted_value)
+}
+
+pub fn filter_order_inputs_to_order_datum_list(
+  inputs: List<Input>,
+  orders_spend_script_address: Address,
+  orders_mint_policy_id: PolicyId,
+  order_datum_list: List<OrderDatum>,
+  continuation: fn(List<OrderDatum>) -> result,
+) -> result {
+  when inputs is {
+    [] -> continuation(order_datum_list)
+    [order_input, ..rest_inputs] -> {
+      let Output { address, datum, value: order_input_value, .. } =
+        order_input.output
+      let is_order = address == orders_spend_script_address
+      when is_order is {
+        True -> {
+          // parse order datum
+          expect InlineDatum(datum) = datum
+          expect order_datum: OrderDatum = datum
+
+          // check order has order token
+          let has_order_token =
+            value.quantity_of(
+              order_input_value,
+              orders_mint_policy_id,
+              order_asset_name,
+            ) == 1
+          expect has_order_token
+
+          filter_order_inputs_to_order_datum_list(
+            rest_inputs,
+            orders_spend_script_address,
+            orders_mint_policy_id,
+            [order_datum, ..order_datum_list],
+            continuation,
+          )
+        }
+        False ->
+          filter_order_inputs_to_order_datum_list(
+            rest_inputs,
+            orders_spend_script_address,
+            orders_mint_policy_id,
+            order_datum_list,
+            continuation,
+          )
+      }
+    }
+  }
 }
 
 // This function calculates total min lovelace from outputs

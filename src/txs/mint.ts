@@ -63,9 +63,11 @@ const mint = async (params: MintParams): Promise<Result<TxBuilder, Error>> => {
   // sort orderUtxos before process
   // because tx inputs is sorted lexicographically
   // we have to insert handle in same order as tx inputs
-  orders.sort((a, b) =>
-    a.orderTxInput.id.toString() > b.orderTxInput.id.toString() ? 1 : -1
-  );
+  orders
+    .sort((a, b) =>
+      a.orderTxInput.id.toString() > b.orderTxInput.id.toString() ? 1 : -1
+    )
+    .reverse();
   if (orders.length == 0) return Err(new Error("No Order requested"));
   console.log(`${orders.length} Orders are picked`);
 
