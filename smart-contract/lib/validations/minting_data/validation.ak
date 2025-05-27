@@ -10,9 +10,15 @@ use hal_nft_mint/orders.{order_asset_name}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/minting_data/types.{Proof}
-use validations/minting_data/utils.{all_orders_are_satisfied}
+use validations/minting_data/utils.{
+  all_orders_are_satisfied, calculate_total_min_lovelace,
+  filter_order_inputs_to_order_datum_list,
+}
 
-const max_transaction_fee: Int = 5_000_000
+// enough to pay transaction fee
+// and cover collateral
+// and make change UTxO
+const max_change_lovelace: Int = 5_000_000
 
 // Validation:
 // All H.A.L. Minting logic is here
@@ -70,8 +76,20 @@ pub fn can_mint(
   // parse outputs
   expect [minting_data_output, payment_output, ..rest_outputs] = outputs
 
+  // total hal nft count
+  let total_hal_nft_count = list.length(proofs)
+
   // build merkle patricia trie from old root hash
   let root = mpt.from_root(mpt_root_hash)
+
+  // filter order inputs to order datum list
+  let order_datum_list <-
+    filter_order_inputs_to_order_datum_list(
+      inputs,
+      orders_spend_script_address,
+      orders_mint_policy_id,
+      [],
+    )
 
   // all orders are satisfied correctly
   // and minted values are sent to correct addresses
@@ -81,13 +99,9 @@ pub fn can_mint(
     new_root,
     expected_hal_value,
     total_price,
-    total_hal_nft_count,
-    total_min_lovelace,
   <-
     all_orders_are_satisfied(
-      orders_spend_script_address,
-      orders_mint_policy_id,
-      inputs,
+      order_datum_list,
       rest_outputs,
       policy_id,
       ref_spend_script_address,
@@ -95,9 +109,10 @@ pub fn can_mint(
       root,
       value.zero(),
       0,
-      0,
-      0,
     )
+
+  // calculate total min lovelace
+  let total_min_lovelace = calculate_total_min_lovelace(rest_outputs)
 
   // calculate new root and expected mint value
   let new_mpt_root_hash = new_root |> mpt.root
@@ -116,14 +131,14 @@ pub fn can_mint(
   expect minting_data_output.reference_script == None
 
   // second output must be payment output with total H.A.L. NFTs price
-  // subtract total min lovelace and max transaction fee from total price
+  // subtract total min lovelace and max change lovelace from total price
   let Output {
     address: payment_output_address,
     value: payment_output_value,
     ..
   } = payment_output
   expect payment_output_address == payment_address
-  let expected_payment = total_price - total_min_lovelace - max_transaction_fee
+  let expected_payment = total_price - total_min_lovelace - max_change_lovelace
   expect expected_payment > 0
   let payment_correctly_paid =
     value.lovelace_of(payment_output_value) >= expected_payment
