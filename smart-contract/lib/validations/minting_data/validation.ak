@@ -10,8 +10,13 @@ use hal_nft_mint/orders.{order_asset_name}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/minting_data/types.{Proof}
-use validations/minting_data/utils.{all_orders_are_satisfied}
+use validations/minting_data/utils.{
+  all_orders_are_satisfied, calculate_total_min_lovelace,
+}
 
+// enough to pay transaction fee
+// and cover collateral
+// and make change UTxO
 const max_change_lovelace: Int = 5_000_000
 
 // Validation:
@@ -82,7 +87,6 @@ pub fn can_mint(
     expected_hal_value,
     total_price,
     total_hal_nft_count,
-    total_min_lovelace,
   <-
     all_orders_are_satisfied(
       orders_spend_script_address,
@@ -96,8 +100,10 @@ pub fn can_mint(
       value.zero(),
       0,
       0,
-      0,
     )
+
+  // calculate total min lovelace
+  let total_min_lovelace = calculate_total_min_lovelace(rest_outputs)
 
   // calculate new root and expected mint value
   let new_mpt_root_hash = new_root |> mpt.root

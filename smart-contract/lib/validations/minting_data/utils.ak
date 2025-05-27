@@ -23,19 +23,12 @@ pub fn all_orders_are_satisfied(
   expected_hal_value: Value,
   total_price: Int,
   total_hal_nft_count: Int,
-  total_min_lovelace: Int,
-  continuation: fn(mpt.MerklePatriciaForestry, Value, Int, Int, Int) -> result,
+  continuation: fn(mpt.MerklePatriciaForestry, Value, Int, Int) -> result,
 ) -> result {
   // go through inputs and process order UTxO
   when inputs is {
     [] ->
-      continuation(
-        root,
-        expected_hal_value,
-        total_price,
-        total_hal_nft_count,
-        total_min_lovelace,
-      )
+      continuation(root, expected_hal_value, total_price, total_hal_nft_count)
     [order_input, ..rest_inputs] -> {
       let Output { address, datum, value: order_input_value, .. } =
         order_input.output
@@ -64,7 +57,7 @@ pub fn all_orders_are_satisfied(
           // check minted assets are correctly sent to correct address
           // and new_mint_value and ref output's datum hash (to update mpt)
           expect [ref_output, user_output, ..rest_outputs] = outputs
-          let (new_expected_hal_value, min_lovelace) =
+          let new_expected_hal_value =
             check_ref_and_user_outputs(
               ref_output,
               user_output,
@@ -84,9 +77,6 @@ pub fn all_orders_are_satisfied(
           let new_total_price = total_price + price
           let new_total_hal_nft_count = total_hal_nft_count + 1
 
-          // update total min lovelace
-          let new_total_min_lovelace = total_min_lovelace + min_lovelace
-
           all_orders_are_satisfied(
             orders_spend_script_address,
             orders_mint_policy_id,
@@ -99,7 +89,6 @@ pub fn all_orders_are_satisfied(
             new_expected_hal_value,
             new_total_price,
             new_total_hal_nft_count,
-            new_total_min_lovelace,
             continuation,
           )
         }
@@ -117,7 +106,6 @@ pub fn all_orders_are_satisfied(
             expected_hal_value,
             total_price,
             total_hal_nft_count,
-            total_min_lovelace,
             continuation,
           )
       }
@@ -151,7 +139,7 @@ fn check_ref_and_user_outputs(
   ref_spend_script_address: Address,
   destination_address: Address,
   hal_value: Value,
-) -> (Value, Int) {
+) -> Value {
   // make ref asset name and user asset name from asset_name
   let ref_asset_name = bytearray.concat(prefix_100, asset_name)
   let user_asset_name = bytearray.concat(prefix_222, asset_name)
@@ -173,9 +161,6 @@ fn check_ref_and_user_outputs(
   let does_ref_output_have_asset =
     value.without_lovelace(ref_output_value) == expected_ref_value
   expect does_ref_output_have_asset
-  // get min lovelace and check that must be smaller than 2 ada
-  let ref_min_lovelace = value.lovelace_of(ref_output_value)
-  expect ref_min_lovelace <= max_min_lovelace
 
   // set reference asset's datum
   expect ref_output_reference_script == None
@@ -185,9 +170,6 @@ fn check_ref_and_user_outputs(
   let does_user_output_value_have_asset =
     value.quantity_of(user_output_value, policy_id, user_asset_name) == 1
   expect does_user_output_value_have_asset
-  // get min lovelace and check that must be smaller than 2 ada
-  let user_min_lovelace = value.lovelace_of(user_output_value)
-  expect user_min_lovelace <= max_min_lovelace
 
   // update hal tokens
   let new_hal_value =
@@ -195,7 +177,7 @@ fn check_ref_and_user_outputs(
       |> value.add(policy_id, ref_asset_name, 1)
       |> value.add(policy_id, user_asset_name, 1)
 
-  (new_hal_value, ref_min_lovelace + user_min_lovelace)
+  new_hal_value
 }
 
 // This function updates the mpt root
@@ -211,4 +193,32 @@ fn update_root(
   mpt_proof: mpt.Proof,
 ) -> mpt.MerklePatriciaForestry {
   root |> mpt.update(asset_name, mpt_proof, #"", mpt_minted_value)
+}
+
+// This function calculates total min lovelace from outputs
+// we expect that the last output is change output to payment address
+// and we don't take that into account
+//
+pub fn calculate_total_min_lovelace(outputs: List<Output>) -> Int {
+  do_calculate_total_min_lovelace(outputs, 0)
+}
+
+fn do_calculate_total_min_lovelace(
+  outputs: List<Output>,
+  total_min_lovelace: Int,
+) -> Int {
+  when outputs is {
+    [] -> total_min_lovelace
+    [_change_output] -> total_min_lovelace
+    [output, ..rest_outputs] -> {
+      let Output { value, .. } = output
+      let lovelace = value.lovelace_of(value)
+      // lovelace must be smaller than max_min_lovelace
+      expect lovelace <= max_min_lovelace
+      do_calculate_total_min_lovelace(
+        rest_outputs,
+        total_min_lovelace + lovelace,
+      )
+    }
+  }
 }
