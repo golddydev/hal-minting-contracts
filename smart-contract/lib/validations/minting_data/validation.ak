@@ -75,6 +75,9 @@ pub fn can_mint(
   // parse outputs
   expect [minting_data_output, payment_output, ..rest_outputs] = outputs
 
+  // total hal nft count
+  let total_hal_nft_count = list.length(proofs)
+
   // build merkle patricia trie from old root hash
   let root = mpt.from_root(mpt_root_hash)
 
@@ -86,7 +89,6 @@ pub fn can_mint(
     new_root,
     expected_hal_value,
     total_price,
-    total_hal_nft_count,
   <-
     all_orders_are_satisfied(
       orders_spend_script_address,
@@ -98,7 +100,6 @@ pub fn can_mint(
       proofs,
       root,
       value.zero(),
-      0,
       0,
     )
 

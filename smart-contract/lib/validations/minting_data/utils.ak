@@ -22,13 +22,11 @@ pub fn all_orders_are_satisfied(
   root: mpt.MerklePatriciaForestry,
   expected_hal_value: Value,
   total_price: Int,
-  total_hal_nft_count: Int,
-  continuation: fn(mpt.MerklePatriciaForestry, Value, Int, Int) -> result,
+  continuation: fn(mpt.MerklePatriciaForestry, Value, Int) -> result,
 ) -> result {
   // go through inputs and process order UTxO
   when inputs is {
-    [] ->
-      continuation(root, expected_hal_value, total_price, total_hal_nft_count)
+    [] -> continuation(root, expected_hal_value, total_price)
     [order_input, ..rest_inputs] -> {
       let Output { address, datum, value: order_input_value, .. } =
         order_input.output
@@ -75,7 +73,6 @@ pub fn all_orders_are_satisfied(
 
           // update total price and count
           let new_total_price = total_price + price
-          let new_total_hal_nft_count = total_hal_nft_count + 1
 
           all_orders_are_satisfied(
             orders_spend_script_address,
@@ -88,7 +85,6 @@ pub fn all_orders_are_satisfied(
             new_root,
             new_expected_hal_value,
             new_total_price,
-            new_total_hal_nft_count,
             continuation,
           )
         }
@@ -105,7 +101,6 @@ pub fn all_orders_are_satisfied(
             root,
             expected_hal_value,
             total_price,
-            total_hal_nft_count,
             continuation,
           )
       }
