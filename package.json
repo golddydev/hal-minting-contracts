@@ -1,6 +1,6 @@
 {
   "name": "@koralabs/hal-minting-contracts",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "license": "MIT",
   "main": "index.js",
   "type": "module",
