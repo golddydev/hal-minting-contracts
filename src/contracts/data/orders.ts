@@ -7,7 +7,6 @@ import {
   makeByteArrayData,
   makeConstrData,
   makeIntData,
-  makeListData,
   UplcData,
 } from "@helios-lang/uplc";
 
@@ -24,7 +23,7 @@ const decodeOrderDatum = (
     "OrderDatum must be inline datum"
   );
   const datumData = datum.data;
-  const orderConstrData = expectConstrData(datumData, 0, 3);
+  const orderConstrData = expectConstrData(datumData, 0, 4);
 
   const owner_key_hash = expectByteArrayData(orderConstrData.fields[0]).toHex();
   const price = expectIntData(orderConstrData.fields[1]).value;
@@ -32,28 +31,33 @@ const decodeOrderDatum = (
     orderConstrData.fields[2],
     network
   );
+  const amount = expectIntData(orderConstrData.fields[3]).value;
 
   return {
     owner_key_hash,
     price,
     destination_address,
+    amount,
   };
 };
 
 const buildOrderData = (order: OrderDatum): UplcData => {
-  const { owner_key_hash, price, destination_address } = order;
+  const { owner_key_hash, price, destination_address, amount } = order;
   return makeConstrData(0, [
     makeByteArrayData(owner_key_hash),
     makeIntData(price),
     buildAddressData(destination_address),
+    makeIntData(amount),
   ]);
 };
 
-const buildOrdersMintMintOrdersRedeemer = (
-  destination_addresses: ShelleyAddress[]
+const buildOrdersMintMintOrderRedeemer = (
+  destination_address: ShelleyAddress,
+  amount: bigint
 ): UplcData => {
   return makeConstrData(0, [
-    makeListData(destination_addresses.map(buildAddressData)),
+    buildAddressData(destination_address),
+    makeIntData(amount),
   ]);
 };
 
@@ -77,7 +81,7 @@ export {
   buildOrderData,
   buildOrdersMintCancelOrderRedeemer,
   buildOrdersMintExecuteOrdersRedeemer,
-  buildOrdersMintMintOrdersRedeemer,
+  buildOrdersMintMintOrderRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeOrderDatum,

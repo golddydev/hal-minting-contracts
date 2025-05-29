@@ -21,7 +21,7 @@ import { HAL_NFT_PRICE, ORDER_ASSET_HEX_NAME } from "../constants/index.js";
 import {
   buildOrderData,
   buildOrdersMintCancelOrderRedeemer,
-  buildOrdersMintMintOrdersRedeemer,
+  buildOrdersMintMintOrderRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   decodeOrderDatum,
   OrderDatum,
@@ -44,6 +44,7 @@ import { DeployedScripts } from "./deploy.js";
 interface RequestParams {
   network: NetworkName;
   address: Address;
+  amount: bigint;
   deployedScripts: DeployedScripts;
 }
 
@@ -55,12 +56,16 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, address, deployedScripts } = params;
+  const { network, address, amount, deployedScripts } = params;
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
   if (address.spendingCredential.kind == "ValidatorHash")
     return Err(new Error("Must be Base address"));
+
+  if (amount <= 0n) {
+    return Err(new Error("Amount must be greater than 0"));
+  }
 
   const {
     ordersMintScriptTxInput,
@@ -90,6 +95,7 @@ const request = async (
     owner_key_hash: address.spendingCredential.toHex(),
     price: HAL_NFT_PRICE,
     destination_address: address,
+    amount,
   };
 
   // order value
@@ -123,7 +129,7 @@ const request = async (
   txBuilder.mintPolicyTokensUnsafe(
     ordersMintPolicyHash,
     orderTokenValue,
-    buildOrdersMintMintOrdersRedeemer([address])
+    buildOrdersMintMintOrderRedeemer(address, amount)
   );
 
   // <-- pay order value to order spend script adress

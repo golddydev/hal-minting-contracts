@@ -21,7 +21,7 @@ use validations/orders_mint/utils.{is_order_output_valid}
 //   must have only one Order NFT and enough lovelace
 // - must mint only one Order NFT
 //
-pub fn can_mint_orders(
+pub fn can_mint_order(
   destination_address: Address,
   amount: Int,
   own_policy_id: PolicyId,
@@ -75,11 +75,14 @@ pub fn can_mint_orders(
 }
 
 // Validation:
-// When minting engine mint H.A.L. NFTs spending Orders UTxO and burning Orders NFTs
+// When minting engine mint H.A.L. NFTs spending Order UTxOs and burning Order NFTs
 //
 // Checks:
 // - must mint H.A.L. NFT(s)
 //
+// Note:
+// `mint_v1` validator will do additional check.
+
 pub fn can_execute_orders(
   transaction: Transaction,
   hal_policy_id: PolicyId,
@@ -100,6 +103,9 @@ pub fn can_execute_orders(
 //
 // Checks:
 // - must burn only one Order NFT
+//
+// Note:
+// `orders_spend` validator will do additional check.
 //
 pub fn can_cancel_order(policy_id: PolicyId, transaction: Transaction) -> Bool {
   let Transaction { mint, .. } = transaction
