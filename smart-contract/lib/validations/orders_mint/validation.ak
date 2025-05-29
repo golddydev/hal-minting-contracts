@@ -5,23 +5,25 @@ use aiken/transaction/value.{PolicyId}
 use hal_nft_mint/orders.{order_asset_name}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
-use validations/orders_mint/utils.{are_all_orders_minted}
+use validations/orders_mint/utils.{is_order_output_valid}
 
 // Validation:
-// When user requests Order(s) to mint H.A.L. NFT(s)
+// When user requests Order(s) (amount) to mint H.A.L. NFT(s)
 //
 // Checks:
 // - must attach Setting in reference inputs
 // - own minting policy id must be same as orders_mint_policy_id from Settings
 // - must be signed by orders_minter
-// - all Orders NFTs are minted correctly
-//   and sent to orders_spend_script_address 
-//   with correct amount of lovelace and one Order NFT and valid datum
-//   (destination address, price, owner key hash)
-// - must mint only Order NFTs
+// - amount must be positive
+// - must have valid Order output
+//   address must be orders_spend_script_address
+//   must have valid `OrderDatum` with matching destination_address and amount
+//   must have only one Order NFT and enough lovelace
+// - must mint only one Order NFT
 //
 pub fn can_mint_orders(
-  destination_addresses: List<Address>,
+  destination_address: Address,
+  amount: Int,
   own_policy_id: PolicyId,
   transaction: Transaction,
 ) -> Bool {
@@ -46,21 +48,28 @@ pub fn can_mint_orders(
   let is_orders_minter_signed = list.has(extra_signatories, orders_minter)
   expect is_orders_minter_signed
 
-  // all Orders NFTs are minted correctly
-  // and sent to orders_spend_script_address 
-  // with correct amount of lovelace and one Order NFT and valid datum
-  let expected_mint_value <-
-    are_all_orders_minted(
+  // amount must be positive
+  expect amount > 0
+
+  // parse outputs
+  expect [order_output, _] = outputs
+
+  // must have valid Order output
+  // address must be orders_spend_script_address
+  // must have valid `OrderDatum` with matching destination_address and amount
+  // must have only one Order NFT and enough lovelace
+  let order_mint_value =
+    is_order_output_valid(
       own_policy_id,
       hal_nft_price,
       orders_spend_script_address,
-      destination_addresses,
-      outputs,
-      value.zero(),
+      destination_address,
+      amount,
+      order_output,
     )
 
-  // must mint only Order NFTs
-  expect value.from_minted_value(mint) == expected_mint_value
+  // must mint only one Order NFT
+  expect value.from_minted_value(mint) == order_mint_value
 
   True
 }

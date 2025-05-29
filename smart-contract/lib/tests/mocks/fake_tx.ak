@@ -41,6 +41,7 @@ pub fn make_order_input(
       destination_address: credential.from_verification_key(
         owner_verification_key_hash,
       ),
+      amount: 1,
     }
   Input {
     output_reference: OutputReference {

@@ -214,17 +214,19 @@ None (minting policy)
 
 #### 3.4.4 Validation
 
-- `MintOrders(List<Address>)`: called when a user tries to request orders to mint H.A.L. NFTs
+- `MintOrders(destination_address: Address, amount: Int)`: called when a user tries to request order to mint H.A.L. NFTs
 
   - must attach `Settings` NFT in reference inputs.
+
+  - `own_minting_policy` (policy id of itself) must be same as `orders_mint_policy_id` from `Settings`
 
   - must be signed by `orders_minter` from `Settings`
 
     - This will guarantee that white-listed users can mint early and others have to wait till minting opens to every body.
 
-  - `own_minting_policy` (policy id of itself) must be same as `orders_mint_policy_id` from `Settings`
+  - `amount` must be positive.
 
-  - assume that transaction outputs have order outputs (`Order UTxOs`) in same order as `destination_addresses`. (`List<Address>` in redeemer)
+  - must have valid order output. We assume this output is first output in the transaction outputs.
 
     - Order output address must be `orders_spend_script_address` from `Settings`.
 
@@ -234,13 +236,15 @@ None (minting policy)
 
       - `destination_address` must be same as `destination_address` from Redeemer.
 
+      - `amount` must be same as `amount` from Redeemer.
+
     - must have only one `Order NFT`. (which is minted in the same transaction)
 
-    - must have enough lovelace. (bigger than or equal to `price`)
+    - must have enough lovelace. (bigger than or equal to `price * amount`)
 
     - must NOT have `reference_script`.
 
-  - Only `Order NFTs` for redeemer are minted.
+  - Only one `Order NFT` is minted.
 
 - `ExecuteOrders`: called when minting engine tries to mint H.A.L. NFTs. (also calling `mint_proxy`, `mint_v1`, `minting_data`, `orders_spend` validators)
 
