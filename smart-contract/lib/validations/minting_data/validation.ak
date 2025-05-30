@@ -34,7 +34,6 @@ const max_change_lovelace: Int = 5_000_000
 //   must have corresponding ref_outputs (Output for each reference HAL NFT. There must be fulfilled amount of Outputs)
 //   must have one user_output (Output for user HAL NFTs. All user HAL NFTs will be in same UTxO.)
 // - must mint fulfilled amount of H.A.L. NFTs
-// - must burn Order NFTs
 //
 pub fn can_mint(
   transaction: Transaction,

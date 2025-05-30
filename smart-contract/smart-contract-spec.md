@@ -246,13 +246,13 @@ None (minting policy)
 
   - Only one `Order NFT` is minted.
 
-- `ExecuteOrders`: called when minting engine tries to mint H.A.L. NFTs. (also calling `mint_proxy`, `mint_v1`, `minting_data`, `orders_spend` validators)
+- `BurnOrders`: called when burn Order NFTs (when a user cancels his Order, when burn empty Order NFTs)
 
-  - at least one of H.A.L. NFTs (`hal_nft_policy_id` from Parameter) are minted. Because other contracts (`minting_data`) will do validations.
+  - Must only burn Order NFTs
 
-- `CancelOrder`: called when a user tries to cancel his order and retrieve his lovelace.
+    - `asset_name` must be `HAL_ORDER`.
 
-  - must burn only one `Order NFT`. `orders_spend` validator do additional checks (in `CancelOrder` redeemer)
+    - `quantity` must be negative.
 
 ### 3.5 `orders_spend` spending validator
 

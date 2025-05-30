@@ -75,48 +75,40 @@ pub fn can_mint_order(
 }
 
 // Validation:
-// When minting engine mint H.A.L. NFTs spending Order UTxOs and burning Order NFTs
+// When burn Order NFts
 //
 // Checks:
-// - must mint H.A.L. NFT(s)
+// - must only burn Order NFTs
 //
-// Note:
-// `mint_v1` validator will do additional check.
+// NOTE:
+// once Order UTxO with Order NFT is spent, Order NFT can be spent any time.
 
-pub fn can_execute_orders(
+pub fn can_burn_orders(
   transaction: Transaction,
-  hal_policy_id: PolicyId,
+  own_policy_id: PolicyId,
 ) -> Bool {
   let Transaction { mint, .. } = transaction
 
-  // must mint H.A.L. NFT(s)
-  // (because H.A.L. burn is not supported, we don't check amount)
-  let is_hal_minted =
-    mint |> value.from_minted_value |> value.policies |> list.has(hal_policy_id)
-  expect is_hal_minted
+  // must only burn Order NFTs
+  let minted_value = value.from_minted_value(mint)
+  let only_burn_order_nfts =
+    when minted_value |> value.flatten is {
+      [(policy_id, asset_name, quantity)] -> {
+        let is_policy_id_correct = policy_id == own_policy_id
+        let is_asset_name_correct = asset_name == order_asset_name
+        let must_only_burn = quantity < 0
 
-  True
-}
+        expect is_policy_id_correct
+        expect is_asset_name_correct
+        expect must_only_burn
+        True
+      }
+      _ -> {
+        trace @"must only burn Order NFTs"
+        False
+      }
+    }
 
-// Validation:
-// When user tries to cancel Order
-//
-// Checks:
-// - must burn only one Order NFT
-//
-// Note:
-// `orders_spend` validator will do additional check.
-//
-pub fn can_cancel_order(policy_id: PolicyId, transaction: Transaction) -> Bool {
-  let Transaction { mint, .. } = transaction
-
-  // must burn only one Order NFT
-  let only_burn_one_order_token =
-    value.from_minted_value(mint) == (
-      value.zero()
-        |> value.add(policy_id, order_asset_name, -1)
-    )
-  expect only_burn_one_order_token
-
+  expect only_burn_order_nfts
   True
 }
