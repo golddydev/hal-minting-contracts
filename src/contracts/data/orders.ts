@@ -61,12 +61,8 @@ const buildOrdersMintMintOrderRedeemer = (
   ]);
 };
 
-const buildOrdersMintExecuteOrdersRedeemer = (): UplcData => {
+const buildOrdersMintBurnOrdersRedeemer = (): UplcData => {
   return makeConstrData(1, []);
-};
-
-const buildOrdersMintCancelOrderRedeemer = (): UplcData => {
-  return makeConstrData(2, []);
 };
 
 const buildOrdersSpendExecuteOrdersRedeemer = (): UplcData => {
@@ -79,8 +75,7 @@ const buildOrdersSpendCancelOrderRedeemer = (): UplcData => {
 
 export {
   buildOrderData,
-  buildOrdersMintCancelOrderRedeemer,
-  buildOrdersMintExecuteOrdersRedeemer,
+  buildOrdersMintBurnOrdersRedeemer,
   buildOrdersMintMintOrderRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,

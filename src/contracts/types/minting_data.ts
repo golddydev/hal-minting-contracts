@@ -4,10 +4,6 @@ interface MintingData {
   mpt_root_hash: string;
 }
 
-interface Proof {
-  mpt_proof: MPTProof;
-  // hex format without asset name label
-  asset_name: string;
-}
+type Fulfilment = Array<[string, MPTProof]>;
 
-export type { MintingData, Proof };
+export type { Fulfilment, MintingData };
