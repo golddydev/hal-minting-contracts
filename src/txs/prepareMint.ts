@@ -26,6 +26,7 @@ import {
   buildMintingDataMintRedeemer,
   buildMintV1MintHandlesRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
+  decodeOrderDatum,
   Fulfilment,
   makeVoidData,
   MintingData,
@@ -33,22 +34,25 @@ import {
   Settings,
   SettingsV1,
 } from "../contracts/index.js";
+import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
-import { DecodedOrder } from "./types.js";
+import { DecodedOrder, Order } from "./types.js";
 
 /**
  * @interface
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {DecodedOrder[]} decodedOrders Orders with Order Datum info decoded
+ * @property {Address} orderNftsCollector Wallet Address where Order Nfts are collected
+ * @property {Order[]} orders Orders
  * @property {Trie} db Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  */
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  decodedOrders: DecodedOrder[];
+  orderNftsCollector: Address;
+  orders: Order[];
   db: Trie;
   deployedScripts: DeployedScripts;
 }
@@ -71,10 +75,43 @@ const prepareMintTransaction = async (
     Error
   >
 > => {
-  const { network, address, decodedOrders, db, deployedScripts } = params;
+  const { network, address, orderNftsCollector, orders, db, deployedScripts } =
+    params;
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
+
+  // refactor Orders Tx Inputs
+  // NOTE:
+  // sort orderUtxos before process
+  // because tx inputs is sorted lexicographically
+  // we have to insert handle in `REVERSE` order as tx inputs
+  orders
+    .sort((a, b) =>
+      a.orderTxInput.id.toString() > b.orderTxInput.id.toString() ? 1 : -1
+    )
+    .reverse();
+  if (orders.length == 0) return Err(new Error("No Order requested"));
+  console.log(`${orders.length} Orders are picked`);
+
+  const decodedOrders: DecodedOrder[] = [];
+  for (const order of orders) {
+    const { orderTxInput, assetsInfo } = order;
+    const decodedOrderResult = mayFail(() =>
+      decodeOrderDatum(orderTxInput.datum, network)
+    );
+    if (!decodedOrderResult.ok) {
+      return Err(new Error(`Invalid Order Datum: ${decodedOrderResult.error}`));
+    }
+    const { destination_address, price, amount } = decodedOrderResult.data;
+    decodedOrders.push({
+      orderTxInput,
+      assetsInfo,
+      destinationAddress: destination_address,
+      price,
+      amount,
+    });
+  }
 
   const {
     mintProxyScriptTxInput,
@@ -89,7 +126,12 @@ const prepareMintTransaction = async (
   if (!settingsResult.ok)
     return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
   const { settings, settingsV1, settingsAssetTxInput } = settingsResult.data;
-  const { policy_id, allowed_minter, ref_spend_script_address } = settingsV1;
+  const {
+    policy_id,
+    allowed_minter,
+    orders_mint_policy_id,
+    ref_spend_script_address,
+  } = settingsV1;
 
   // hal policy id
   const halPolicyHash = makeMintingPolicyHash(policy_id);
@@ -140,17 +182,17 @@ const prepareMintTransaction = async (
       const assetHexName = Buffer.from(assetUtf8Name, "utf8").toString("hex");
 
       try {
-        // NOTE:
-        // Have to remove handles if transaction fails
+        const hasKey = typeof (await db.get(assetUtf8Name)) !== "undefined";
+        if (!hasKey) {
+          throw new Error(`Asset name is not pre-defined: ${assetUtf8Name}`);
+        }
+
         const mpfProof = await db.prove(assetUtf8Name);
         await db.delete(assetUtf8Name);
         await db.insert(assetUtf8Name, MPT_MINTED_VALUE);
         fulfilment.push([assetHexName, parseMPTProofJSON(mpfProof.toJSON())]);
-      } catch (e) {
-        console.warn("Asset name is not pre-defined", assetUtf8Name, e);
-        return Err(
-          new Error(`Asset name is not pre-defined: ${assetUtf8Name}`)
-        );
+      } catch (error) {
+        return Err(new Error(convertError(error)));
       }
 
       const refAssetClass = makeAssetClass(
@@ -164,7 +206,9 @@ const prepareMintTransaction = async (
 
       const refValue = makeValue(1n, makeAssets([[refAssetClass, 1n]]));
       // add user asset into one value.
-      userValue.assets.add(makeAssets([[userAssetClass, 1n]]));
+      userValue.assets = userValue.assets.add(
+        makeAssets([[userAssetClass, 1n]])
+      );
 
       refOutputsData.push({
         assetDatum,
@@ -204,9 +248,7 @@ const prepareMintTransaction = async (
   const mintingDataMintRedeemer = buildMintingDataMintRedeemer(fulfilments);
 
   // prepare order tokens value to collect
-  const ordersMintPolicyHash = makeMintingPolicyHash(
-    settingsV1.orders_mint_policy_id
-  );
+  const ordersMintPolicyHash = makeMintingPolicyHash(orders_mint_policy_id);
   const orderTokenAssetClass = makeAssetClass(
     ordersMintPolicyHash,
     ORDER_ASSET_HEX_NAME
@@ -256,7 +298,7 @@ const prepareMintTransaction = async (
   );
 
   // <-- collect order nfts to order_nfts_output
-  txBuilder.payUnsafe(settingsV1.payment_address, orderTokensValue);
+  txBuilder.payUnsafe(orderNftsCollector, orderTokensValue);
 
   // <-- mint hal nfts
   txBuilder.mintPolicyTokensUnsafe(
@@ -269,6 +311,7 @@ const prepareMintTransaction = async (
   // <-- send minted HALs to destination with datum
   const ordersSpendExecuteOrdersRedeemer =
     buildOrdersSpendExecuteOrdersRedeemer();
+
   for (const mintingHalData of mintingHalsData) {
     const { orderTxInput, destinationAddress, refOutputsData, userValue } =
       mintingHalData;
@@ -300,5 +343,50 @@ const prepareMintTransaction = async (
   });
 };
 
-export type { PrepareMintParams };
-export { prepareMintTransaction };
+/**
+ * @interface
+ * @typedef {object} RollBackOrdersFromTrieParams
+ * @property {Order[]} orders Orders
+ * @property {Trie} db Trie DB
+ */
+interface RollBackOrdersFromTrieParams {
+  orders: Order[];
+  db: Trie;
+}
+
+/**
+ * @description Roll Back Orders from Trie after minting is failed
+ * @param {RollBackOrdersFromTrieParams} params
+ * @returns {Promise<Result<void,  Error>>} Result or Error
+ */
+const rollBackOrdersFromTrie = async (
+  params: RollBackOrdersFromTrieParams
+): Promise<Result<void, Error>> => {
+  const { orders, db } = params;
+
+  for (const order of orders) {
+    const { assetsInfo } = order;
+    for (const assetInfo of assetsInfo) {
+      try {
+        const value = await db.get(assetInfo[0]);
+        const needRollback =
+          typeof value !== "undefined" &&
+          Buffer.from(value).toString() === MPT_MINTED_VALUE;
+        if (needRollback) {
+          await db.delete(assetInfo[0]);
+          await db.insert(assetInfo[0], "");
+        }
+      } catch (error) {
+        return Err(
+          new Error(
+            `Failed to roll back "${assetInfo[0]}" : ${convertError(error)}`
+          )
+        );
+      }
+    }
+  }
+  return Ok();
+};
+
+export type { PrepareMintParams, RollBackOrdersFromTrieParams };
+export { prepareMintTransaction, rollBackOrdersFromTrie };

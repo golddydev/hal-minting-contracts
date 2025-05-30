@@ -137,7 +137,7 @@ fn do_check_ref_outputs(
 ) -> result {
   when fulfilment is {
     [] -> continuation(outputs, root, ref_hal_value, user_hal_value)
-    [Pair(asset_name, mpt_proof), ..rest_fulfilment] -> {
+    [(asset_name, mpt_proof), ..rest_fulfilment] -> {
       // update root
       let new_root = update_root(root, asset_name, mpt_proof)
 
@@ -196,6 +196,7 @@ fn is_user_output_valid(
   expect user_output_address == destination_address
   let does_user_output_value_have_assets =
     value.without_lovelace(user_output_value) == user_hal_value
+
   expect does_user_output_value_have_assets
 
   True
@@ -231,34 +232,46 @@ pub fn resolve_orders_information(
       let Output { address, datum, value: order_input_value, .. } =
         order_input.output
 
-      // must be from orders spend script address
-      expect address == orders_spend_script_address
+      let is_order = address == orders_spend_script_address
+      when is_order is {
+        True -> {
+          // parse order datum
+          expect InlineDatum(datum) = datum
+          expect order_datum: OrderDatum = datum
 
-      // parse order datum
-      expect InlineDatum(datum) = datum
-      expect order_datum: OrderDatum = datum
+          // check order has order token
+          let has_order_token =
+            value.quantity_of(
+              order_input_value,
+              orders_mint_policy_id,
+              order_asset_name,
+            ) == 1
+          expect has_order_token
 
-      // check order has order token
-      let has_order_token =
-        value.quantity_of(
-          order_input_value,
-          orders_mint_policy_id,
-          order_asset_name,
-        ) == 1
-      expect has_order_token
+          // calculate price
+          let paid_price = order_datum.price * order_datum.amount
 
-      // calculate price
-      let paid_price = order_datum.price * order_datum.amount
-
-      resolve_orders_information(
-        rest_inputs,
-        [order_datum, ..orders_datum_list],
-        orders_count + 1,
-        total_price + paid_price,
-        orders_spend_script_address,
-        orders_mint_policy_id,
-        continuation,
-      )
+          resolve_orders_information(
+            rest_inputs,
+            [order_datum, ..orders_datum_list],
+            orders_count + 1,
+            total_price + paid_price,
+            orders_spend_script_address,
+            orders_mint_policy_id,
+            continuation,
+          )
+        }
+        False ->
+          resolve_orders_information(
+            rest_inputs,
+            orders_datum_list,
+            orders_count,
+            total_price,
+            orders_spend_script_address,
+            orders_mint_policy_id,
+            continuation,
+          )
+      }
     }
   }
 }

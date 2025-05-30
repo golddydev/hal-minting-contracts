@@ -117,7 +117,7 @@ const request = async (
     [orderTokenAssetClass.tokenName, 1n],
   ];
   const orderValue = makeValue(
-    HAL_NFT_PRICE,
+    HAL_NFT_PRICE * BigInt(amount),
     makeAssets([[orderTokenAssetClass, 1n]])
   );
 

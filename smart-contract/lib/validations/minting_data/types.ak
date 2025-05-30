@@ -3,4 +3,4 @@ use aiken/transaction/value.{AssetName}
 
 // hex format without asset name label
 pub type Fulfilment =
-  Pairs<AssetName, mpt.Proof>
+  List<(AssetName, mpt.Proof)>
