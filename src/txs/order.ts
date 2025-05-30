@@ -79,7 +79,16 @@ const request = async (
   if (!settingsResult.ok)
     return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
   const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-  const { orders_minter } = settingsV1;
+  const { orders_minter, max_order_amount } = settingsV1;
+
+  // check amount is not greater than max_order_amount
+  if (amount > max_order_amount) {
+    return Err(
+      new Error(
+        `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
+      )
+    );
+  }
 
   // orders spend script address
   const ordersSpendScriptAddress = makeAddress(
