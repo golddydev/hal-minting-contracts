@@ -20,7 +20,7 @@ import { fetchSettings } from "../configs/index.js";
 import { HAL_NFT_PRICE, ORDER_ASSET_HEX_NAME } from "../constants/index.js";
 import {
   buildOrderData,
-  buildOrdersMintCancelOrderRedeemer,
+  buildOrdersMintBurnOrdersRedeemer,
   buildOrdersMintMintOrderRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   decodeOrderDatum,
@@ -39,12 +39,13 @@ import { DeployedScripts } from "./deploy.js";
  * @typedef {object} RequestParams
  * @property {NetworkName} network Network
  * @property {Address} address User's Wallet Address to perform order
+ * @property {number} amount Amount of H.A.L. NFTs to order
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  */
 interface RequestParams {
   network: NetworkName;
   address: Address;
-  amount: bigint;
+  amount: number;
   deployedScripts: DeployedScripts;
 }
 
@@ -219,7 +220,7 @@ const cancel = async (
   txBuilder.mintPolicyTokensUnsafe(
     ordersMintPolicyHash,
     orderTokenValue,
-    buildOrdersMintCancelOrderRedeemer()
+    buildOrdersMintBurnOrdersRedeemer()
   );
 
   // <-- add signer
@@ -318,8 +319,11 @@ const isValidOrderTxInput = (
     return Err(new Error("Invalid Order Datum"));
   }
 
+  const { amount } = decodedResult.data;
+  const expectedLovelace = BigInt(amount) * HAL_NFT_PRICE;
+
   // check lovelace is enough
-  if (orderTxInput.value.lovelace < HAL_NFT_PRICE) {
+  if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
   }
 

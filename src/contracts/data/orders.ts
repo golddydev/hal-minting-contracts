@@ -31,7 +31,7 @@ const decodeOrderDatum = (
     orderConstrData.fields[2],
     network
   );
-  const amount = expectIntData(orderConstrData.fields[3]).value;
+  const amount = Number(expectIntData(orderConstrData.fields[3]).value);
 
   return {
     owner_key_hash,
@@ -53,7 +53,7 @@ const buildOrderData = (order: OrderDatum): UplcData => {
 
 const buildOrdersMintMintOrderRedeemer = (
   destination_address: ShelleyAddress,
-  amount: bigint
+  amount: number
 ): UplcData => {
   return makeConstrData(0, [
     buildAddressData(destination_address),
