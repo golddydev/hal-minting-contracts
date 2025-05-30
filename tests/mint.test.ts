@@ -29,8 +29,6 @@ import {
   makeHalAssetDatum,
   referenceAssetValue,
   userAssetValue,
-  writeFailedTxJson,
-  writeSuccessfulTxJson,
 } from "./utils.js";
 
 describe.sequential("Koralab H.A.L Tests", () => {
@@ -509,9 +507,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "cannot mint 2 new assets because one asset name is not pre-defined in MPT - <hal-9, hal-10> and <hal-11, no-hal-12>",
     async ({ network, db, wallets, ordersTxInputs, deployedScripts }) => {
-      console.log("Lastest correct db:");
-      inspect(db);
-
       invariant(
         Array.isArray(ordersTxInputs),
         "Orders tx inputs is not an array"
@@ -542,18 +537,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(!txResult.ok, "Mint Tx Building Should Fail");
       assert(txResult.error.message.includes("Asset name is not pre-defined"));
 
-      console.log("Incorrect db:");
-      inspect(db);
-
       // roll back
       const rollBackResult = await rollBackOrdersFromTrie({
         orders,
         db,
       });
       invariant(rollBackResult.ok, "Roll Back Failed");
-
-      console.log("Rollbacked db:");
-      inspect(db);
     }
   );
 
@@ -692,8 +681,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
         paymentWallet.address,
         []
       ).complete();
-      // writeFailedTxJson(txResult);
-      // console.log(txResult.error);
       invariant(txResult.ok, "Mint Tx Complete Failed");
       logMemAndCpu(txResult);
 
