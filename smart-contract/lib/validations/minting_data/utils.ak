@@ -9,8 +9,6 @@ use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{OrderDatum, order_asset_name}
 use validations/minting_data/types.{Fulfilment}
 
-const max_min_lovelace: Int = 3_000_000
-
 // - all orders (all UTxOs in transaction inputs) are fulfilled correctly
 //   must have corresponding ref_outputs (Output for each reference HAL NFT. There must be fulfilled amount of Outputs)
 //   must have one user_output (Output for user HAL NFTs. All user HAL NFTs will be in same UTxO.)
@@ -299,8 +297,6 @@ fn do_calculate_total_min_lovelace(
     [output, ..rest_outputs] -> {
       let Output { value, .. } = output
       let lovelace = value.lovelace_of(value)
-      // lovelace must be smaller than max_min_lovelace
-      expect lovelace <= max_min_lovelace
       do_calculate_total_min_lovelace(
         rest_outputs,
         total_min_lovelace + lovelace,
