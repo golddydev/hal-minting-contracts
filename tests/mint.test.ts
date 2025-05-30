@@ -738,4 +738,164 @@ describe.sequential("Koralab H.A.L Tests", () => {
       inspect(db);
     }
   );
+
+  // user_3 orders 5 new assets 2 times
+  myTest(
+    "user_3 orders 5 new assets 2 times",
+    async ({ network, emulator, wallets, ordersTxInputs, deployedScripts }) => {
+      invariant(
+        Array.isArray(ordersTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const { usersWallets, ordersMinterWallet } = wallets;
+      const user3Wallet = usersWallets[2];
+
+      for (let i = 0; i < 2; i++) {
+        const txBuilderResult = await request({
+          network,
+          address: user3Wallet.address,
+          amount: 5,
+          deployedScripts,
+        });
+        invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+        const txBuilder = txBuilderResult.data;
+        const txResult = await mayFailTransaction(
+          txBuilder,
+          user3Wallet.address,
+          await user3Wallet.utxos
+        ).complete();
+        invariant(txResult.ok, "Order Tx Complete failed");
+        logMemAndCpu(txResult);
+
+        const { tx } = txResult.data;
+        tx.addSignatures([
+          ...(await user3Wallet.signTx(tx)),
+          ...(await ordersMinterWallet.signTx(tx)),
+        ]);
+        const txId = await user3Wallet.submitTx(tx);
+        emulator.tick(200);
+
+        const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
+        ordersTxInputs.push(orderTxInput);
+      }
+    }
+  );
+
+  // mint 10 new assets - <hal-101 ~ hal-110>
+  myTest(
+    "mint 10 new assets - <hal-101 ~ hal-110>",
+    async ({
+      mockedFunctions,
+      db,
+      network,
+      emulator,
+      wallets,
+      ordersTxInputs,
+      deployedScripts,
+    }) => {
+      invariant(
+        Array.isArray(ordersTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const {
+        usersWallets,
+        allowedMinterWallet,
+        paymentWallet,
+        orderNftsCollectorWallet,
+      } = wallets;
+      const user3Wallet = usersWallets[2];
+
+      const assetNamesList = Array.from({ length: 2 }, (_, outerIndex) =>
+        Array.from(
+          { length: 5 },
+          (_, index) => `hal-${101 + outerIndex * 5 + index}`
+        )
+      );
+      const orders: Order[] = ordersTxInputs.map((orderTxInput, index) => ({
+        orderTxInput,
+        assetsInfo: assetNamesList[index].map((assetName) => [
+          assetName,
+          makeHalAssetDatum(assetName),
+        ]),
+      }));
+
+      const txBuilderResult = await prepareMintTransaction({
+        network,
+        address: allowedMinterWallet.address,
+        orderNftsCollector: orderNftsCollectorWallet.address,
+        orders,
+        db,
+        deployedScripts,
+      });
+      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+
+      const { txBuilder } = txBuilderResult.data;
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        paymentWallet.address,
+        []
+      ).complete();
+      invariant(txResult.ok, "Mint Tx Complete Failed");
+      logMemAndCpu(txResult);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      const txId = await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      // check minted values
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { ref_spend_script_address } = settingsV1;
+      const user3Balance = await balanceOfWallet(user3Wallet);
+      const refSpendBalance = await balanceOfAddress(
+        emulator,
+        ref_spend_script_address
+      );
+
+      for (const assetNames of assetNamesList) {
+        for (const assetName of assetNames) {
+          assert(
+            user3Balance.isGreaterOrEqual(
+              userAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "User 3 Wallet Balance is not correct"
+          );
+          assert(
+            refSpendBalance.isGreaterOrEqual(
+              referenceAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "Ref Spend Wallet Balance is not correct"
+          );
+        }
+      }
+
+      // update minting data input
+      const mintingDataAssetTxInput = await emulator.getUtxo(
+        makeTxOutputId(txId, 0)
+      );
+      const mintingData = decodeMintingDataDatum(mintingDataAssetTxInput.datum);
+      mockedFunctions.mockedFetchMintingData.mockReturnValue(
+        new Promise((resolve) =>
+          resolve(
+            Ok({
+              mintingData,
+              mintingDataAssetTxInput,
+            })
+          )
+        )
+      );
+
+      // empty orders detail
+      ordersTxInputs.length = 0;
+
+      // inspect db
+      inspect(db);
+    }
+  );
 });
