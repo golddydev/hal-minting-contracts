@@ -1,7 +1,11 @@
 import { Trie } from "@aiken-lang/merkle-patricia-forestry";
+import { ByteArrayLike, IntLike } from "@helios-lang/codec-utils";
 import {
   Address,
+  makeAssetClass,
+  makeAssets,
   makeInlineTxOutputDatum,
+  makeMintingPolicyHash,
   makePubKeyHash,
   makeStakingAddress,
   makeStakingValidatorHash,
@@ -11,33 +15,40 @@ import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
 import { fetchMintingData, fetchSettings } from "../configs/index.js";
-import { MPT_MINTED_VALUE } from "../constants/index.js";
+import {
+  MPT_MINTED_VALUE,
+  ORDER_ASSET_HEX_NAME,
+  PREFIX_100,
+  PREFIX_222,
+} from "../constants/index.js";
 import {
   buildMintingData,
   buildMintingDataMintRedeemer,
   buildMintV1MintHandlesRedeemer,
+  buildOrdersSpendExecuteOrdersRedeemer,
+  Fulfilment,
+  makeVoidData,
   MintingData,
   parseMPTProofJSON,
-  Proof,
   Settings,
   SettingsV1,
 } from "../contracts/index.js";
 import { DeployedScripts } from "./deploy.js";
-import { OrderedAsset } from "./types.js";
+import { DecodedOrder } from "./types.js";
 
 /**
  * @interface
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {OrderedAsset[]} orderedAssets Ordered Assets Information
+ * @property {DecodedOrder[]} decodedOrders Orders with Order Datum info decoded
  * @property {Trie} db Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  */
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  orderedAssets: OrderedAsset[];
+  decodedOrders: DecodedOrder[];
   db: Trie;
   deployedScripts: DeployedScripts;
 }
@@ -55,12 +66,12 @@ const prepareMintTransaction = async (
       txBuilder: TxBuilder;
       settings: Settings;
       settingsV1: SettingsV1;
-      totalHalPrice: bigint;
+      totalPrice: bigint;
     },
     Error
   >
 > => {
-  const { network, address, orderedAssets, db, deployedScripts } = params;
+  const { network, address, decodedOrders, db, deployedScripts } = params;
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
@@ -70,7 +81,6 @@ const prepareMintTransaction = async (
     mintingDataScriptTxInput,
     mintV1ScriptDetails,
     mintV1ScriptTxInput,
-    ordersMintScriptTxInput,
     ordersSpendScriptTxInput,
   } = deployedScripts;
 
@@ -79,7 +89,10 @@ const prepareMintTransaction = async (
   if (!settingsResult.ok)
     return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
   const { settings, settingsV1, settingsAssetTxInput } = settingsResult.data;
-  const { hal_nft_price, allowed_minter } = settingsV1;
+  const { policy_id, allowed_minter, ref_spend_script_address } = settingsV1;
+
+  // hal policy id
+  const halPolicyHash = makeMintingPolicyHash(policy_id);
 
   const mintingDataResult = await fetchMintingData();
   if (!mintingDataResult.ok)
@@ -96,25 +109,80 @@ const prepareMintTransaction = async (
     return Err(new Error("ERROR: Local DB and On Chain Root Hash mismatch"));
   }
 
-  // make Proofs for Minting Data V1 Redeemer
-  const proofs: Proof[] = [];
-  for (const orderedAsset of orderedAssets) {
-    const { utf8Name, hexName } = orderedAsset;
+  const totalPrice = decodedOrders.reduce(
+    (acc, cur) => acc + BigInt(cur.amount) * cur.price,
+    0n
+  );
 
-    try {
-      // NOTE:
-      // Have to remove handles if transaction fails
-      const mpfProof = await db.prove(utf8Name);
-      await db.delete(utf8Name);
-      await db.insert(utf8Name, MPT_MINTED_VALUE);
-      proofs.push({
-        mpt_proof: parseMPTProofJSON(mpfProof.toJSON()),
-        asset_name: hexName,
-      });
-    } catch (e) {
-      console.warn("Asset name is not pre-defined", utf8Name, e);
-      return Err(new Error(`Asset name is not pre-defined: ${utf8Name}`));
+  // make Fulfilments for Minting Data V1 Redeemer
+  // prepare H.A.L. NFTs value to mint
+  const fulfilments: Fulfilment[] = [];
+  const mintingHalsData = [];
+  const halTokenValue: [ByteArrayLike, IntLike][] = [];
+
+  for (const decodedOrder of decodedOrders) {
+    const fulfilment: Fulfilment = [];
+    const refOutputsData = [];
+    const userValue = makeValue(1n);
+    const { orderTxInput, assetsInfo, destinationAddress, amount } =
+      decodedOrder;
+
+    if (assetsInfo.length !== amount) {
+      return Err(
+        new Error(
+          `The number of Assets in Fulfilment is different from amount from Order Datum.`
+        )
+      );
     }
+
+    for (const assetInfo of assetsInfo) {
+      const [assetUtf8Name, assetDatum] = assetInfo;
+      const assetHexName = Buffer.from(assetUtf8Name, "utf8").toString("hex");
+
+      try {
+        // NOTE:
+        // Have to remove handles if transaction fails
+        const mpfProof = await db.prove(assetUtf8Name);
+        await db.delete(assetUtf8Name);
+        await db.insert(assetUtf8Name, MPT_MINTED_VALUE);
+        fulfilment.push([assetHexName, parseMPTProofJSON(mpfProof.toJSON())]);
+      } catch (e) {
+        console.warn("Asset name is not pre-defined", assetUtf8Name, e);
+        return Err(
+          new Error(`Asset name is not pre-defined: ${assetUtf8Name}`)
+        );
+      }
+
+      const refAssetClass = makeAssetClass(
+        halPolicyHash,
+        `${PREFIX_100}${assetHexName}`
+      );
+      const userAssetClass = makeAssetClass(
+        halPolicyHash,
+        `${PREFIX_222}${assetHexName}`
+      );
+
+      const refValue = makeValue(1n, makeAssets([[refAssetClass, 1n]]));
+      // add user asset into one value.
+      userValue.assets.add(makeAssets([[userAssetClass, 1n]]));
+
+      refOutputsData.push({
+        assetDatum,
+        refValue,
+      });
+
+      halTokenValue.push(
+        [refAssetClass.tokenName, 1n],
+        [userAssetClass.tokenName, 1n]
+      );
+    }
+    fulfilments.push(fulfilment);
+    mintingHalsData.push({
+      orderTxInput,
+      destinationAddress,
+      refOutputsData,
+      userValue,
+    });
   }
 
   // update all handles in minting data
@@ -132,11 +200,21 @@ const prepareMintTransaction = async (
   // build redeemer for mint v1 `MintNFTs`
   const mintV1MintHandlesRedeemer = buildMintV1MintHandlesRedeemer();
 
-  // build redeemer for minting data `Mint(Proofs)`
-  const mintingDataMintRedeemer = buildMintingDataMintRedeemer(proofs);
+  // build redeemer for minting data `Mint(Fulfilments)`
+  const mintingDataMintRedeemer = buildMintingDataMintRedeemer(fulfilments);
 
-  // calculate total price
-  const totalPrice = hal_nft_price * BigInt(orderedAssets.length);
+  // prepare order tokens value to collect
+  const ordersMintPolicyHash = makeMintingPolicyHash(
+    settingsV1.orders_mint_policy_id
+  );
+  const orderTokenAssetClass = makeAssetClass(
+    ordersMintPolicyHash,
+    ORDER_ASSET_HEX_NAME
+  );
+  const orderTokensValue = makeValue(
+    1n,
+    makeAssets([[orderTokenAssetClass, BigInt(decodedOrders.length)]])
+  );
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -154,21 +232,10 @@ const prepareMintTransaction = async (
     mintProxyScriptTxInput,
     mintV1ScriptTxInput,
     mintingDataScriptTxInput,
-    ordersMintScriptTxInput,
     ordersSpendScriptTxInput
   );
 
-  // <-- spend minting data utxo
-  txBuilder.spendUnsafe(mintingDataAssetTxInput, mintingDataMintRedeemer);
-
-  // <-- lock minting data value with new root hash
-  txBuilder.payUnsafe(
-    mintingDataAssetTxInput.address,
-    mintingDataValue,
-    makeInlineTxOutputDatum(buildMintingData(newMintingData))
-  );
-
-  // <-- withdraw from mint v1 withdraw validator (script from reference input)
+  // <-- withdraw from mint v1 withdrawal validator (script from reference input)
   txBuilder.withdrawUnsafe(
     makeStakingAddress(
       isMainnet,
@@ -177,6 +244,47 @@ const prepareMintTransaction = async (
     0n,
     mintV1MintHandlesRedeemer
   );
+
+  // <-- spend minting data utxo
+  txBuilder.spendUnsafe(mintingDataAssetTxInput, mintingDataMintRedeemer);
+
+  // <-- lock minting data value with new root hash - mintint_data_output
+  txBuilder.payUnsafe(
+    mintingDataAssetTxInput.address,
+    mintingDataValue,
+    makeInlineTxOutputDatum(buildMintingData(newMintingData))
+  );
+
+  // <-- collect order nfts to order_nfts_output
+  txBuilder.payUnsafe(settingsV1.payment_address, orderTokensValue);
+
+  // <-- mint hal nfts
+  txBuilder.mintPolicyTokensUnsafe(
+    halPolicyHash,
+    halTokenValue,
+    makeVoidData()
+  );
+
+  // <-- spend order utxos
+  // <-- send minted HALs to destination with datum
+  const ordersSpendExecuteOrdersRedeemer =
+    buildOrdersSpendExecuteOrdersRedeemer();
+  for (const mintingHalData of mintingHalsData) {
+    const { orderTxInput, destinationAddress, refOutputsData, userValue } =
+      mintingHalData;
+
+    // <-- spend order UTxO
+    txBuilder.spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer);
+
+    // <-- pay ref outputs
+    for (const refOutputData of refOutputsData) {
+      const { refValue, assetDatum } = refOutputData;
+      txBuilder.payUnsafe(ref_spend_script_address, refValue, assetDatum);
+    }
+
+    // <-- pay user output
+    txBuilder.payUnsafe(destinationAddress, userValue);
+  }
 
   // NOTE:
   // After call this function
@@ -188,7 +296,7 @@ const prepareMintTransaction = async (
     txBuilder,
     settings,
     settingsV1,
-    totalHalPrice: totalPrice,
+    totalPrice,
   });
 };
 

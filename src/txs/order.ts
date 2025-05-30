@@ -291,11 +291,13 @@ const fetchOrdersTxInputs = async (
  * @property {NetworkName} network Network
  * @property {TxInput} orderTxInput Order TxInput
  * @property {Address} ordersSpendScriptAddress Orders Spend Script Address
+ * @property {number} maxOrderAmount max_order_amount from Settings
  */
 interface IsValidOrderTxInputParams {
   network: NetworkName;
   orderTxInput: TxInput;
   ordersSpendScriptDetails: ScriptDetails;
+  maxOrderAmount: number;
 }
 
 /**
@@ -306,7 +308,8 @@ interface IsValidOrderTxInputParams {
 const isValidOrderTxInput = (
   params: IsValidOrderTxInputParams
 ): Result<true, Error> => {
-  const { network, orderTxInput, ordersSpendScriptDetails } = params;
+  const { network, orderTxInput, ordersSpendScriptDetails, maxOrderAmount } =
+    params;
   const isMainnet = network == "mainnet";
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -327,11 +330,19 @@ const isValidOrderTxInput = (
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));
   }
-
   const { amount } = decodedResult.data;
-  const expectedLovelace = BigInt(amount) * HAL_NFT_PRICE;
+
+  // check amount
+  if (amount > maxOrderAmount) {
+    return Err(
+      new Error(
+        `Amount must be less than or equal to ${maxOrderAmount} (max_order_amount)`
+      )
+    );
+  }
 
   // check lovelace is enough
+  const expectedLovelace = BigInt(amount) * HAL_NFT_PRICE;
   if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
   }
