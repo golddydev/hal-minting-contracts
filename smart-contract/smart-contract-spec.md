@@ -132,13 +132,13 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
 #### 3.3.3 Redeemer
 
-- `Mint(List<Proofs>)`
+- `Mint(List<Fulfilments>)`
 
 - `UpdateMPT`
 
 #### 3.3.4 Validation
 
-- `Mint(List<Proofs>)`: called when minting engine tries to mint H.A.L. NFTs.
+- `Mint(List<Fulfilments>)`: called when minting engine tries to mint H.A.L. NFTs.
 
   - must attach `Settings` NFT in reference inputs.
 
@@ -152,7 +152,7 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
     - minting_data_output: Output with updated `MPF` `root_hash`.
 
-      - must have correct datum with updated `MPF` `root_hash` which can be calculated using `Proofs` in redeemer. (`Proof` contains `mpt_proof` which is including proof of `asset_name` and `asset_name` of H.A.L. NFT to mint)
+      - must have correct datum with updated `MPF` `root_hash` which can be calculated using `mpt_proof` from `Fulfilments` in redeemer.
 
         - value of key `asset_name` must be empty string `""`.
 
@@ -160,13 +160,11 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
       - must have same value as spending UTxO. (which is `minting_data_input`)
 
-      > `Proofs` in redeemer must be in same order as `Order UTxOs` in transaction inputs
+      > `Fulfilments` in redeemer must be in `REVERSE` order as `Order UTxOs` in transaction inputs
 
-    - payment_output: Output for H.A.L. NFTs minting cost.
+    - order_nfts_output: Output with collected `Order NFTs` (which will be burnt later)
 
-      - must have more or equal lovelace to H.A.L. NFTs minting cost which is sum of `price` from `OrderDatum` of all `Order UTxOs` substracted by min lovelace used for `reference_output` and `user_output` and transaction fee.
-
-        > Order UTxO must pay everything.
+      - must have `Order NFTs` of `amount` same as Order UTxOs amount
 
     - rest_outputs: List of Pair of (`reference output`, `user_output`).
 
@@ -180,9 +178,15 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
       - `user_output` must have user H.A.L. asset with `asset_name`. (222 asset name label)
 
-      > The pairs must be in same order as `Order UTxOs` in transaction inputs and `Proofs` in redeemer.
+      > The pairs must be in `REVERSE` order as `Order UTxOs` in transaction inputs. (Same order as `Fulfilments`)
 
-    - assure that Pair of H.A.L. `reference_asset` and `user_asset` for `Proofs` are minted
+    - payment_output: Last output must be payment output for H.A.L. NFTs minting cost.
+
+      - must have more or equal lovelace to H.A.L. NFTs minting cost which is sum of `price` multiplied by `amount` (from `OrderDatum`) of all `Order UTxOs` substracted by min lovelace used for `reference_output` and `user_output` and transaction fee.
+
+        > Order UTxO must pay everything.
+
+    - assure that Pair of H.A.L. `reference_asset` and `user_asset` for `Fulfilments` are minted
 
     - assure that Order NFTs are burnt (same amount as H.A.L. NFTs. `Ref` and `User` NFTs correspond one Order NFT.)
 

@@ -267,17 +267,19 @@ pub fn resolve_orders_information(
 // we expect that the last output is change output to payment address
 // and we don't take that into account
 //
-pub fn calculate_total_min_lovelace(outputs: List<Output>) -> Int {
+pub fn get_total_min_lovelace_and_payment_output(
+  outputs: List<Output>,
+) -> (Int, Output) {
   do_calculate_total_min_lovelace(outputs, 0)
 }
 
 fn do_calculate_total_min_lovelace(
   outputs: List<Output>,
   total_min_lovelace: Int,
-) -> Int {
+) -> (Int, Output) {
   when outputs is {
-    [] -> total_min_lovelace
-    [_change_output] -> total_min_lovelace
+    [] -> fail @"must have payment output."
+    [payment_output] -> (total_min_lovelace, payment_output)
     [output, ..rest_outputs] -> {
       let Output { value, .. } = output
       let lovelace = value.lovelace_of(value)
