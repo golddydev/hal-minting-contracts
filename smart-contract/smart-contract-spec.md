@@ -226,6 +226,8 @@ None (minting policy)
 
   - `amount` must be positive.
 
+  - `amount` must not exceed `max_order_amount` from `Settings`.
+
   - must have valid order output. We assume this output is first output in the transaction outputs.
 
     - Order output address must be `orders_spend_script_address` from `Settings`.

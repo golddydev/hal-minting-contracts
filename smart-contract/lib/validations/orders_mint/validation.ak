@@ -15,6 +15,7 @@ use validations/orders_mint/utils.{is_order_output_valid}
 // - own minting policy id must be same as orders_mint_policy_id from Settings
 // - must be signed by orders_minter
 // - amount must be positive
+// - amount must not exceed max_order_amount
 // - must have valid Order output
 //   address must be orders_spend_script_address
 //   must have valid `OrderDatum` with matching destination_address and amount
@@ -38,6 +39,7 @@ pub fn can_mint_order(
     orders_spend_script_address,
     orders_mint_policy_id,
     orders_minter,
+    max_order_amount,
     ..
   } = settings_datum
 
@@ -50,6 +52,9 @@ pub fn can_mint_order(
 
   // amount must be positive
   expect amount > 0
+
+  // amount must not exceed max_order_amount
+  expect amount <= max_order_amount
 
   // parse outputs
   expect [order_output, _] = outputs
