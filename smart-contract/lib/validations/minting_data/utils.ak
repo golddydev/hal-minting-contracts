@@ -195,7 +195,10 @@ fn is_user_output_valid(
     user_output
   expect user_output_address == destination_address
   let does_user_output_value_have_assets =
-    value.without_lovelace(user_output_value) == user_hal_value
+    value.merge(
+      value.without_lovelace(user_output_value),
+      value.negate(user_hal_value),
+    ) == value.zero()
 
   expect does_user_output_value_have_assets
 
