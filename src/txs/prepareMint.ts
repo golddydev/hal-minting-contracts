@@ -329,12 +329,6 @@ const prepareMintTransaction = async (
     txBuilder.payUnsafe(destinationAddress, userValue);
   }
 
-  // NOTE:
-  // After call this function
-  // using txBuilder (returned value)
-  // they have to continue with minting assets (ref and user assets)
-  // and sending them to correct addresses (to ref spend script address and destination addresses)
-
   return Ok({
     txBuilder,
     settings,
