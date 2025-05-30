@@ -57,6 +57,7 @@ pub fn can_mint(
     ref_spend_script_address,
     orders_spend_script_address,
     orders_mint_policy_id,
+    max_min_lovelace,
     ..
   } = settings_datum
 
@@ -74,7 +75,7 @@ pub fn can_mint(
   // calculate total min lovelace (including Order NFTs output)
   // and get payment_output (which is last output)
   let (total_min_lovelace, payment_output) =
-    get_total_min_lovelace_and_payment_output(rest_outputs)
+    get_total_min_lovelace_and_payment_output(rest_outputs, max_min_lovelace)
 
   // parse outputs to extract Order NFTs output
   expect [order_nfts_output, ..rest_outputs] = rest_outputs

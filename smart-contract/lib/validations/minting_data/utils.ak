@@ -280,15 +280,18 @@ pub fn resolve_orders_information(
 // This function calculates total min lovelace from outputs
 // we expect that the last output is change output to payment address
 // and we don't take that into account
+// We also checks each output must have less than max_min_lovelace
 //
 pub fn get_total_min_lovelace_and_payment_output(
   outputs: List<Output>,
+  max_min_lovelace: Int,
 ) -> (Int, Output) {
-  do_calculate_total_min_lovelace(outputs, 0)
+  do_calculate_total_min_lovelace(outputs, max_min_lovelace, 0)
 }
 
 fn do_calculate_total_min_lovelace(
   outputs: List<Output>,
+  max_min_lovelace: Int,
   total_min_lovelace: Int,
 ) -> (Int, Output) {
   when outputs is {
@@ -297,8 +300,13 @@ fn do_calculate_total_min_lovelace(
     [output, ..rest_outputs] -> {
       let Output { value, .. } = output
       let lovelace = value.lovelace_of(value)
+
+      // lovelace must be smaller than or equal to max_min_lovelace
+      expect lovelace <= max_min_lovelace
+
       do_calculate_total_min_lovelace(
         rest_outputs,
+        max_min_lovelace,
         total_min_lovelace + lovelace,
       )
     }
