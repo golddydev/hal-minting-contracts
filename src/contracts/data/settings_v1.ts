@@ -25,6 +25,8 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     minting_data_script_hash,
     orders_minter,
     ref_spend_admin,
+    max_order_amount,
+    max_min_lovelace,
   } = settings;
 
   return makeConstrData(0, [
@@ -38,6 +40,8 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     makeByteArrayData(minting_data_script_hash),
     makeByteArrayData(orders_minter),
     makeByteArrayData(ref_spend_admin),
+    makeIntData(max_order_amount),
+    makeIntData(max_min_lovelace),
   ]);
 };
 
@@ -45,7 +49,7 @@ const decodeSettingsV1Data = (
   data: UplcData,
   network: NetworkName
 ): SettingsV1 => {
-  const settingsV1ConstrData = expectConstrData(data, 0, 10);
+  const settingsV1ConstrData = expectConstrData(data, 0, 12);
 
   const policy_id = expectByteArrayData(
     settingsV1ConstrData.fields[0],
@@ -106,6 +110,20 @@ const decodeSettingsV1Data = (
     "ref_spend_admin must be ByteArray"
   ).toHex();
 
+  // max_order_amount
+  const max_order_amount = Number(
+    expectIntData(
+      settingsV1ConstrData.fields[10],
+      "max_order_amount must be Int"
+    ).value
+  );
+
+  // max_min_lovelace
+  const max_min_lovelace = expectIntData(
+    settingsV1ConstrData.fields[11],
+    "max_min_lovelace must be Int"
+  ).value;
+
   return {
     policy_id,
     allowed_minter,
@@ -117,6 +135,8 @@ const decodeSettingsV1Data = (
     minting_data_script_hash,
     orders_minter,
     ref_spend_admin,
+    max_order_amount,
+    max_min_lovelace,
   };
 };
 
