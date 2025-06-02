@@ -27,6 +27,8 @@ interface SettingsV1 {
   ref_spend_admin: string;
   // Maximum Amount of H.A.L. NFTs that can be ordered at once
   max_order_amount: number;
+  // max min_lovelace allowed to sent with NFT
+  max_min_lovelace: bigint;
 }
 
 export type { SettingsV1 };
