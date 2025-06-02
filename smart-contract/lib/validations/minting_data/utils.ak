@@ -1,9 +1,10 @@
 use aiken/bytearray
+use aiken/dict.{Dict}
 use aiken/list
 use aiken/merkle_patricia_forestry as mpt
 use aiken/transaction.{InlineDatum, Input, Output}
 use aiken/transaction/credential.{Address}
-use aiken/transaction/value.{PolicyId, Value}
+use aiken/transaction/value.{AssetName, PolicyId, Value}
 use common/cip68.{prefix_100, prefix_222}
 use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{OrderDatum, order_asset_name}
@@ -85,7 +86,13 @@ fn is_order_fulfilled(
 
   // check user output
   expect [user_output, ..rest_outputs] = rest_outputs
-  expect is_user_output_valid(user_output, destination_address, user_hal_value)
+  expect
+    is_user_output_valid(
+      user_output,
+      destination_address,
+      user_hal_value,
+      policy_id,
+    )
 
   // calculate new minting hal value
   let new_minting_hal_value =
@@ -188,16 +195,33 @@ fn is_user_output_valid(
   user_output: Output,
   destination_address: Address,
   user_hal_value: Value,
+  policy_id: PolicyId,
 ) -> Bool {
   let Output { address: user_output_address, value: user_output_value, .. } =
     user_output
   expect user_output_address == destination_address
-  let does_user_output_value_have_assets =
-    value.without_lovelace(user_output_value) == user_hal_value
+  let does_user_output_value_have_hal_nfts =
+    are_tokens_same(
+      value.tokens(user_output_value, policy_id),
+      value.tokens(user_hal_value, policy_id),
+    )
 
-  expect does_user_output_value_have_assets
+  expect does_user_output_value_have_hal_nfts
 
   True
+}
+
+fn are_tokens_same(
+  tokens_1: Dict<AssetName, Int>,
+  tokens_2: Dict<AssetName, Int>,
+) -> Bool {
+  dict.foldl(
+    tokens_1,
+    True,
+    fn(asset_name, quantity, result) -> Bool {
+      result && dict.get(tokens_2, asset_name) == Some(quantity)
+    },
+  )
 }
 
 // This function updates the mpt root
