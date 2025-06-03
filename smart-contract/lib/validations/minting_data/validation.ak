@@ -5,6 +5,7 @@ use aiken/transaction.{
 }
 use aiken/transaction/value
 use common/hashes.{VerificationKeyHash}
+use common/utils.{are_tokens_same} as common_utils
 use hal_nft_mint/minting_data.{MintingData, resolve_minting_data}
 use hal_nft_mint/orders.{order_asset_name}
 use hal_nft_mint/settings.{Settings, find_settings}
@@ -133,14 +134,19 @@ pub fn can_mint(
   expect minting_data_output.reference_script == None
 
   // second output must be Order NFTs output
-  let Output { value: order_nfts_output_value, .. } = order_nfts_output
-  let collecct_order_nfts_correctly =
+  let Output {
+    value: order_nfts_output_value,
+    address: order_nfts_output_address,
+    ..
+  } = order_nfts_output
+  expect order_nfts_output_address == payment_address
+  let collect_order_nfts_correctly =
     value.quantity_of(
       order_nfts_output_value,
       orders_mint_policy_id,
       order_asset_name,
     ) == orders_count
-  expect collecct_order_nfts_correctly
+  expect collect_order_nfts_correctly
 
   // last output is payment output with lovelace of total H.A.L NFTs price
   // subtracted by total min lovelace and transaction fee
@@ -160,9 +166,12 @@ pub fn can_mint(
   expect payment_lovelace_correctly_paid
   expect no_dust_tokens
 
-  // must mint only H.A.L. NFTs
+  // must mint H.A.L. NFTs correctly
   let hal_nfts_minted_correctly =
-    value.from_minted_value(mint) == minting_hal_value
+    are_tokens_same(
+      mint |> value.from_minted_value |> value.tokens(policy_id),
+      minting_hal_value |> value.tokens(policy_id),
+    )
   expect hal_nfts_minted_correctly
 
   True

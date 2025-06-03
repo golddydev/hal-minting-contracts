@@ -1,4 +1,5 @@
 use aiken/builtin.{serialise_data}
+use aiken/dict.{Dict}
 use aiken/hash.{Blake2b_256, Hash}
 use aiken/list
 use aiken/pairs
@@ -8,6 +9,7 @@ use aiken/transaction.{
 use aiken/transaction/credential.{
   Address, Inline, ScriptCredential, StakeCredential,
 }
+use aiken/transaction/value.{AssetName}
 use common/hashes.{ScriptHash}
 
 pub fn is_withdrawal_script_executed(
@@ -59,4 +61,17 @@ pub fn get_datum_hash(datum: Datum) -> Hash<Blake2b_256, Data> {
     InlineDatum(data) -> hash.blake2b_256(serialise_data(data))
     _ -> fail @"no datum"
   }
+}
+
+pub fn are_tokens_same(
+  tokens_1: Dict<AssetName, Int>,
+  tokens_2: Dict<AssetName, Int>,
+) -> Bool {
+  dict.foldl(
+    tokens_1,
+    True,
+    fn(asset_name, quantity, result) -> Bool {
+      result && dict.get(tokens_2, asset_name) == Some(quantity)
+    },
+  )
 }

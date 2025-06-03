@@ -91,12 +91,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const {
-        usersWallets,
-        allowedMinterWallet,
-        paymentWallet,
-        orderNftsCollectorWallet,
-      } = wallets;
+      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
       const assetNamesList = [["hal-1", "hal-2"]];
@@ -111,7 +106,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        orderNftsCollector: orderNftsCollectorWallet.address,
         orders,
         db,
         deployedScripts,
@@ -284,12 +278,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const {
-        usersWallets,
-        allowedMinterWallet,
-        paymentWallet,
-        orderNftsCollectorWallet,
-      } = wallets;
+      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
       const [user1Wallet, user2Wallet] = usersWallets;
 
       const assetNamesList = [
@@ -307,7 +296,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        orderNftsCollector: orderNftsCollectorWallet.address,
         orders,
         db,
         deployedScripts,
@@ -512,7 +500,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { allowedMinterWallet, orderNftsCollectorWallet } = wallets;
+      const { allowedMinterWallet } = wallets;
 
       const assetNamesList = [
         ["hal-9", "hal-10"],
@@ -529,7 +517,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        orderNftsCollector: orderNftsCollectorWallet.address,
         orders,
         db,
         deployedScripts,
@@ -647,12 +634,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const {
-        usersWallets,
-        allowedMinterWallet,
-        paymentWallet,
-        orderNftsCollectorWallet,
-      } = wallets;
+      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
       const user2Wallet = usersWallets[1];
 
       const assetNamesList = [["hal-9", "hal-10"]];
@@ -667,7 +649,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        orderNftsCollector: orderNftsCollectorWallet.address,
         orders,
         db,
         deployedScripts,
@@ -800,12 +781,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const {
-        usersWallets,
-        allowedMinterWallet,
-        paymentWallet,
-        orderNftsCollectorWallet,
-      } = wallets;
+      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
       const user3Wallet = usersWallets[2];
 
       const assetNamesList = Array.from({ length: 2 }, (_, outerIndex) =>
@@ -825,7 +801,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        orderNftsCollector: orderNftsCollectorWallet.address,
         orders,
         db,
         deployedScripts,

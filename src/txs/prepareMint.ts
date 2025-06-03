@@ -43,7 +43,6 @@ import { DecodedOrder, Order } from "./types.js";
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {Address} orderNftsCollector Wallet Address where Order Nfts are collected
  * @property {Order[]} orders Orders
  * @property {Trie} db Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
@@ -51,7 +50,6 @@ import { DecodedOrder, Order } from "./types.js";
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  orderNftsCollector: Address;
   orders: Order[];
   db: Trie;
   deployedScripts: DeployedScripts;
@@ -71,12 +69,12 @@ const prepareMintTransaction = async (
       settings: Settings;
       settingsV1: SettingsV1;
       totalPrice: bigint;
+      db: Trie;
     },
     Error
   >
 > => {
-  const { network, address, orderNftsCollector, orders, db, deployedScripts } =
-    params;
+  const { network, address, orders, db, deployedScripts } = params;
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
@@ -129,6 +127,7 @@ const prepareMintTransaction = async (
   const {
     policy_id,
     allowed_minter,
+    payment_address,
     orders_mint_policy_id,
     ref_spend_script_address,
   } = settingsV1;
@@ -298,7 +297,7 @@ const prepareMintTransaction = async (
   );
 
   // <-- collect order nfts to order_nfts_output
-  txBuilder.payUnsafe(orderNftsCollector, orderTokensValue);
+  txBuilder.payUnsafe(payment_address, orderTokensValue);
 
   // <-- mint hal nfts
   txBuilder.mintPolicyTokensUnsafe(
@@ -334,6 +333,7 @@ const prepareMintTransaction = async (
     settings,
     settingsV1,
     totalPrice,
+    db,
   });
 };
 
