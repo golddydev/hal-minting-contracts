@@ -2,11 +2,7 @@ import { makeAssetClass, makeTxOutputId } from "@helios-lang/ledger";
 import { Ok } from "ts-res";
 import { assert, describe } from "vitest";
 
-import {
-  HAL_NFT_PRICE,
-  PREFIX_100,
-  PREFIX_222,
-} from "../src/constants/index.js";
+import { PREFIX_100, PREFIX_222 } from "../src/constants/index.js";
 import {
   buildOrdersSpendCancelOrderRedeemer,
   cancel,
@@ -45,10 +41,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets, ordersMinterWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { hal_nft_price } = settingsV1;
+
       const txBuilderResult = await request({
         network,
         address: user1Wallet.address,
         amount: 2,
+        halNftPrice: hal_nft_price,
         deployedScripts,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
@@ -198,10 +200,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets, ordersMinterWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { hal_nft_price } = settingsV1;
+
       const txBuilderResult = await request({
         network,
         address: user1Wallet.address,
         amount: 3,
+        halNftPrice: hal_nft_price,
         deployedScripts,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
@@ -240,10 +248,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets, ordersMinterWallet } = wallets;
       const user2Wallet = usersWallets[1];
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { hal_nft_price } = settingsV1;
+
       const txBuilderResult = await request({
         network,
         address: user2Wallet.address,
         amount: 3,
+        halNftPrice: hal_nft_price,
         deployedScripts,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
@@ -476,11 +490,17 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets, ordersMinterWallet } = wallets;
       const user2Wallet = usersWallets[1];
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { hal_nft_price } = settingsV1;
+
       for (let i = 0; i < 2; i++) {
         const txBuilderResult = await request({
           network,
           address: user2Wallet.address,
           amount: 2,
+          halNftPrice: hal_nft_price,
           deployedScripts,
         });
         invariant(txBuilderResult.ok, "Order Tx Building failed");
@@ -610,6 +630,11 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const user2Wallet = usersWallets[1];
       const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { hal_nft_price } = settingsV1;
+
       const txBuilderResult = await cancel({
         network,
         address: user2Wallet.address,
@@ -635,7 +660,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const afterUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
 
       invariant(
-        afterUser2Lovelace - beforeUser2Lovelace > HAL_NFT_PRICE - 1_000_000n,
+        afterUser2Lovelace - beforeUser2Lovelace > hal_nft_price - 1_000_000n,
         "User 2 Lovelace is not correct"
       );
 
@@ -766,11 +791,17 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets, ordersMinterWallet } = wallets;
       const user3Wallet = usersWallets[2];
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsV1 } = settingsResult.data;
+      const { hal_nft_price } = settingsV1;
+
       for (let i = 0; i < 2; i++) {
         const txBuilderResult = await request({
           network,
           address: user3Wallet.address,
           amount: 5,
+          halNftPrice: hal_nft_price,
           deployedScripts,
         });
         invariant(txBuilderResult.ok, "Order Tx Building failed");

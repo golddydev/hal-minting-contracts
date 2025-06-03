@@ -17,7 +17,7 @@ import { ScriptDetails } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
 
 import { fetchSettings } from "../configs/index.js";
-import { HAL_NFT_PRICE, ORDER_ASSET_HEX_NAME } from "../constants/index.js";
+import { ORDER_ASSET_HEX_NAME } from "../constants/index.js";
 import {
   buildOrderData,
   buildOrdersMintBurnOrdersRedeemer,
@@ -46,6 +46,7 @@ interface RequestParams {
   network: NetworkName;
   address: Address;
   amount: number;
+  halNftPrice: bigint;
   deployedScripts: DeployedScripts;
 }
 
@@ -57,7 +58,7 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, address, amount, deployedScripts } = params;
+  const { network, address, amount, halNftPrice, deployedScripts } = params;
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
@@ -103,7 +104,7 @@ const request = async (
 
   const order: OrderDatum = {
     owner_key_hash: address.spendingCredential.toHex(),
-    price: HAL_NFT_PRICE,
+    price: halNftPrice,
     destination_address: address,
     amount,
   };
@@ -117,7 +118,7 @@ const request = async (
     [orderTokenAssetClass.tokenName, 1n],
   ];
   const orderValue = makeValue(
-    HAL_NFT_PRICE * BigInt(amount),
+    halNftPrice * BigInt(amount),
     makeAssets([[orderTokenAssetClass, 1n]])
   );
 
@@ -298,6 +299,7 @@ interface IsValidOrderTxInputParams {
   orderTxInput: TxInput;
   ordersSpendScriptDetails: ScriptDetails;
   maxOrderAmount: number;
+  halNftPrice: bigint;
 }
 
 /**
@@ -308,8 +310,13 @@ interface IsValidOrderTxInputParams {
 const isValidOrderTxInput = (
   params: IsValidOrderTxInputParams
 ): Result<true, Error> => {
-  const { network, orderTxInput, ordersSpendScriptDetails, maxOrderAmount } =
-    params;
+  const {
+    network,
+    orderTxInput,
+    ordersSpendScriptDetails,
+    maxOrderAmount,
+    halNftPrice,
+  } = params;
   const isMainnet = network == "mainnet";
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -342,7 +349,7 @@ const isValidOrderTxInput = (
   }
 
   // check lovelace is enough
-  const expectedLovelace = BigInt(amount) * HAL_NFT_PRICE;
+  const expectedLovelace = BigInt(amount) * halNftPrice;
   if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
   }
