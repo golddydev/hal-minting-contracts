@@ -11,6 +11,7 @@ import {
   buildOrdersSpendCancelOrderRedeemer,
   cancel,
   decodeMintingDataDatum,
+  fetchMintingData,
   fetchSettings,
   inspect,
   invariant,
@@ -103,12 +104,22 @@ describe.sequential("Koralab H.A.L Tests", () => {
         ]),
       }));
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const { ref_spend_script_address } = settingsV1;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
         orders,
         db,
         deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -128,10 +139,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsV1 } = settingsResult.data;
-      const { ref_spend_script_address } = settingsV1;
       const user1Balance = await balanceOfWallet(user1Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
@@ -154,16 +161,18 @@ describe.sequential("Koralab H.A.L Tests", () => {
       }
 
       // update minting data input
-      const mintingDataAssetTxInput = await emulator.getUtxo(
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
         makeTxOutputId(txId, 0)
       );
-      const mintingData = decodeMintingDataDatum(mintingDataAssetTxInput.datum);
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
       mockedFunctions.mockedFetchMintingData.mockReturnValue(
         new Promise((resolve) =>
           resolve(
             Ok({
-              mintingData,
-              mintingDataAssetTxInput,
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
             })
           )
         )
@@ -293,12 +302,22 @@ describe.sequential("Koralab H.A.L Tests", () => {
         ]),
       }));
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const { ref_spend_script_address } = settingsV1;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
         orders,
         db,
         deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -318,10 +337,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsV1 } = settingsResult.data;
-      const { ref_spend_script_address } = settingsV1;
       const user1Balance = await balanceOfWallet(user1Wallet);
       const user2Balance = await balanceOfWallet(user2Wallet);
       const refSpendBalance = await balanceOfAddress(
@@ -359,16 +374,18 @@ describe.sequential("Koralab H.A.L Tests", () => {
       }
 
       // update minting data input
-      const mintingDataAssetTxInput = await emulator.getUtxo(
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
         makeTxOutputId(txId, 0)
       );
-      const mintingData = decodeMintingDataDatum(mintingDataAssetTxInput.datum);
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
       mockedFunctions.mockedFetchMintingData.mockReturnValue(
         new Promise((resolve) =>
           resolve(
             Ok({
-              mintingData,
-              mintingDataAssetTxInput,
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
             })
           )
         )
@@ -514,12 +531,21 @@ describe.sequential("Koralab H.A.L Tests", () => {
         ]),
       }));
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput } = settingsResult.data;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
       const txResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
         orders,
         db,
         deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
       });
       invariant(!txResult.ok, "Mint Tx Building Should Fail");
       assert(txResult.error.message.includes("Asset name is not pre-defined"));
@@ -646,12 +672,22 @@ describe.sequential("Koralab H.A.L Tests", () => {
         ]),
       }));
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const { ref_spend_script_address } = settingsV1;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
         orders,
         db,
         deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -671,10 +707,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsV1 } = settingsResult.data;
-      const { ref_spend_script_address } = settingsV1;
       const user2Balance = await balanceOfWallet(user2Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
@@ -697,16 +729,18 @@ describe.sequential("Koralab H.A.L Tests", () => {
       }
 
       // update minting data input
-      const mintingDataAssetTxInput = await emulator.getUtxo(
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
         makeTxOutputId(txId, 0)
       );
-      const mintingData = decodeMintingDataDatum(mintingDataAssetTxInput.datum);
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
       mockedFunctions.mockedFetchMintingData.mockReturnValue(
         new Promise((resolve) =>
           resolve(
             Ok({
-              mintingData,
-              mintingDataAssetTxInput,
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
             })
           )
         )
@@ -798,12 +832,22 @@ describe.sequential("Koralab H.A.L Tests", () => {
         ]),
       }));
 
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const { ref_spend_script_address } = settingsV1;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
         orders,
         db,
         deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -823,10 +867,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsV1 } = settingsResult.data;
-      const { ref_spend_script_address } = settingsV1;
       const user3Balance = await balanceOfWallet(user3Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
@@ -851,16 +891,18 @@ describe.sequential("Koralab H.A.L Tests", () => {
       }
 
       // update minting data input
-      const mintingDataAssetTxInput = await emulator.getUtxo(
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
         makeTxOutputId(txId, 0)
       );
-      const mintingData = decodeMintingDataDatum(mintingDataAssetTxInput.datum);
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
       mockedFunctions.mockedFetchMintingData.mockReturnValue(
         new Promise((resolve) =>
           resolve(
             Ok({
-              mintingData,
-              mintingDataAssetTxInput,
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
             })
           )
         )
