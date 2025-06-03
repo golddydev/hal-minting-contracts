@@ -1,11 +1,11 @@
 use aiken/bytearray
-use aiken/dict.{Dict}
 use aiken/list
 use aiken/merkle_patricia_forestry as mpt
 use aiken/transaction.{InlineDatum, Input, Output}
 use aiken/transaction/credential.{Address}
-use aiken/transaction/value.{AssetName, PolicyId, Value}
+use aiken/transaction/value.{PolicyId, Value}
 use common/cip68.{prefix_100, prefix_222}
+use common/utils.{are_tokens_same}
 use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{OrderDatum, order_asset_name}
 use validations/minting_data/types.{Fulfilment}
@@ -209,19 +209,6 @@ fn is_user_output_valid(
   expect does_user_output_value_have_hal_nfts
 
   True
-}
-
-fn are_tokens_same(
-  tokens_1: Dict<AssetName, Int>,
-  tokens_2: Dict<AssetName, Int>,
-) -> Bool {
-  dict.foldl(
-    tokens_1,
-    True,
-    fn(asset_name, quantity, result) -> Bool {
-      result && dict.get(tokens_2, asset_name) == Some(quantity)
-    },
-  )
 }
 
 // This function updates the mpt root

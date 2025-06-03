@@ -10,11 +10,11 @@ import {
   makeStakingAddress,
   makeStakingValidatorHash,
   makeValue,
+  TxInput,
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
-import { fetchMintingData, fetchSettings } from "../configs/index.js";
 import {
   MPT_MINTED_VALUE,
   ORDER_ASSET_HEX_NAME,
@@ -26,13 +26,14 @@ import {
   buildMintingDataMintRedeemer,
   buildMintV1MintHandlesRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
+  decodeMintingDataDatum,
   decodeOrderDatum,
+  decodeSettingsDatum,
+  decodeSettingsV1Data,
   Fulfilment,
   makeVoidData,
   MintingData,
   parseMPTProofJSON,
-  Settings,
-  SettingsV1,
 } from "../contracts/index.js";
 import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
@@ -43,18 +44,20 @@ import { DecodedOrder, Order } from "./types.js";
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {Address} orderNftsCollector Wallet Address where Order Nfts are collected
  * @property {Order[]} orders Orders
  * @property {Trie} db Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
+ * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
+ * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
  */
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  orderNftsCollector: Address;
   orders: Order[];
   db: Trie;
   deployedScripts: DeployedScripts;
+  settingsAssetTxInput: TxInput;
+  mintingDataAssetTxInput: TxInput;
 }
 
 /**
@@ -68,15 +71,21 @@ const prepareMintTransaction = async (
   Result<
     {
       txBuilder: TxBuilder;
-      settings: Settings;
-      settingsV1: SettingsV1;
       totalPrice: bigint;
+      db: Trie;
     },
     Error
   >
 > => {
-  const { network, address, orderNftsCollector, orders, db, deployedScripts } =
-    params;
+  const {
+    network,
+    address,
+    orders,
+    db,
+    deployedScripts,
+    settingsAssetTxInput,
+    mintingDataAssetTxInput,
+  } = params;
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
@@ -121,27 +130,43 @@ const prepareMintTransaction = async (
     ordersSpendScriptTxInput,
   } = deployedScripts;
 
-  // fetch settings
-  const settingsResult = await fetchSettings(network);
-  if (!settingsResult.ok)
-    return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
-  const { settings, settingsV1, settingsAssetTxInput } = settingsResult.data;
+  // decode settings
+  const settingsResult = mayFail(() =>
+    decodeSettingsDatum(settingsAssetTxInput.datum)
+  );
+  if (!settingsResult.ok) {
+    return Err(new Error(`Failed to decode settings: ${settingsResult.error}`));
+  }
+  const { data: settingsV1Data } = settingsResult.data;
+  const settingsV1Result = mayFail(() =>
+    decodeSettingsV1Data(settingsV1Data, network)
+  );
+  if (!settingsV1Result.ok) {
+    return Err(
+      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
+    );
+  }
   const {
     policy_id,
     allowed_minter,
+    payment_address,
     orders_mint_policy_id,
     ref_spend_script_address,
-  } = settingsV1;
+  } = settingsV1Result.data;
 
   // hal policy id
   const halPolicyHash = makeMintingPolicyHash(policy_id);
 
-  const mintingDataResult = await fetchMintingData();
-  if (!mintingDataResult.ok)
+  // decode minting data
+  const mintingDataResult = mayFail(() =>
+    decodeMintingDataDatum(mintingDataAssetTxInput.datum)
+  );
+  if (!mintingDataResult.ok) {
     return Err(
-      new Error(`Failed to fetch minting data: ${mintingDataResult.error}`)
+      new Error(`Failed to decode minting data: ${mintingDataResult.error}`)
     );
-  const { mintingData, mintingDataAssetTxInput } = mintingDataResult.data;
+  }
+  const mintingData = mintingDataResult.data;
 
   // check if current db trie hash is same as minting data root hash
   if (
@@ -298,7 +323,7 @@ const prepareMintTransaction = async (
   );
 
   // <-- collect order nfts to order_nfts_output
-  txBuilder.payUnsafe(orderNftsCollector, orderTokensValue);
+  txBuilder.payUnsafe(payment_address, orderTokensValue);
 
   // <-- mint hal nfts
   txBuilder.mintPolicyTokensUnsafe(
@@ -331,9 +356,8 @@ const prepareMintTransaction = async (
 
   return Ok({
     txBuilder,
-    settings,
-    settingsV1,
     totalPrice,
+    db,
   });
 };
 

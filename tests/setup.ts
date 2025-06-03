@@ -137,10 +137,6 @@ const setup = async () => {
   const paymentWallet = emulator.createWallet(ACCOUNT_LOVELACE);
   emulator.tick(200);
 
-  // order nfts collector
-  const orderNftsCollectorWallet = emulator.createWallet(0n);
-  emulator.tick(200);
-
   // users wallet
   const usersWallets: SimpleWallet[] = [];
   for (let i = 0; i < 5; i++) {
@@ -395,7 +391,6 @@ const setup = async () => {
       ordersMinterWallet,
       refSpendAdminWallet,
       paymentWallet,
-      orderNftsCollectorWallet,
       usersWallets,
     },
     ordersTxInputs,

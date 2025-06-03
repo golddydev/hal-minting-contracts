@@ -31,4 +31,7 @@ export const REF_SPEND_ADMIN =
 // max_order_amount
 export const MAX_ORDER_AMOUNT = 5;
 
+// max_min_lovelace
+export const MAX_MIN_LOVELACE = 5_000_000n;
+
 // ------- End Settings Data -------
