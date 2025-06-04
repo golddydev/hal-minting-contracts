@@ -7,15 +7,15 @@ use aiken/transaction/value.{PolicyId, Value}
 use common/cip68.{prefix_100, prefix_222}
 use common/utils.{are_tokens_same}
 use hal_nft_mint/minting_data.{mpt_minted_value}
-use hal_nft_mint/orders.{OrderDatum, order_asset_name}
-use validations/minting_data/types.{AggregatedOrder, Proofs}
+use hal_nft_mint/orders.{Order, OrderDatum, order_asset_name}
+use validations/minting_data/types.{Proofs}
 
 // - all orders (all UTxOs in transaction inputs) are fulfilled correctly
 //   must have corresponding ref_outputs (Output for each reference HAL NFT. There must be fulfilled amount of Outputs)
 //   must have one user_output (Output for user HAL NFTs. All user HAL NFTs will be in same UTxO.)
 //   optionally have leftover_output, where Order NFT will be sent with left over lovelace and left over amount. (amount - fulfilled amount)
 pub fn are_all_orders_fulfilled(
-  aggregated_orders: List<AggregatedOrder>,
+  aggregated_orders: List<Order>,
   outputs: List<Output>,
   root: mpt.MerklePatriciaForestry,
   minting_hal_value: Value,
@@ -57,7 +57,7 @@ pub fn are_all_orders_fulfilled(
 }
 
 fn is_order_fulfilled(
-  aggregated_order: AggregatedOrder,
+  aggregated_order: Order,
   outputs: List<Output>,
   root: mpt.MerklePatriciaForestry,
   minting_hal_value: Value,
@@ -232,12 +232,12 @@ fn update_root(
 //
 pub fn aggregate_orders_information(
   inputs: List<Input>,
-  aggregated_orders: List<AggregatedOrder>,
+  aggregated_orders: List<Order>,
   orders_count: Int,
   total_price: Int,
   orders_spend_script_address: Address,
   orders_mint_policy_id: PolicyId,
-  continuation: fn(List<AggregatedOrder>, Int, Int) -> result,
+  continuation: fn(List<Order>, Int, Int) -> result,
 ) -> result {
   when inputs is {
     [] -> continuation(aggregated_orders, orders_count, total_price)
@@ -296,10 +296,10 @@ pub fn aggregate_orders_information(
 }
 
 fn add_order_to_aggregated_orders(
-  self: List<AggregatedOrder>,
+  self: List<Order>,
   address: Address,
   amount: Int,
-) -> List<AggregatedOrder> {
+) -> List<Order> {
   when self is {
     [] ->
       [(address, amount)]

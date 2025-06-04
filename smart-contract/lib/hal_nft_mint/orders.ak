@@ -12,3 +12,9 @@ pub type OrderDatum {
   // amount of HAL NFTs to mint
   amount: Int,
 }
+
+// only have
+// destination_address
+// and amount
+pub type Order =
+  (Address, Int)
