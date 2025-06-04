@@ -10,10 +10,10 @@ use hal_nft_mint/minting_data.{MintingData, resolve_minting_data}
 use hal_nft_mint/orders.{order_asset_name}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
-use validations/minting_data/types.{Fulfilment}
+use validations/minting_data/types.{Proofs}
 use validations/minting_data/utils.{
-  are_all_orders_fulfilled, get_total_min_lovelace_and_payment_output,
-  resolve_orders_information,
+  aggregate_orders_information, are_all_orders_fulfilled,
+  get_total_min_lovelace_and_payment_output,
 }
 
 // Validation:
@@ -35,7 +35,7 @@ use validations/minting_data/utils.{
 pub fn can_mint(
   transaction: Transaction,
   spending_output_reference: OutputReference,
-  fulfilments: List<Fulfilment>,
+  proofs_list: List<Proofs>,
 ) -> Bool {
   trace @"can_mint"
   let Transaction {
@@ -84,13 +84,13 @@ pub fn can_mint(
   // build merkle patricia trie from old root hash
   let root = mpt.from_root(mpt_root_hash)
 
-  // resolve orders datum list
+  // aggregate orders
   let
-    orders_datum_list,
+    aggregated_orders,
     orders_count,
     total_price,
   <-
-    resolve_orders_information(
+    aggregate_orders_information(
       inputs,
       [],
       0,
@@ -108,13 +108,13 @@ pub fn can_mint(
     minting_hal_value,
   <-
     are_all_orders_fulfilled(
-      orders_datum_list,
+      aggregated_orders,
       rest_outputs,
       root,
       value.zero(),
       policy_id,
       ref_spend_script_address,
-      fulfilments,
+      proofs_list,
     )
 
   // calculate new root and expected mint value

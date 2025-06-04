@@ -132,13 +132,13 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
 #### 3.3.3 Redeemer
 
-- `Mint(List<Fulfilments>)`
+- `Mint(List<Fulfillments>)`
 
 - `UpdateMPT`
 
 #### 3.3.4 Validation
 
-- `Mint(List<Fulfilments>)`: called when minting engine tries to mint H.A.L. NFTs.
+- `Mint(List<Fulfillments>)`: called when minting engine tries to mint H.A.L. NFTs.
 
   - must attach `Settings` NFT in reference inputs.
 
@@ -152,7 +152,7 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
     - minting_data_output: Output with updated `MPF` `root_hash`.
 
-      - must have correct datum with updated `MPF` `root_hash` which can be calculated using `mpt_proof` from `Fulfilments` in redeemer.
+      - must have correct datum with updated `MPF` `root_hash` which can be calculated using `mpt_proof` from `Fulfillments` in redeemer.
 
         - value of key `asset_name` must be empty string `""`.
 
@@ -160,7 +160,7 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
       - must have same value as spending UTxO. (which is `minting_data_input`)
 
-      > `Fulfilments` in redeemer must be in `REVERSE` order as `Order UTxOs` in transaction inputs
+      > `Fulfillments` in redeemer must be in `REVERSE` order as `Order UTxOs` in transaction inputs
 
     - order_nfts_output: Output with collected `Order NFTs` (which will be burnt later)
 
@@ -178,7 +178,7 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
       - `user_output` must have user H.A.L. asset with `asset_name`. (222 asset name label)
 
-      > The pairs must be in `REVERSE` order as `Order UTxOs` in transaction inputs. (Same order as `Fulfilments`)
+      > The pairs must be in `REVERSE` order as `Order UTxOs` in transaction inputs. (Same order as `Fulfillments`)
 
     - payment_output: Last output must be payment output for H.A.L. NFTs minting cost.
 
@@ -186,7 +186,7 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
         > Order UTxO must pay everything.
 
-    - assure that Pair of H.A.L. `reference_asset` and `user_asset` for `Fulfilments` are minted
+    - assure that Pair of H.A.L. `reference_asset` and `user_asset` for `Fulfillments` are minted
 
     - assure that Order NFTs are burnt (same amount as H.A.L. NFTs. `Ref` and `User` NFTs correspond one Order NFT.)
 

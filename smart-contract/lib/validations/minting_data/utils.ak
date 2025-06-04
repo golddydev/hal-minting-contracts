@@ -8,48 +8,48 @@ use common/cip68.{prefix_100, prefix_222}
 use common/utils.{are_tokens_same}
 use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{OrderDatum, order_asset_name}
-use validations/minting_data/types.{Fulfilment}
+use validations/minting_data/types.{AggregatedOrder, Proofs}
 
 // - all orders (all UTxOs in transaction inputs) are fulfilled correctly
 //   must have corresponding ref_outputs (Output for each reference HAL NFT. There must be fulfilled amount of Outputs)
 //   must have one user_output (Output for user HAL NFTs. All user HAL NFTs will be in same UTxO.)
 //   optionally have leftover_output, where Order NFT will be sent with left over lovelace and left over amount. (amount - fulfilled amount)
 pub fn are_all_orders_fulfilled(
-  orders_datum_list: List<OrderDatum>,
+  aggregated_orders: List<AggregatedOrder>,
   outputs: List<Output>,
   root: mpt.MerklePatriciaForestry,
   minting_hal_value: Value,
   policy_id: PolicyId,
   ref_spend_script_address: Address,
-  fulfilments: List<Fulfilment>,
+  proofs_list: List<Proofs>,
   continuation: fn(mpt.MerklePatriciaForestry, Value) -> result,
 ) -> result {
-  when orders_datum_list is {
+  when aggregated_orders is {
     [] -> continuation(root, minting_hal_value)
-    [order_datum, ..rest_orders_datum_list] -> {
-      // parse fulfilments
-      expect [fulfilment, ..rest_fulfilments] = fulfilments
+    [aggregated_order, ..rest_aggregated_orders] -> {
+      // parse fulfillments
+      expect [proofs, ..rest_proofs_list] = proofs_list
 
       // check if order is fulfilled
       let (rest_outputs, new_root, new_minting_hal_value) =
         is_order_fulfilled(
-          order_datum,
+          aggregated_order,
           outputs,
           root,
           minting_hal_value,
           policy_id,
           ref_spend_script_address,
-          fulfilment,
+          proofs,
         )
 
       are_all_orders_fulfilled(
-        rest_orders_datum_list,
+        rest_aggregated_orders,
         rest_outputs,
         new_root,
         new_minting_hal_value,
         policy_id,
         ref_spend_script_address,
-        rest_fulfilments,
+        rest_proofs_list,
         continuation,
       )
     }
@@ -57,22 +57,22 @@ pub fn are_all_orders_fulfilled(
 }
 
 fn is_order_fulfilled(
-  order_datum: OrderDatum,
+  aggregated_order: AggregatedOrder,
   outputs: List<Output>,
   root: mpt.MerklePatriciaForestry,
   minting_hal_value: Value,
   policy_id: PolicyId,
   ref_spend_script_address: Address,
-  fulfilment: Fulfilment,
+  proofs: Proofs,
 ) -> (List<Output>, mpt.MerklePatriciaForestry, Value) {
-  let OrderDatum { destination_address, amount: order_amount, .. } = order_datum
+  let (destination_address, amount) = aggregated_order
 
   // check if order amount is positive
-  expect order_amount > 0
+  expect amount > 0
 
-  // check if order is fulfilled
-  let fulfilled = list.length(fulfilment) == order_amount
-  expect fulfilled
+  // check if order amount and proofs length are same
+  let is_proofs_length_valid = list.length(proofs) == amount
+  expect is_proofs_length_valid
 
   // check ref outputs
   let (rest_outputs, new_root, ref_hal_value, user_hal_value) =
@@ -81,7 +81,7 @@ fn is_order_fulfilled(
       root,
       policy_id,
       ref_spend_script_address,
-      fulfilment,
+      proofs,
     )
 
   // check user output
@@ -108,7 +108,7 @@ fn check_ref_outputs(
   root: mpt.MerklePatriciaForestry,
   policy_id: PolicyId,
   ref_spend_script_address: Address,
-  fulfilment: Fulfilment,
+  proofs: Proofs,
 ) -> (List<Output>, mpt.MerklePatriciaForestry, Value, Value) {
   let
     rest_outputs,
@@ -123,7 +123,7 @@ fn check_ref_outputs(
       value.zero(),
       policy_id,
       ref_spend_script_address,
-      fulfilment,
+      proofs,
     )
 
   (rest_outputs, new_root, ref_hal_value, user_hal_value)
@@ -136,13 +136,13 @@ fn do_check_ref_outputs(
   user_hal_value: Value,
   policy_id: PolicyId,
   ref_spend_script_address: Address,
-  fulfilment: Fulfilment,
+  proofs: Proofs,
   continuation: fn(List<Output>, mpt.MerklePatriciaForestry, Value, Value) ->
     result,
 ) -> result {
-  when fulfilment is {
+  when proofs is {
     [] -> continuation(outputs, root, ref_hal_value, user_hal_value)
-    [(asset_name, mpt_proof), ..rest_fulfilment] -> {
+    [(asset_name, mpt_proof), ..rest_proofs] -> {
       // update root
       let new_root = update_root(root, asset_name, mpt_proof)
 
@@ -184,7 +184,7 @@ fn do_check_ref_outputs(
         new_user_hal_value,
         policy_id,
         ref_spend_script_address,
-        rest_fulfilment,
+        rest_proofs,
         continuation,
       )
     }
@@ -226,17 +226,21 @@ fn update_root(
   root |> mpt.update(asset_name, mpt_proof, #"", mpt_minted_value)
 }
 
-pub fn resolve_orders_information(
+// This function returns aggregated orders information
+// if there are more than 1 Order UTxO with same destinationAddress
+// that will be aggregated with sum of amounts
+//
+pub fn aggregate_orders_information(
   inputs: List<Input>,
-  orders_datum_list: List<OrderDatum>,
+  aggregated_orders: List<AggregatedOrder>,
   orders_count: Int,
   total_price: Int,
   orders_spend_script_address: Address,
   orders_mint_policy_id: PolicyId,
-  continuation: fn(List<OrderDatum>, Int, Int) -> result,
+  continuation: fn(List<AggregatedOrder>, Int, Int) -> result,
 ) -> result {
   when inputs is {
-    [] -> continuation(orders_datum_list, orders_count, total_price)
+    [] -> continuation(aggregated_orders, orders_count, total_price)
     [order_input, ..rest_inputs] -> {
       let Output { address, datum, value: order_input_value, .. } =
         order_input.output
@@ -247,6 +251,8 @@ pub fn resolve_orders_information(
           // parse order datum
           expect InlineDatum(datum) = datum
           expect order_datum: OrderDatum = datum
+          let OrderDatum { destination_address, amount, price, .. } =
+            order_datum
 
           // check order has order token
           let has_order_token =
@@ -258,11 +264,15 @@ pub fn resolve_orders_information(
           expect has_order_token
 
           // calculate price
-          let paid_price = order_datum.price * order_datum.amount
+          let paid_price = price * amount
 
-          resolve_orders_information(
+          aggregate_orders_information(
             rest_inputs,
-            [order_datum, ..orders_datum_list],
+            add_order_to_aggregated_orders(
+              aggregated_orders,
+              destination_address,
+              amount,
+            ),
             orders_count + 1,
             total_price + paid_price,
             orders_spend_script_address,
@@ -271,9 +281,9 @@ pub fn resolve_orders_information(
           )
         }
         False ->
-          resolve_orders_information(
+          aggregate_orders_information(
             rest_inputs,
-            orders_datum_list,
+            aggregated_orders,
             orders_count,
             total_price,
             orders_spend_script_address,
@@ -282,6 +292,26 @@ pub fn resolve_orders_information(
           )
       }
     }
+  }
+}
+
+fn add_order_to_aggregated_orders(
+  self: List<AggregatedOrder>,
+  address: Address,
+  amount: Int,
+) -> List<AggregatedOrder> {
+  when self is {
+    [] ->
+      [(address, amount)]
+    [(address2, amount2), ..rest] ->
+      if address == address2 {
+        [(address, amount + amount2), ..rest]
+      } else {
+        [
+          (address2, amount2),
+          ..add_order_to_aggregated_orders(rest, address, amount)
+        ]
+      }
   }
 }
 
