@@ -87,12 +87,13 @@ const prepareMintTransaction = async (
     network,
     address,
     ordersTxInputs,
-    assetsInfo,
+    assetsInfo: assetsInfoFromParam,
     db,
     deployedScripts,
     settingsAssetTxInput,
     mintingDataAssetTxInput,
   } = params;
+  const assetsInfo = [...assetsInfoFromParam];
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
@@ -457,18 +458,23 @@ const addOrderToAggregatedOrders = (
   address: ShelleyAddress,
   amount: number
 ) => {
-  const updatedAggregatedOrders: Order[] = [];
+  const newAggregatedOrders: Order[] = [];
 
+  let added: boolean = false;
   for (const aggregatedOrder of aggregatedOrders) {
     const [aggregatedAddress, aggregatedAmount] = aggregatedOrder;
     if (address.toHex() === aggregatedAddress.toHex()) {
-      updatedAggregatedOrders.push([address, amount + aggregatedAmount]);
+      added = true;
+      newAggregatedOrders.push([address, aggregatedAmount + amount]);
     } else {
-      updatedAggregatedOrders.push(aggregatedOrder);
+      newAggregatedOrders.push(aggregatedOrder);
     }
   }
+  if (!added) {
+    newAggregatedOrders.push([address, amount]);
+  }
 
-  return updatedAggregatedOrders;
+  return newAggregatedOrders;
 };
 
 export type {

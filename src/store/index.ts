@@ -8,7 +8,7 @@ const init = async (folder: string): Promise<Trie> => {
   return db;
 };
 
-const inspect = async (db: Trie) => {
+const inspect = (db: Trie) => {
   // console.log(db.hash?.toString("hex") || Buffer.alloc(32).toString("hex"));
   console.log(db);
 };

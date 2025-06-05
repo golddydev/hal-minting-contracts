@@ -67,4 +67,4 @@ const buildProofs = async (
 
 export { buildProofs };
 
-export type { BuildProofsParams, OrderedAsset, Proof };
+export type { BuildProofsParams };
