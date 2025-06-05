@@ -7,6 +7,7 @@ import {
   buildOrdersSpendCancelOrderRedeemer,
   cancel,
   decodeMintingDataDatum,
+  decodeOrderDatumData,
   fetchMintingData,
   fetchSettings,
   HalAssetInfo,
@@ -94,8 +95,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
-      const user1Wallet = usersWallets[0];
+      const { allowedMinterWallet, paymentWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = [
         ["hal-1", makeHalAssetDatum("hal-1")],
@@ -144,25 +144,33 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const user1Balance = await balanceOfWallet(user1Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
         ref_spend_script_address
       );
 
-      for (const assetName of halOutputsDataList[0].assetUtf8Names) {
-        assert(
-          user1Balance.isGreaterOrEqual(
-            userAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "User 1 Wallet Balance is not correct"
+      for (let i = 0; i < halOutputsDataList.length; i++) {
+        const halOutputsData = halOutputsDataList[i];
+        const decoded = decodeOrderDatumData(ordersTxInputs[i].datum, network);
+        const userBalance = await balanceOfAddress(
+          emulator,
+          decoded.destination_address
         );
-        assert(
-          refSpendBalance.isGreaterOrEqual(
-            referenceAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "Ref Spend Wallet Balance is not correct"
-        );
+        for (const assetName of halOutputsData.assetUtf8Names) {
+          assert(
+            userBalance.isGreaterOrEqual(
+              userAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "User Balance is not correct"
+          );
+
+          assert(
+            refSpendBalance.isGreaterOrEqual(
+              referenceAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "Ref Spend Wallet Balance is not correct"
+          );
+        }
       }
 
       // update minting data input
@@ -302,8 +310,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
-      const [user1Wallet, user2Wallet] = usersWallets;
+      const { allowedMinterWallet, paymentWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = [
         ["hal-3", makeHalAssetDatum("hal-3")],
@@ -356,40 +363,33 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const user1Balance = await balanceOfWallet(user1Wallet);
-      const user2Balance = await balanceOfWallet(user2Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
         ref_spend_script_address
       );
 
-      for (const assetName of halOutputsDataList[0].assetUtf8Names) {
-        assert(
-          user1Balance.isGreaterOrEqual(
-            userAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "User 1 Wallet Balance is not correct"
+      for (let i = 0; i < halOutputsDataList.length; i++) {
+        const halOutputsData = halOutputsDataList[i];
+        const decoded = decodeOrderDatumData(ordersTxInputs[i].datum, network);
+        const userBalance = await balanceOfAddress(
+          emulator,
+          decoded.destination_address
         );
-        assert(
-          refSpendBalance.isGreaterOrEqual(
-            referenceAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "Ref Spend Wallet Balance is not correct"
-        );
-      }
-      for (const assetName of halOutputsDataList[1].assetUtf8Names) {
-        assert(
-          user2Balance.isGreaterOrEqual(
-            userAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "User 2 Wallet Balance is not correct"
-        );
-        assert(
-          refSpendBalance.isGreaterOrEqual(
-            referenceAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "Ref Spend Wallet Balance is not correct"
-        );
+        for (const assetName of halOutputsData.assetUtf8Names) {
+          assert(
+            userBalance.isGreaterOrEqual(
+              userAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "User Balance is not correct"
+          );
+
+          assert(
+            refSpendBalance.isGreaterOrEqual(
+              referenceAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "Ref Spend Wallet Balance is not correct"
+          );
+        }
       }
 
       // update minting data input
@@ -688,8 +688,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
-      const user2Wallet = usersWallets[1];
+      const { allowedMinterWallet, paymentWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = [
         ["hal-9", makeHalAssetDatum("hal-9")],
@@ -738,25 +737,33 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const user2Balance = await balanceOfWallet(user2Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
         ref_spend_script_address
       );
 
-      for (const assetName of halOutputsDataList[0].assetUtf8Names) {
-        assert(
-          user2Balance.isGreaterOrEqual(
-            userAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "User 1 Wallet Balance is not correct"
+      for (let i = 0; i < halOutputsDataList.length; i++) {
+        const halOutputsData = halOutputsDataList[i];
+        const decoded = decodeOrderDatumData(ordersTxInputs[i].datum, network);
+        const userBalance = await balanceOfAddress(
+          emulator,
+          decoded.destination_address
         );
-        assert(
-          refSpendBalance.isGreaterOrEqual(
-            referenceAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "Ref Spend Wallet Balance is not correct"
-        );
+        for (const assetName of halOutputsData.assetUtf8Names) {
+          assert(
+            userBalance.isGreaterOrEqual(
+              userAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "User Balance is not correct"
+          );
+
+          assert(
+            refSpendBalance.isGreaterOrEqual(
+              referenceAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "Ref Spend Wallet Balance is not correct"
+          );
+        }
       }
 
       // update minting data input
@@ -854,8 +861,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "Orders tx inputs is not an array"
       );
 
-      const { usersWallets, allowedMinterWallet, paymentWallet } = wallets;
-      const user3Wallet = usersWallets[2];
+      const { allowedMinterWallet, paymentWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = Array.from(
         { length: 10 },
@@ -907,7 +913,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       // check minted values
-      const user3Balance = await balanceOfWallet(user3Wallet);
       const refSpendBalance = await balanceOfAddress(
         emulator,
         ref_spend_script_address
@@ -917,19 +922,28 @@ describe.sequential("Koralab H.A.L Tests", () => {
         halOutputsDataList.length === 1,
         "Hal Outputs Data List Length is not correct"
       );
-      for (const assetName of halOutputsDataList[0].assetUtf8Names) {
-        assert(
-          user3Balance.isGreaterOrEqual(
-            userAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "User 3 Wallet Balance is not correct"
+      for (let i = 0; i < halOutputsDataList.length; i++) {
+        const halOutputsData = halOutputsDataList[i];
+        const decoded = decodeOrderDatumData(ordersTxInputs[i].datum, network);
+        const userBalance = await balanceOfAddress(
+          emulator,
+          decoded.destination_address
         );
-        assert(
-          refSpendBalance.isGreaterOrEqual(
-            referenceAssetValue(settingsV1.policy_id, assetName)
-          ) == true,
-          "Ref Spend Wallet Balance is not correct"
-        );
+        for (const assetName of halOutputsData.assetUtf8Names) {
+          assert(
+            userBalance.isGreaterOrEqual(
+              userAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "User Balance is not correct"
+          );
+
+          assert(
+            refSpendBalance.isGreaterOrEqual(
+              referenceAssetValue(settingsV1.policy_id, assetName)
+            ) == true,
+            "Ref Spend Wallet Balance is not correct"
+          );
+        }
       }
 
       // update minting data input
