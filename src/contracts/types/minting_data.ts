@@ -5,6 +5,7 @@ interface MintingData {
 }
 
 // asset hex name without asset name label
-type Fulfilment = Array<[string, MPTProof]>;
+type Proof = [string, MPTProof];
+type Proofs = Array<Proof>;
 
-export type { Fulfilment, MintingData };
+export type { MintingData, Proof, Proofs };

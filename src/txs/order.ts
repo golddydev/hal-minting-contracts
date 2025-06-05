@@ -16,16 +16,18 @@ import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { ScriptDetails } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
 
-import { fetchSettings } from "../configs/index.js";
 import { ORDER_ASSET_HEX_NAME } from "../constants/index.js";
 import {
-  buildOrderData,
+  buildOrderDatumData,
   buildOrdersMintBurnOrdersRedeemer,
-  buildOrdersMintMintOrderRedeemer,
+  buildOrdersMintMintOrdersRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
-  decodeOrderDatum,
+  decodeOrderDatumData,
+  decodeSettingsDatum,
+  decodeSettingsV1Data,
   OrderDatum,
 } from "../contracts/index.js";
+import { Order } from "../contracts/types/orders.js";
 import {
   getBlockfrostV0Client,
   getNetwork,
@@ -38,16 +40,14 @@ import { DeployedScripts } from "./deploy.js";
  * @interface
  * @typedef {object} RequestParams
  * @property {NetworkName} network Network
- * @property {Address} address User's Wallet Address to perform order
- * @property {number} amount Amount of H.A.L. NFTs to order
+ * @property {Order[]} orders Orders to request
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  */
 interface RequestParams {
   network: NetworkName;
-  address: Address;
-  amount: number;
-  halNftPrice: bigint;
+  orders: Order[];
   deployedScripts: DeployedScripts;
+  settingsAssetTxInput: TxInput;
 }
 
 /**
@@ -58,15 +58,16 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, address, amount, halNftPrice, deployedScripts } = params;
+  const { network, orders, deployedScripts, settingsAssetTxInput } = params;
   const isMainnet = network == "mainnet";
-  if (address.era == "Byron")
-    return Err(new Error("Byron Address not supported"));
-  if (address.spendingCredential.kind == "ValidatorHash")
-    return Err(new Error("Must be Base address"));
 
-  if (amount <= 0n) {
-    return Err(new Error("Amount must be greater than 0"));
+  for (const [address, amount] of orders) {
+    if (address.spendingCredential.kind == "ValidatorHash")
+      return Err(new Error("Must be Base address"));
+
+    if (amount <= 0n) {
+      return Err(new Error("Amount must be greater than 0"));
+    }
   }
 
   const {
@@ -75,21 +76,37 @@ const request = async (
     ordersSpendScriptDetails,
   } = deployedScripts;
 
-  // fetch settings
-  const settingsResult = await fetchSettings(network);
-  if (!settingsResult.ok)
-    return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
-  const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-  const { orders_minter, max_order_amount } = settingsV1;
-
-  // check amount is not greater than max_order_amount
-  if (amount > max_order_amount) {
+  // decode settings
+  const settingsResult = mayFail(() =>
+    decodeSettingsDatum(settingsAssetTxInput.datum)
+  );
+  if (!settingsResult.ok) {
+    return Err(new Error(`Failed to decode settings: ${settingsResult.error}`));
+  }
+  const { data: settingsV1Data } = settingsResult.data;
+  const settingsV1Result = mayFail(() =>
+    decodeSettingsV1Data(settingsV1Data, network)
+  );
+  if (!settingsV1Result.ok) {
     return Err(
-      new Error(
-        `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
-      )
+      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
+  const { orders_minter, max_order_amount, hal_nft_price } =
+    settingsV1Result.data;
+
+  // check amount is not greater than max_order_amount
+  for (const [_, amount] of orders) {
+    if (amount > max_order_amount) {
+      return Err(
+        new Error(
+          `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
+        )
+      );
+    }
+  }
+
+  const ordersCount = orders.length;
 
   // orders spend script address
   const ordersSpendScriptAddress = makeAddress(
@@ -102,25 +119,14 @@ const request = async (
     makeValidatorHash(ordersMintScriptDetails.validatorHash)
   );
 
-  const order: OrderDatum = {
-    owner_key_hash: address.spendingCredential.toHex(),
-    price: halNftPrice,
-    destination_address: address,
-    amount,
-  };
-
   // order value
   const orderTokenAssetClass = makeAssetClass(
     ordersMintPolicyHash,
     ORDER_ASSET_HEX_NAME
   );
   const orderTokenValue: [ByteArrayLike, IntLike][] = [
-    [orderTokenAssetClass.tokenName, 1n],
+    [orderTokenAssetClass.tokenName, BigInt(ordersCount)],
   ];
-  const orderValue = makeValue(
-    halNftPrice * BigInt(amount),
-    makeAssets([[orderTokenAssetClass, 1n]])
-  );
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -140,15 +146,29 @@ const request = async (
   txBuilder.mintPolicyTokensUnsafe(
     ordersMintPolicyHash,
     orderTokenValue,
-    buildOrdersMintMintOrderRedeemer(address, amount)
+    buildOrdersMintMintOrdersRedeemer(orders)
   );
 
-  // <-- pay order value to order spend script adress
-  txBuilder.payUnsafe(
-    ordersSpendScriptAddress,
-    orderValue,
-    makeInlineTxOutputDatum(buildOrderData(order))
-  );
+  // <-- pay order value to order spend script address for each order
+  for (const [address, amount] of orders) {
+    const orderDatum: OrderDatum = {
+      owner_key_hash: address.spendingCredential.toHex(),
+      price: hal_nft_price,
+      destination_address: address,
+      amount,
+    };
+
+    const orderValue = makeValue(
+      hal_nft_price * BigInt(amount),
+      makeAssets([[orderTokenAssetClass, 1n]])
+    );
+
+    txBuilder.payUnsafe(
+      ordersSpendScriptAddress,
+      orderValue,
+      makeInlineTxOutputDatum(buildOrderDatumData(orderDatum))
+    );
+  }
 
   return Ok(txBuilder);
 };
@@ -279,7 +299,9 @@ const fetchOrdersTxInputs = async (
 
   // remove invalid order utxos
   const orderUtxos = orderUtxosResult.data.filter((utxo) => {
-    const decodedResult = mayFail(() => decodeOrderDatum(utxo.datum, network));
+    const decodedResult = mayFail(() =>
+      decodeOrderDatumData(utxo.datum, network)
+    );
     return decodedResult.ok;
   });
 
@@ -332,7 +354,7 @@ const isValidOrderTxInput = (
 
   // check if datum is valid
   const decodedResult = mayFail(() =>
-    decodeOrderDatum(orderTxInput.datum, network)
+    decodeOrderDatumData(orderTxInput.datum, network)
   );
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));

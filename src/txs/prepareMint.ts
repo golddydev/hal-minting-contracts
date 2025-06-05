@@ -9,8 +9,11 @@ import {
   makePubKeyHash,
   makeStakingAddress,
   makeStakingValidatorHash,
+  makeTxOutput,
   makeValue,
+  ShelleyAddress,
   TxInput,
+  TxOutput,
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
@@ -27,24 +30,26 @@ import {
   buildMintV1MintHandlesRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeMintingDataDatum,
-  decodeOrderDatum,
+  decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
-  Fulfilment,
   makeVoidData,
   MintingData,
+  Order,
   parseMPTProofJSON,
+  Proofs,
 } from "../contracts/index.js";
 import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
-import { DecodedOrder, Order } from "./types.js";
+import { HalAssetInfo, HalOutputsData } from "./types.js";
 
 /**
  * @interface
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {Order[]} orders Orders
+ * @property {TxInput[]} ordersTxInputs Orders UTxOs
+ * @property {HalAssetInfo[]} assetsInfo H.A.L. Assets' Info
  * @property {Trie} db Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
@@ -53,7 +58,8 @@ import { DecodedOrder, Order } from "./types.js";
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  orders: Order[];
+  ordersTxInputs: TxInput[];
+  assetsInfo: HalAssetInfo[];
   db: Trie;
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
@@ -71,8 +77,8 @@ const prepareMintTransaction = async (
   Result<
     {
       txBuilder: TxBuilder;
-      totalPrice: bigint;
       db: Trie;
+      halOutputsDataList: HalOutputsData[];
     },
     Error
   >
@@ -80,7 +86,8 @@ const prepareMintTransaction = async (
   const {
     network,
     address,
-    orders,
+    ordersTxInputs,
+    assetsInfo,
     db,
     deployedScripts,
     settingsAssetTxInput,
@@ -90,37 +97,19 @@ const prepareMintTransaction = async (
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
 
-  // refactor Orders Tx Inputs
-  // NOTE:
-  // sort orderUtxos before process
-  // because tx inputs is sorted lexicographically
-  // we have to insert handle in `REVERSE` order as tx inputs
-  orders
-    .sort((a, b) =>
-      a.orderTxInput.id.toString() > b.orderTxInput.id.toString() ? 1 : -1
-    )
-    .reverse();
-  if (orders.length == 0) return Err(new Error("No Order requested"));
-  console.log(`${orders.length} Orders are picked`);
+  console.log(`${ordersTxInputs.length} Orders are picked`);
 
-  const decodedOrders: DecodedOrder[] = [];
-  for (const order of orders) {
-    const { orderTxInput, assetsInfo } = order;
-    const decodedOrderResult = mayFail(() =>
-      decodeOrderDatum(orderTxInput.datum, network)
+  // aggregate orders information
+  const aggregatedOrdersResult = aggregateOrdersInformation({
+    network,
+    ordersTxInputs,
+  });
+  if (!aggregatedOrdersResult.ok) {
+    return Err(
+      new Error(`Failed to aggregate orders: ${aggregatedOrdersResult.error}`)
     );
-    if (!decodedOrderResult.ok) {
-      return Err(new Error(`Invalid Order Datum: ${decodedOrderResult.error}`));
-    }
-    const { destination_address, price, amount } = decodedOrderResult.data;
-    decodedOrders.push({
-      orderTxInput,
-      assetsInfo,
-      destinationAddress: destination_address,
-      price,
-      amount,
-    });
   }
+  const aggregatedOrders = aggregatedOrdersResult.data;
 
   const {
     mintProxyScriptTxInput,
@@ -176,35 +165,27 @@ const prepareMintTransaction = async (
     return Err(new Error("ERROR: Local DB and On Chain Root Hash mismatch"));
   }
 
-  const totalPrice = decodedOrders.reduce(
-    (acc, cur) => acc + BigInt(cur.amount) * cur.price,
-    0n
-  );
-
-  // make Fulfilments for Minting Data V1 Redeemer
+  // make Proofs List for Minting Data V1 Redeemer
   // prepare H.A.L. NFTs value to mint
-  const fulfilments: Fulfilment[] = [];
+  const proofsList: Proofs[] = [];
   const mintingHalsData = [];
   const halTokenValue: [ByteArrayLike, IntLike][] = [];
 
-  for (const decodedOrder of decodedOrders) {
-    const fulfilment: Fulfilment = [];
+  for (const aggregatedOrder of aggregatedOrders) {
+    const proofs: Proofs = [];
     const refOutputsData = [];
     const userValue = makeValue(1n);
-    const { orderTxInput, assetsInfo, destinationAddress, amount } =
-      decodedOrder;
+    const assetUtf8Names: string[] = [];
+    const [destinationAddress, amount] = aggregatedOrder;
 
-    if (assetsInfo.length !== amount) {
-      return Err(
-        new Error(
-          `The number of Assets in Fulfilment is different from amount from Order Datum.`
-        )
-      );
-    }
-
-    for (const assetInfo of assetsInfo) {
+    for (let i = 0; i < amount; i++) {
+      const assetInfo = assetsInfo.shift();
+      if (!assetInfo) {
+        return Err(new Error("Assets Info doesn't match with Orders' amount"));
+      }
       const [assetUtf8Name, assetDatum] = assetInfo;
       const assetHexName = Buffer.from(assetUtf8Name, "utf8").toString("hex");
+      assetUtf8Names.push(assetUtf8Name);
 
       try {
         const hasKey = typeof (await db.get(assetUtf8Name)) !== "undefined";
@@ -215,7 +196,7 @@ const prepareMintTransaction = async (
         const mpfProof = await db.prove(assetUtf8Name);
         await db.delete(assetUtf8Name);
         await db.insert(assetUtf8Name, MPT_MINTED_VALUE);
-        fulfilment.push([assetHexName, parseMPTProofJSON(mpfProof.toJSON())]);
+        proofs.push([assetHexName, parseMPTProofJSON(mpfProof.toJSON())]);
       } catch (error) {
         return Err(new Error(convertError(error)));
       }
@@ -245,9 +226,10 @@ const prepareMintTransaction = async (
         [userAssetClass.tokenName, 1n]
       );
     }
-    fulfilments.push(fulfilment);
+
+    proofsList.push(proofs);
     mintingHalsData.push({
-      orderTxInput,
+      assetUtf8Names,
       destinationAddress,
       refOutputsData,
       userValue,
@@ -269,8 +251,8 @@ const prepareMintTransaction = async (
   // build redeemer for mint v1 `MintNFTs`
   const mintV1MintHandlesRedeemer = buildMintV1MintHandlesRedeemer();
 
-  // build redeemer for minting data `Mint(Fulfilments)`
-  const mintingDataMintRedeemer = buildMintingDataMintRedeemer(fulfilments);
+  // build redeemer for minting data `Mint(proofsList)`
+  const mintingDataMintRedeemer = buildMintingDataMintRedeemer(proofsList);
 
   // prepare order tokens value to collect
   const ordersMintPolicyHash = makeMintingPolicyHash(orders_mint_policy_id);
@@ -280,8 +262,12 @@ const prepareMintTransaction = async (
   );
   const orderTokensValue = makeValue(
     1n,
-    makeAssets([[orderTokenAssetClass, BigInt(decodedOrders.length)]])
+    makeAssets([[orderTokenAssetClass, BigInt(ordersTxInputs.length)]])
   );
+
+  // build redeemer for orders spend `ExecuteOrders`
+  const ordersSpendExecuteOrdersRedeemer =
+    buildOrdersSpendExecuteOrdersRedeemer();
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -333,42 +319,51 @@ const prepareMintTransaction = async (
   );
 
   // <-- spend order utxos
-  // <-- send minted HALs to destination with datum
-  const ordersSpendExecuteOrdersRedeemer =
-    buildOrdersSpendExecuteOrdersRedeemer();
-
-  for (const mintingHalData of mintingHalsData) {
-    const { orderTxInput, destinationAddress, refOutputsData, userValue } =
-      mintingHalData;
-
-    // <-- spend order UTxO
+  for (const orderTxInput of ordersTxInputs) {
     txBuilder.spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer);
+  }
 
-    // <-- pay ref outputs
+  const halOutputsDataList: HalOutputsData[] = [];
+
+  // prepare hal outputs to use it after this function call
+  for (const mintingHalData of mintingHalsData) {
+    const { destinationAddress, refOutputsData, userValue, assetUtf8Names } =
+      mintingHalData;
+    const refOutputs: TxOutput[] = [];
+
+    // make ref outputs
     for (const refOutputData of refOutputsData) {
       const { refValue, assetDatum } = refOutputData;
-      txBuilder.payUnsafe(ref_spend_script_address, refValue, assetDatum);
+      refOutputs.push(
+        makeTxOutput(ref_spend_script_address, refValue, assetDatum)
+      );
     }
 
-    // <-- pay user output
-    txBuilder.payUnsafe(destinationAddress, userValue);
+    // make user outputs
+    const userOutput = makeTxOutput(destinationAddress, userValue);
+
+    halOutputsDataList.push({
+      refOutputs,
+      userOutput,
+      assetUtf8Names,
+    });
   }
 
   return Ok({
     txBuilder,
-    totalPrice,
     db,
+    halOutputsDataList,
   });
 };
 
 /**
  * @interface
  * @typedef {object} RollBackOrdersFromTrieParams
- * @property {Order[]} orders Orders
+ * @property {string[]} utf8Names H.A.L. Assets' UTF-8 Names
  * @property {Trie} db Trie DB
  */
 interface RollBackOrdersFromTrieParams {
-  orders: Order[];
+  utf8Names: string[];
   db: Trie;
 }
 
@@ -380,31 +375,109 @@ interface RollBackOrdersFromTrieParams {
 const rollBackOrdersFromTrie = async (
   params: RollBackOrdersFromTrieParams
 ): Promise<Result<void, Error>> => {
-  const { orders, db } = params;
+  const { utf8Names, db } = params;
 
-  for (const order of orders) {
-    const { assetsInfo } = order;
-    for (const assetInfo of assetsInfo) {
-      try {
-        const value = await db.get(assetInfo[0]);
-        const needRollback =
-          typeof value !== "undefined" &&
-          Buffer.from(value).toString() === MPT_MINTED_VALUE;
-        if (needRollback) {
-          await db.delete(assetInfo[0]);
-          await db.insert(assetInfo[0], "");
-        }
-      } catch (error) {
-        return Err(
-          new Error(
-            `Failed to roll back "${assetInfo[0]}" : ${convertError(error)}`
-          )
-        );
+  for (const utf8Name of utf8Names) {
+    try {
+      const value = await db.get(utf8Name);
+      const needRollback =
+        typeof value !== "undefined" &&
+        Buffer.from(value).toString() === MPT_MINTED_VALUE;
+      if (needRollback) {
+        await db.delete(utf8Name);
+        await db.insert(utf8Name, "");
       }
+    } catch (error) {
+      return Err(
+        new Error(`Failed to roll back "${utf8Name}" : ${convertError(error)}`)
+      );
     }
   }
   return Ok();
 };
 
-export type { PrepareMintParams, RollBackOrdersFromTrieParams };
-export { prepareMintTransaction, rollBackOrdersFromTrie };
+/**
+ * @interface
+ * @typedef {object} AggregateOrdersInformationParams
+ * @property {NetworkName} network Network
+ * @property {Order[]} ordersTxInputs Orders UTxOs
+ */
+interface AggregateOrdersInformationParams {
+  network: NetworkName;
+  ordersTxInputs: TxInput[];
+}
+
+/**
+ * @description Aggregate Orders Tx Inputs Information and sort Tx Inputs
+ * @param {AggregateOrdersInformationParams} params
+ * @returns {Result<Order[],  Error>} Result or Error
+ */
+const aggregateOrdersInformation = (
+  params: AggregateOrdersInformationParams
+): Result<Order[], Error> => {
+  const { network, ordersTxInputs } = params;
+  let aggregatedOrders: Order[] = [];
+
+  // refactor Orders Tx Inputs
+  // NOTE:
+  // sort orderUtxos before process
+  // because tx inputs is sorted lexicographically
+  ordersTxInputs.sort((a, b) => (a.id.toString() > b.id.toString() ? 1 : -1));
+
+  for (const orderTxInput of ordersTxInputs) {
+    const decodedResult = mayFail(() =>
+      decodeOrderDatumData(orderTxInput.datum, network)
+    );
+    if (!decodedResult.ok) {
+      return Err(new Error(`Invalid Order Datum: ${decodedResult.error}`));
+    }
+    const { destination_address, amount, price } = decodedResult.data;
+
+    // check lovelace is enough
+    if (orderTxInput.output.value.lovelace < price * BigInt(amount)) {
+      return Err(
+        new Error(
+          `Order UTxO "${orderTxInput.id.toString()}" has insufficient lovelace`
+        )
+      );
+    }
+
+    aggregatedOrders = addOrderToAggregatedOrders(
+      aggregatedOrders,
+      destination_address,
+      amount
+    );
+  }
+
+  return Ok(aggregatedOrders);
+};
+
+const addOrderToAggregatedOrders = (
+  aggregatedOrders: Order[],
+  address: ShelleyAddress,
+  amount: number
+) => {
+  const updatedAggregatedOrders: Order[] = [];
+
+  for (const aggregatedOrder of aggregatedOrders) {
+    const [aggregatedAddress, aggregatedAmount] = aggregatedOrder;
+    if (address.toHex() === aggregatedAddress.toHex()) {
+      updatedAggregatedOrders.push([address, amount + aggregatedAmount]);
+    } else {
+      updatedAggregatedOrders.push(aggregatedOrder);
+    }
+  }
+
+  return updatedAggregatedOrders;
+};
+
+export type {
+  AggregateOrdersInformationParams,
+  PrepareMintParams,
+  RollBackOrdersFromTrieParams,
+};
+export {
+  aggregateOrdersInformation,
+  prepareMintTransaction,
+  rollBackOrdersFromTrie,
+};

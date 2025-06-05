@@ -11,4 +11,6 @@ interface OrderDatum {
   amount: number;
 }
 
-export type { OrderDatum };
+type Order = [ShelleyAddress, number];
+
+export type { Order, OrderDatum };

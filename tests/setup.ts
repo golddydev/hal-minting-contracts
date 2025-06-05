@@ -180,7 +180,6 @@ const setup = async () => {
     orders_minter: ordersMinterPubKeyHash,
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
     max_order_amount: 5,
-    max_min_lovelace: 5_000_000n,
   };
   const settings: Settings = {
     mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),

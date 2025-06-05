@@ -136,7 +136,6 @@ const buildSettingsDataCbor = () => {
     ORDERS_MINTER,
     REF_SPEND_ADMIN,
     MAX_ORDER_AMOUNT,
-    MAX_MIN_LOVELACE,
   } = configs;
 
   const contractsConfig = buildContracts({
@@ -167,7 +166,6 @@ const buildSettingsDataCbor = () => {
     orders_minter: ORDERS_MINTER,
     ref_spend_admin: REF_SPEND_ADMIN,
     max_order_amount: MAX_ORDER_AMOUNT,
-    max_min_lovelace: MAX_MIN_LOVELACE,
   };
   const settings: Settings = {
     mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),

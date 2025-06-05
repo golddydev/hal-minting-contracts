@@ -1,4 +1,4 @@
-import { ShelleyAddress, TxOutputDatum } from "@helios-lang/ledger";
+import { TxOutputDatum } from "@helios-lang/ledger";
 import { NetworkName } from "@helios-lang/tx-utils";
 import {
   expectByteArrayData,
@@ -7,14 +7,15 @@ import {
   makeByteArrayData,
   makeConstrData,
   makeIntData,
+  makeListData,
   UplcData,
 } from "@helios-lang/uplc";
 
 import { invariant } from "../../helpers/index.js";
-import { OrderDatum } from "../types/index.js";
+import { Order, OrderDatum } from "../types/index.js";
 import { buildAddressData, decodeAddressFromData } from "./common.js";
 
-const decodeOrderDatum = (
+const decodeOrderDatumData = (
   datum: TxOutputDatum | undefined,
   network: NetworkName
 ): OrderDatum => {
@@ -41,7 +42,7 @@ const decodeOrderDatum = (
   };
 };
 
-const buildOrderData = (order: OrderDatum): UplcData => {
+const buildOrderDatumData = (order: OrderDatum): UplcData => {
   const { owner_key_hash, price, destination_address, amount } = order;
   return makeConstrData(0, [
     makeByteArrayData(owner_key_hash),
@@ -51,11 +52,14 @@ const buildOrderData = (order: OrderDatum): UplcData => {
   ]);
 };
 
-const buildOrdersMintMintOrderRedeemer = (
-  destination_address: ShelleyAddress,
-  amount: number
-): UplcData => {
-  return makeConstrData(0, [
+const buildOrdersMintMintOrdersRedeemer = (orders: Order[]): UplcData => {
+  return makeConstrData(0, [makeListData(orders.map(buildOrderData))]);
+};
+
+const buildOrderData = (order: Order): UplcData => {
+  const [destination_address, amount] = order;
+
+  return makeListData([
     buildAddressData(destination_address),
     makeIntData(amount),
   ]);
@@ -74,10 +78,10 @@ const buildOrdersSpendCancelOrderRedeemer = (): UplcData => {
 };
 
 export {
-  buildOrderData,
+  buildOrderDatumData,
   buildOrdersMintBurnOrdersRedeemer,
-  buildOrdersMintMintOrderRedeemer,
+  buildOrdersMintMintOrdersRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
-  decodeOrderDatum,
+  decodeOrderDatumData,
 };
