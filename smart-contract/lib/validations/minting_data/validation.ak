@@ -108,7 +108,7 @@ pub fn can_mint(
     )
   expect are_ref_outputs_valid
 
-  // calculate new root and expected mint value
+  // calculate new roots
   let new_mpt_root_hash = new_root |> mpt.root
   let new_whitelist_mpt_root_hash = new_whitelist_root |> mpt.root
 
