@@ -20,12 +20,14 @@ use validations/minting_data/utils.{
 // Checks
 // - must attach Setting in reference inputs
 // - signed by allowed_minter
-// - first output must be minting_data output with updated root hash
-//   with same value as spending UTxO
-// - all orders (all UTxOs in transaction inputs) are fulfilled correctly
-//   must have corresponding ref_outputs (Output for each reference HAL NFT. There must be fulfilled amount of Outputs)
-//   must have one user_output (Output for user HAL NFTs. All user HAL NFTs will be in same UTxO.)
-// - must mint fulfilled amount of H.A.L. NFTs
+// - first output must be minting_data output 
+//   with updated root hash and whitelist root hash
+// - all orders (Order UTxOs) are fulfilled correctly
+//   we aggregate orders for same destination address
+//   for each aggregated order
+//   must have corresponding user output (with aggregated amount of H.A.L. NFTs)
+// - must have reference outputs for each H.A.L. NFTs
+// - must mint amount of H.A.L. NFTs
 //
 pub fn can_mint(
   transaction: Transaction,
@@ -111,12 +113,8 @@ pub fn can_mint(
   let new_whitelist_mpt_root_hash = new_whitelist_root |> mpt.root
 
   // first output must be minting_data output with updated root hash
-  // with same value as spending UTxO
+  // and whitelist root hash
   expect minting_data_output.address == minting_data_input.address
-  expect
-    value.without_lovelace(minting_data_output.value) == value.without_lovelace(
-      minting_data_input.value,
-    )
   expect
     minting_data_output.datum == InlineDatum(
       MintingData {
