@@ -14,7 +14,7 @@ use hal_nft_mint/settings_v1.{SettingsV1}
 use tests/mocks/fake_constants.{
   allowed_minter, hal_nft_policy_id, hal_nft_price, max_order_amount,
   min_order_lovelace, mint_governor, mint_version, minting_data_asset_name,
-  minting_data_asset_policy_id, minting_data_script_hash, orders_mint_policy_id,
+  minting_data_asset_policy_id, minting_data_script_hash, minting_start_time,
   orders_minter, orders_spend_script_address, payment_address, ref_spend_admin,
   ref_spend_script_address, settings_asset_name, settings_asset_policy_id,
 }
@@ -71,11 +71,11 @@ pub fn make_settings_reference_input() -> Input {
       payment_address: payment_address(),
       ref_spend_script_address: ref_spend_script_address(),
       orders_spend_script_address: orders_spend_script_address(),
-      orders_mint_policy_id,
       minting_data_script_hash,
       orders_minter,
       ref_spend_admin,
       max_order_amount,
+      minting_start_time,
     }
   let settings: Settings =
     Settings { mint_governor, mint_version, data: settings_v1 }
@@ -97,9 +97,11 @@ pub fn make_settings_reference_input() -> Input {
 
 pub fn make_minting_data_output(
   mpt_root_hash: ByteArray,
+  whitelist_mpt_root_hash: ByteArray,
   output_script_hash: ScriptHash,
 ) -> Output {
-  let minting_data: MintingData = MintingData { mpt_root_hash }
+  let minting_data: MintingData =
+    MintingData { mpt_root_hash, whitelist_mpt_root_hash }
   Output {
     address: credential.from_script(output_script_hash),
     value: value.zero()
@@ -111,9 +113,11 @@ pub fn make_minting_data_output(
 
 pub fn make_minting_data_input(
   mpt_root_hash: ByteArray,
+  whitelist_mpt_root_hash: ByteArray,
   output_script_hash: ScriptHash,
 ) -> Input {
-  let minting_data: MintingData = MintingData { mpt_root_hash }
+  let minting_data: MintingData =
+    MintingData { mpt_root_hash, whitelist_mpt_root_hash }
   Input {
     output_reference: OutputReference {
       transaction_id: TransactionId { hash: #"aaab" },

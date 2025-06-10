@@ -1,54 +1,91 @@
 use aiken/bytearray
+use aiken/cbor.{serialise}
+use aiken/dict
+use aiken/interval.{is_entirely_after}
 use aiken/list
 use aiken/merkle_patricia_forestry as mpt
-use aiken/transaction.{InlineDatum, Input, Output}
+use aiken/transaction.{InlineDatum, Input, Output, ValidityRange}
 use aiken/transaction/credential.{Address}
-use aiken/transaction/value.{PolicyId, Value}
+use aiken/transaction/value.{AssetName, PolicyId, Value}
 use common/cip68.{prefix_100, prefix_222}
-use common/utils.{are_tokens_same}
 use hal_nft_mint/minting_data.{mpt_minted_value}
-use hal_nft_mint/orders.{Order, OrderDatum, order_asset_name}
-use validations/minting_data/types.{Proofs}
+use hal_nft_mint/orders.{Order, OrderDatum}
+use hal_nft_mint/whitelist.{WhitelistedItem}
+use validations/minting_data/types.{AssetNameProof, Proofs, WhitelistProof}
 
 // - all orders (all UTxOs in transaction inputs) are fulfilled correctly
-//   must have corresponding ref_outputs (Output for each reference HAL NFT. There must be fulfilled amount of Outputs)
-//   must have one user_output (Output for user HAL NFTs. All user HAL NFTs will be in same UTxO.)
-//   optionally have leftover_output, where Order NFT will be sent with left over lovelace and left over amount. (amount - fulfilled amount)
+//   each aggregated order must have one user output
+//   user output must have `amount` of H.A.L. User NFT
+//
 pub fn are_all_orders_fulfilled(
   aggregated_orders: List<Order>,
-  outputs: List<Output>,
+  user_outputs: List<Output>,
   root: mpt.MerklePatriciaForestry,
-  minting_hal_value: Value,
+  whitelist_root: mpt.MerklePatriciaForestry,
+  hal_asset_names: List<AssetName>,
   policy_id: PolicyId,
-  ref_spend_script_address: Address,
+  validity_range: ValidityRange,
   proofs_list: List<Proofs>,
-  continuation: fn(mpt.MerklePatriciaForestry, Value) -> result,
+  continuation: fn(
+    mpt.MerklePatriciaForestry,
+    mpt.MerklePatriciaForestry,
+    List<AssetName>,
+  ) ->
+    result,
 ) -> result {
   when aggregated_orders is {
-    [] -> continuation(root, minting_hal_value)
+    [] -> continuation(root, whitelist_root, hal_asset_names)
     [aggregated_order, ..rest_aggregated_orders] -> {
-      // parse fulfillments
-      expect [proofs, ..rest_proofs_list] = proofs_list
+      let (destination_address, ordered_amount) = aggregated_order
 
-      // check if order is fulfilled
-      let (rest_outputs, new_root, new_minting_hal_value) =
-        is_order_fulfilled(
-          aggregated_order,
-          outputs,
-          root,
-          minting_hal_value,
-          policy_id,
-          ref_spend_script_address,
-          proofs,
+      // parse user outputs
+      expect [user_output, ..rest_user_outputs] = user_outputs
+
+      // parse proofs
+      expect [proofs, ..rest_proofs_list] = proofs_list
+      let (asset_name_proofs, whitelist_proof_opt) = proofs
+
+      // update mpt root
+      let new_root = update_mpt_root(root, asset_name_proofs)
+
+      // update whitelist mpt root
+      let new_whitelist_root =
+        update_whitelist_mpt_root(
+          whitelist_root,
+          whitelist_proof_opt,
+          validity_range,
+          destination_address,
+          ordered_amount,
         )
+
+      // filter asset names
+      let asset_names =
+        list.map(
+          asset_name_proofs,
+          fn(asset_name_proof) { asset_name_proof.1st },
+        )
+
+      // check user output
+      let is_user_output_valid =
+        check_user_output(
+          user_output,
+          destination_address,
+          asset_names,
+          policy_id,
+        )
+      expect is_user_output_valid
+
+      // new hal asset names
+      let new_hal_asset_names = list.concat(hal_asset_names, asset_names)
 
       are_all_orders_fulfilled(
         rest_aggregated_orders,
-        rest_outputs,
+        rest_user_outputs,
         new_root,
-        new_minting_hal_value,
+        new_whitelist_root,
+        new_hal_asset_names,
         policy_id,
-        ref_spend_script_address,
+        validity_range,
         rest_proofs_list,
         continuation,
       )
@@ -56,174 +93,148 @@ pub fn are_all_orders_fulfilled(
   }
 }
 
-fn is_order_fulfilled(
-  aggregated_order: Order,
-  outputs: List<Output>,
+fn update_mpt_root(
   root: mpt.MerklePatriciaForestry,
-  minting_hal_value: Value,
-  policy_id: PolicyId,
-  ref_spend_script_address: Address,
-  proofs: Proofs,
-) -> (List<Output>, mpt.MerklePatriciaForestry, Value) {
-  let (destination_address, amount) = aggregated_order
-
-  // check if order amount is positive
-  expect amount > 0
-
-  // check if order amount and proofs length are same
-  let is_proofs_length_valid = list.length(proofs) == amount
-  expect is_proofs_length_valid
-
-  // check ref outputs
-  let (rest_outputs, new_root, ref_hal_value, user_hal_value) =
-    check_ref_outputs(
-      outputs,
-      root,
-      policy_id,
-      ref_spend_script_address,
-      proofs,
-    )
-
-  // check user output
-  expect [user_output, ..rest_outputs] = rest_outputs
-  expect
-    is_user_output_valid(
-      user_output,
-      destination_address,
-      user_hal_value,
-      policy_id,
-    )
-
-  // calculate new minting hal value
-  let new_minting_hal_value =
-    minting_hal_value
-      |> value.merge(ref_hal_value)
-      |> value.merge(user_hal_value)
-
-  (rest_outputs, new_root, new_minting_hal_value)
-}
-
-fn check_ref_outputs(
-  outputs: List<Output>,
-  root: mpt.MerklePatriciaForestry,
-  policy_id: PolicyId,
-  ref_spend_script_address: Address,
-  proofs: Proofs,
-) -> (List<Output>, mpt.MerklePatriciaForestry, Value, Value) {
-  let
-    rest_outputs,
-    new_root,
-    ref_hal_value,
-    user_hal_value,
-  <-
-    do_check_ref_outputs(
-      outputs,
-      root,
-      value.zero(),
-      value.zero(),
-      policy_id,
-      ref_spend_script_address,
-      proofs,
-    )
-
-  (rest_outputs, new_root, ref_hal_value, user_hal_value)
-}
-
-fn do_check_ref_outputs(
-  outputs: List<Output>,
-  root: mpt.MerklePatriciaForestry,
-  ref_hal_value: Value,
-  user_hal_value: Value,
-  policy_id: PolicyId,
-  ref_spend_script_address: Address,
-  proofs: Proofs,
-  continuation: fn(List<Output>, mpt.MerklePatriciaForestry, Value, Value) ->
-    result,
-) -> result {
+  proofs: List<AssetNameProof>,
+) -> mpt.MerklePatriciaForestry {
   when proofs is {
-    [] -> continuation(outputs, root, ref_hal_value, user_hal_value)
+    [] -> root
     [(asset_name, mpt_proof), ..rest_proofs] -> {
+      let new_root =
+        root |> mpt.update(asset_name, mpt_proof, #"", mpt_minted_value)
+      update_mpt_root(new_root, rest_proofs)
+    }
+  }
+}
+
+fn update_whitelist_mpt_root(
+  root: mpt.MerklePatriciaForestry,
+  whitelist_proof_opt: Option<WhitelistProof>,
+  validity_range: ValidityRange,
+  destination_address: Address,
+  ordered_amount: Int,
+) -> mpt.MerklePatriciaForestry {
+  when whitelist_proof_opt is {
+    None -> root
+    Some(whitelist_proof) -> {
+      let (whitelisted_item, mpt_proof) = whitelist_proof
+      let old_cbor = serialise(whitelisted_item)
+      let (whitelisted_time, whitelisted_amount) = whitelisted_item
+
+      // tx must starts after whitelisted time
+      let is_after_whitelisted_time =
+        is_entirely_after(validity_range, whitelisted_time)
+      expect is_after_whitelisted_time
+
+      // whitelisted amount must be bigger than or equal to ordered amount
+      expect whitelisted_amount >= ordered_amount
+
+      // make new whitelisted item
+      let new_whitelisted_item: WhitelistedItem =
+        (whitelisted_time, whitelisted_amount - ordered_amount)
+      let new_cbor = serialise(new_whitelisted_item)
+
       // update root
-      let new_root = update_root(root, asset_name, mpt_proof)
+      let destination_address_cbor = serialise(destination_address)
+      let new_root =
+        root
+          |> mpt.update(destination_address_cbor, mpt_proof, old_cbor, new_cbor)
+      new_root
+    }
+  }
+}
 
-      // make ref asset name and user asset name from asset_name
-      let ref_asset_name = bytearray.concat(prefix_100, asset_name)
-      let user_asset_name = bytearray.concat(prefix_222, asset_name)
+fn check_user_output(
+  user_output: Output,
+  destination_address: Address,
+  asset_names: List<AssetName>,
+  policy_id: PolicyId,
+) -> Bool {
+  let Output { address: user_output_address, value: user_output_value, .. } =
+    user_output
 
-      // parse outputs
-      expect [ref_output, ..rest_outputs] = outputs
+  // check address
+  expect user_output_address == destination_address
 
-      // check ref output
+  // check value
+  let hal_tokens = value.tokens(user_output_value, policy_id)
+  let has_all_assets =
+    list.all(
+      asset_names,
+      fn(asset_name) -> Bool {
+        let user_asset_name = bytearray.concat(prefix_222, asset_name)
+        dict.get(hal_tokens, user_asset_name) == Some(1)
+      },
+    )
+  expect has_all_assets
+
+  True
+}
+
+pub fn check_ref_outputs(
+  hal_asset_names: List<AssetName>,
+  outputs: List<Output>,
+  ref_spend_script_address: Address,
+  policy_id: PolicyId,
+) -> Bool {
+  when hal_asset_names is {
+    [] -> True
+    [hal_asset_name, ..rest_hal_asset_names] -> {
+      let ref_asset_name = bytearray.concat(prefix_100, hal_asset_name)
+      expect [output, ..rest_outputs] = outputs
       let Output {
-        address: ref_output_address,
-        value: ref_output_value,
-        reference_script: ref_output_reference_script,
+        address: output_address,
+        value: output_value,
+        reference_script: output_reference_script,
         ..
-      } = ref_output
-      expect ref_output_address == ref_spend_script_address
-      let expected_ref_value =
-        value.zero()
-          |> value.add(policy_id, ref_asset_name, 1)
-      let does_ref_output_have_asset =
-        value.without_lovelace(ref_output_value) == expected_ref_value
-      expect does_ref_output_have_asset
-      expect ref_output_reference_script == None
+      } = output
 
-      // make new ref_hal_value and user_hal_value
-      let new_ref_hal_value =
-        ref_hal_value
-          |> value.add(policy_id, ref_asset_name, 1)
-      let new_user_hal_value =
-        user_hal_value
-          |> value.add(policy_id, user_asset_name, 1)
+      // check address
+      expect output_address == ref_spend_script_address
 
-      do_check_ref_outputs(
+      // check value
+      let expected_value =
+        value.zero() |> value.add(policy_id, ref_asset_name, 1)
+      let has_ref_asset = value.without_lovelace(output_value) == expected_value
+      expect has_ref_asset
+
+      // check reference script
+      expect output_reference_script == None
+
+      check_ref_outputs(
+        rest_hal_asset_names,
         rest_outputs,
-        new_root,
-        new_ref_hal_value,
-        new_user_hal_value,
-        policy_id,
         ref_spend_script_address,
-        rest_proofs,
-        continuation,
+        policy_id,
       )
     }
   }
 }
 
-fn is_user_output_valid(
-  user_output: Output,
-  destination_address: Address,
-  user_hal_value: Value,
+pub fn check_hal_tokens_minted(
+  hal_asset_names: List<AssetName>,
+  minted_value: Value,
   policy_id: PolicyId,
 ) -> Bool {
-  let Output { address: user_output_address, value: user_output_value, .. } =
-    user_output
-  expect user_output_address == destination_address
-  let does_user_output_value_have_hal_nfts =
-    are_tokens_same(
-      value.tokens(user_output_value, policy_id),
-      value.tokens(user_hal_value, policy_id),
+  let minted_hal_tokens = value.tokens(minted_value, policy_id)
+
+  let are_hal_tokens_minted_correctly =
+    list.all(
+      hal_asset_names,
+      fn(hal_asset_name) -> Bool {
+        let ref_asset_name = bytearray.concat(prefix_100, hal_asset_name)
+        let user_asset_name = bytearray.concat(prefix_222, hal_asset_name)
+        let is_ref_asset_minted =
+          dict.get(minted_hal_tokens, ref_asset_name) == Some(1)
+        let is_user_asset_minted =
+          dict.get(minted_hal_tokens, user_asset_name) == Some(1)
+        expect is_ref_asset_minted
+        expect is_user_asset_minted
+        True
+      },
     )
 
-  expect does_user_output_value_have_hal_nfts
-
-  True
-}
-
-// This function updates the mpt root
-// and returns new root
-// update asset name (as key) value 
-// to datum hash
-// we assume old value is empty string
-// because asset is not minted yet
-//
-fn update_root(
-  root: mpt.MerklePatriciaForestry,
-  asset_name: ByteArray,
-  mpt_proof: mpt.Proof,
-) -> mpt.MerklePatriciaForestry {
-  root |> mpt.update(asset_name, mpt_proof, #"", mpt_minted_value)
+  are_hal_tokens_minted_correctly
 }
 
 // This function returns aggregated orders information
@@ -233,14 +244,11 @@ fn update_root(
 pub fn aggregate_orders_information(
   inputs: List<Input>,
   aggregated_orders: List<Order>,
-  orders_count: Int,
-  total_price: Int,
   orders_spend_script_address: Address,
-  orders_mint_policy_id: PolicyId,
-  continuation: fn(List<Order>, Int, Int) -> result,
+  continuation: fn(List<Order>) -> result,
 ) -> result {
   when inputs is {
-    [] -> continuation(aggregated_orders, orders_count, total_price)
+    [] -> continuation(aggregated_orders)
     [order_input, ..rest_inputs] -> {
       let Output { address, datum, value: order_input_value, .. } =
         order_input.output
@@ -254,17 +262,13 @@ pub fn aggregate_orders_information(
           let OrderDatum { destination_address, amount, price, .. } =
             order_datum
 
-          // check order has order token
-          let has_order_token =
-            value.quantity_of(
-              order_input_value,
-              orders_mint_policy_id,
-              order_asset_name,
-            ) == 1
-          expect has_order_token
-
           // calculate price
           let paid_price = price * amount
+
+          // check order input's lovelace
+          let has_enough_lovelace =
+            value.lovelace_of(order_input_value) >= paid_price
+          expect has_enough_lovelace
 
           aggregate_orders_information(
             rest_inputs,
@@ -273,10 +277,7 @@ pub fn aggregate_orders_information(
               destination_address,
               amount,
             ),
-            orders_count + 1,
-            total_price + paid_price,
             orders_spend_script_address,
-            orders_mint_policy_id,
             continuation,
           )
         }
@@ -284,10 +285,7 @@ pub fn aggregate_orders_information(
           aggregate_orders_information(
             rest_inputs,
             aggregated_orders,
-            orders_count,
-            total_price,
             orders_spend_script_address,
-            orders_mint_policy_id,
             continuation,
           )
       }
@@ -312,34 +310,5 @@ fn add_order_to_aggregated_orders(
           ..add_order_to_aggregated_orders(rest, address, amount)
         ]
       }
-  }
-}
-
-// This function calculates total min lovelace from outputs
-// we expect that the last output is change output to payment address
-// and we don't take that into account
-//
-pub fn get_total_min_lovelace_and_payment_output(
-  outputs: List<Output>,
-) -> (Int, Output) {
-  do_calculate_total_min_lovelace(outputs, 0)
-}
-
-fn do_calculate_total_min_lovelace(
-  outputs: List<Output>,
-  total_min_lovelace: Int,
-) -> (Int, Output) {
-  when outputs is {
-    [] -> fail @"must have payment output."
-    [payment_output] -> (total_min_lovelace, payment_output)
-    [output, ..rest_outputs] -> {
-      let Output { value, .. } = output
-      let lovelace = value.lovelace_of(value)
-
-      do_calculate_total_min_lovelace(
-        rest_outputs,
-        total_min_lovelace + lovelace,
-      )
-    }
   }
 }
