@@ -19,8 +19,6 @@ pub type SettingsV1 {
   // all minting handles logic (for both new and legacy)
   // minting_data_asset is locked inside that script
   minting_data_script_hash: ScriptHash,
-  // required when mint Orders NFT
-  orders_minter: VerificationKeyHash,
   // required when spending H.A.L. reference asset
   // from Ref Spend Spending validator
   ref_spend_admin: VerificationKeyHash,

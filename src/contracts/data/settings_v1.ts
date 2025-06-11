@@ -21,11 +21,10 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     payment_address,
     ref_spend_script_address,
     orders_spend_script_address,
-    orders_mint_policy_id,
     minting_data_script_hash,
-    orders_minter,
     ref_spend_admin,
     max_order_amount,
+    minting_start_time,
   } = settings;
 
   return makeConstrData(0, [
@@ -35,11 +34,10 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     buildAddressData(payment_address as ShelleyAddress),
     buildAddressData(ref_spend_script_address as ShelleyAddress),
     buildAddressData(orders_spend_script_address as ShelleyAddress),
-    makeByteArrayData(orders_mint_policy_id),
     makeByteArrayData(minting_data_script_hash),
-    makeByteArrayData(orders_minter),
     makeByteArrayData(ref_spend_admin),
     makeIntData(max_order_amount),
+    makeIntData(minting_start_time),
   ]);
 };
 
@@ -47,7 +45,7 @@ const decodeSettingsV1Data = (
   data: UplcData,
   network: NetworkName
 ): SettingsV1 => {
-  const settingsV1ConstrData = expectConstrData(data, 0, 11);
+  const settingsV1ConstrData = expectConstrData(data, 0, 10);
 
   const policy_id = expectByteArrayData(
     settingsV1ConstrData.fields[0],
@@ -84,35 +82,31 @@ const decodeSettingsV1Data = (
     network
   );
 
-  // orders_mint_policy_id
-  const orders_mint_policy_id = expectByteArrayData(
-    settingsV1ConstrData.fields[6],
-    "orders_mint_policy_id must be ByteArray"
-  ).toHex();
-
   // minting_data_script_hash
   const minting_data_script_hash = expectByteArrayData(
-    settingsV1ConstrData.fields[7],
+    settingsV1ConstrData.fields[6],
     "minting_data_script_hash must be ByteArray"
-  ).toHex();
-
-  // orders_minter
-  const orders_minter = expectByteArrayData(
-    settingsV1ConstrData.fields[8],
-    "orders_minter must be ByteArray"
   ).toHex();
 
   // ref_spend_admin
   const ref_spend_admin = expectByteArrayData(
-    settingsV1ConstrData.fields[9],
+    settingsV1ConstrData.fields[7],
     "ref_spend_admin must be ByteArray"
   ).toHex();
 
   // max_order_amount
   const max_order_amount = Number(
     expectIntData(
-      settingsV1ConstrData.fields[10],
+      settingsV1ConstrData.fields[8],
       "max_order_amount must be Int"
+    ).value
+  );
+
+  // minting_start_time
+  const minting_start_time = Number(
+    expectIntData(
+      settingsV1ConstrData.fields[9],
+      "minting_start_time must be Int"
     ).value
   );
 
@@ -123,11 +117,10 @@ const decodeSettingsV1Data = (
     payment_address,
     ref_spend_script_address,
     orders_spend_script_address,
-    orders_mint_policy_id,
     minting_data_script_hash,
-    orders_minter,
     ref_spend_admin,
     max_order_amount,
+    minting_start_time,
   };
 };
 

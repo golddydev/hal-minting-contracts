@@ -47,8 +47,6 @@ pub fn orders_spend_script_address() -> Address {
 
 pub const minting_data_script_hash: ScriptHash = #"3333"
 
-pub const orders_minter: VerificationKeyHash = #"11113333"
-
 pub const ref_spend_admin: VerificationKeyHash = #"22223333"
 
 pub const max_order_amount: Int = 5

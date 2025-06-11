@@ -15,7 +15,7 @@ use tests/mocks/fake_constants.{
   allowed_minter, hal_nft_policy_id, hal_nft_price, max_order_amount,
   min_order_lovelace, mint_governor, mint_version, minting_data_asset_name,
   minting_data_asset_policy_id, minting_data_script_hash, minting_start_time,
-  orders_minter, orders_spend_script_address, payment_address, ref_spend_admin,
+  orders_spend_script_address, payment_address, ref_spend_admin,
   ref_spend_script_address, settings_asset_name, settings_asset_policy_id,
 }
 
@@ -72,7 +72,6 @@ pub fn make_settings_reference_input() -> Input {
       ref_spend_script_address: ref_spend_script_address(),
       orders_spend_script_address: orders_spend_script_address(),
       minting_data_script_hash,
-      orders_minter,
       ref_spend_admin,
       max_order_amount,
       minting_start_time,

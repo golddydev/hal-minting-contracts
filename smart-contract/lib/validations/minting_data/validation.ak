@@ -53,6 +53,7 @@ pub fn can_mint(
     allowed_minter,
     ref_spend_script_address,
     orders_spend_script_address,
+    minting_start_time,
     ..
   } = settings_datum
 
@@ -95,6 +96,7 @@ pub fn can_mint(
       [],
       policy_id,
       validity_range,
+      minting_start_time,
       proofs_list,
     )
 

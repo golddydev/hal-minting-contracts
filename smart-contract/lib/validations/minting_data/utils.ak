@@ -25,6 +25,7 @@ pub fn are_all_orders_fulfilled(
   hal_asset_names: List<AssetName>,
   policy_id: PolicyId,
   validity_range: ValidityRange,
+  minting_start_time: Int,
   proofs_list: List<Proofs>,
   continuation: fn(
     mpt.MerklePatriciaForestry,
@@ -54,6 +55,7 @@ pub fn are_all_orders_fulfilled(
           whitelist_root,
           whitelist_proof_opt,
           validity_range,
+          minting_start_time,
           destination_address,
           ordered_amount,
         )
@@ -86,6 +88,7 @@ pub fn are_all_orders_fulfilled(
         new_hal_asset_names,
         policy_id,
         validity_range,
+        minting_start_time,
         rest_proofs_list,
         continuation,
       )
@@ -107,15 +110,27 @@ fn update_mpt_root(
   }
 }
 
+// this function also checks
+// the destination address is whitelisted
+// to mint early
+// and check minting start time, if not whitelisted
 fn update_whitelist_mpt_root(
   root: mpt.MerklePatriciaForestry,
   whitelist_proof_opt: Option<WhitelistProof>,
   validity_range: ValidityRange,
+  minting_start_time: Int,
   destination_address: Address,
   ordered_amount: Int,
 ) -> mpt.MerklePatriciaForestry {
   when whitelist_proof_opt is {
-    None -> root
+    None -> {
+      // tx must starts after minting start time
+      let is_after_minting_start_time =
+        is_entirely_after(validity_range, minting_start_time)
+      expect is_after_minting_start_time
+
+      root
+    }
     Some(whitelist_proof) -> {
       let (whitelisted_item, mpt_proof) = whitelist_proof
       let old_cbor = serialise(whitelisted_item)
