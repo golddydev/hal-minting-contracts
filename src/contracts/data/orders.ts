@@ -7,12 +7,11 @@ import {
   makeByteArrayData,
   makeConstrData,
   makeIntData,
-  makeListData,
   UplcData,
 } from "@helios-lang/uplc";
 
 import { invariant } from "../../helpers/index.js";
-import { Order, OrderDatum } from "../types/index.js";
+import { OrderDatum } from "../types/index.js";
 import { buildAddressData, decodeAddressFromData } from "./common.js";
 
 const decodeOrderDatumData = (
@@ -52,23 +51,6 @@ const buildOrderDatumData = (order: OrderDatum): UplcData => {
   ]);
 };
 
-const buildOrdersMintMintOrdersRedeemer = (orders: Order[]): UplcData => {
-  return makeConstrData(0, [makeListData(orders.map(buildOrderData))]);
-};
-
-const buildOrderData = (order: Order): UplcData => {
-  const [destination_address, amount] = order;
-
-  return makeListData([
-    buildAddressData(destination_address),
-    makeIntData(amount),
-  ]);
-};
-
-const buildOrdersMintBurnOrdersRedeemer = (): UplcData => {
-  return makeConstrData(1, []);
-};
-
 const buildOrdersSpendExecuteOrdersRedeemer = (): UplcData => {
   return makeConstrData(0, []);
 };
@@ -79,8 +61,6 @@ const buildOrdersSpendCancelOrderRedeemer = (): UplcData => {
 
 export {
   buildOrderDatumData,
-  buildOrdersMintBurnOrdersRedeemer,
-  buildOrdersMintMintOrdersRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeOrderDatumData,
