@@ -37,7 +37,6 @@ pub fn make_order_input(
   let order: OrderDatum =
     OrderDatum {
       owner_key_hash: owner_verification_key_hash,
-      price: 180_000_000,
       destination_address: credential.from_verification_key(
         owner_verification_key_hash,
       ),

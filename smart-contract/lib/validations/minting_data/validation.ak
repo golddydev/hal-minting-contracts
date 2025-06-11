@@ -51,6 +51,7 @@ pub fn can_mint(
   let SettingsV1 {
     policy_id,
     allowed_minter,
+    hal_nft_price,
     ref_spend_script_address,
     orders_spend_script_address,
     minting_start_time,
@@ -72,7 +73,12 @@ pub fn can_mint(
 
   // aggregate orders
   let aggregated_orders <-
-    aggregate_orders_information(inputs, [], orders_spend_script_address)
+    aggregate_orders_information(
+      inputs,
+      [],
+      orders_spend_script_address,
+      hal_nft_price,
+    )
   let aggregated_orders_count = list.length(aggregated_orders)
 
   // parse outputs

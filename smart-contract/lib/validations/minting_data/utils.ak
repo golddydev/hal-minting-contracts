@@ -260,6 +260,7 @@ pub fn aggregate_orders_information(
   inputs: List<Input>,
   aggregated_orders: List<Order>,
   orders_spend_script_address: Address,
+  hal_nft_price: Int,
   continuation: fn(List<Order>) -> result,
 ) -> result {
   when inputs is {
@@ -274,11 +275,10 @@ pub fn aggregate_orders_information(
           // parse order datum
           expect InlineDatum(datum) = datum
           expect order_datum: OrderDatum = datum
-          let OrderDatum { destination_address, amount, price, .. } =
-            order_datum
+          let OrderDatum { destination_address, amount, .. } = order_datum
 
           // calculate price
-          let paid_price = price * amount
+          let paid_price = hal_nft_price * amount
 
           // check order input's lovelace
           let has_enough_lovelace =
@@ -293,6 +293,7 @@ pub fn aggregate_orders_information(
               amount,
             ),
             orders_spend_script_address,
+            hal_nft_price,
             continuation,
           )
         }
@@ -301,6 +302,7 @@ pub fn aggregate_orders_information(
             rest_inputs,
             aggregated_orders,
             orders_spend_script_address,
+            hal_nft_price,
             continuation,
           )
       }
