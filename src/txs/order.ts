@@ -1,13 +1,8 @@
-import { IntLike } from "@helios-lang/codec-utils";
-import { ByteArrayLike } from "@helios-lang/codec-utils";
+import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import {
   Address,
   makeAddress,
-  makeAssetClass,
-  makeAssets,
   makeInlineTxOutputDatum,
-  makeMintingPolicyHash,
-  makePubKeyHash,
   makeValidatorHash,
   makeValue,
   TxInput,
@@ -16,16 +11,15 @@ import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { ScriptDetails } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
 
-import { ORDER_ASSET_HEX_NAME } from "../constants/index.js";
 import {
   buildOrderDatumData,
-  buildOrdersMintBurnOrdersRedeemer,
-  buildOrdersMintMintOrdersRedeemer,
   buildOrdersSpendCancelOrderRedeemer,
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
+  decodeWhitelistItem,
   OrderDatum,
+  Settings,
 } from "../contracts/index.js";
 import { Order } from "../contracts/types/orders.js";
 import {
@@ -46,7 +40,6 @@ import { DeployedScripts } from "./deploy.js";
 interface RequestParams {
   network: NetworkName;
   orders: Order[];
-  deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
 }
 
@@ -58,7 +51,7 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, orders, deployedScripts, settingsAssetTxInput } = params;
+  const { network, orders, settingsAssetTxInput } = params;
   const isMainnet = network == "mainnet";
 
   for (const [address, amount] of orders) {
@@ -69,12 +62,6 @@ const request = async (
       return Err(new Error("Amount must be greater than 0"));
     }
   }
-
-  const {
-    ordersMintScriptTxInput,
-    ordersMintScriptDetails,
-    ordersSpendScriptDetails,
-  } = deployedScripts;
 
   // decode settings
   const settingsResult = mayFail(() =>
@@ -92,7 +79,7 @@ const request = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const { orders_minter, max_order_amount, hal_nft_price } =
+  const { max_order_amount, hal_nft_price, orders_spend_script_address } =
     settingsV1Result.data;
 
   // check amount is not greater than max_order_amount
@@ -106,65 +93,23 @@ const request = async (
     }
   }
 
-  const ordersCount = orders.length;
-
-  // orders spend script address
-  const ordersSpendScriptAddress = makeAddress(
-    isMainnet,
-    makeValidatorHash(ordersSpendScriptDetails.validatorHash)
-  );
-
-  // order token policy id
-  const ordersMintPolicyHash = makeMintingPolicyHash(
-    makeValidatorHash(ordersMintScriptDetails.validatorHash)
-  );
-
-  // order value
-  const orderTokenAssetClass = makeAssetClass(
-    ordersMintPolicyHash,
-    ORDER_ASSET_HEX_NAME
-  );
-  const orderTokenValue: [ByteArrayLike, IntLike][] = [
-    [orderTokenAssetClass.tokenName, BigInt(ordersCount)],
-  ];
-
   // start building tx
   const txBuilder = makeTxBuilder({
     isMainnet,
   });
 
-  // <-- attach settings asset as reference input
-  txBuilder.refer(settingsAssetTxInput);
-
-  // <-- add orders_minter signer
-  txBuilder.addSigners(makePubKeyHash(orders_minter));
-
-  // <-- attach orders mint script
-  txBuilder.refer(ordersMintScriptTxInput);
-
-  // <-- mint order token
-  txBuilder.mintPolicyTokensUnsafe(
-    ordersMintPolicyHash,
-    orderTokenValue,
-    buildOrdersMintMintOrdersRedeemer(orders)
-  );
-
   // <-- pay order value to order spend script address for each order
   for (const [address, amount] of orders) {
     const orderDatum: OrderDatum = {
       owner_key_hash: address.spendingCredential.toHex(),
-      price: hal_nft_price,
       destination_address: address,
       amount,
     };
 
-    const orderValue = makeValue(
-      hal_nft_price * BigInt(amount),
-      makeAssets([[orderTokenAssetClass, 1n]])
-    );
+    const orderValue = makeValue(hal_nft_price * BigInt(amount));
 
     txBuilder.payUnsafe(
-      ordersSpendScriptAddress,
+      orders_spend_script_address,
       orderValue,
       makeInlineTxOutputDatum(buildOrderDatumData(orderDatum))
     );
@@ -203,12 +148,8 @@ const cancel = async (
   if (address.spendingCredential.kind == "ValidatorHash")
     return Err(new Error("Must be Base address"));
 
-  const {
-    ordersMintScriptTxInput,
-    ordersMintScriptDetails,
-    ordersSpendScriptTxInput,
-    ordersSpendScriptDetails,
-  } = deployedScripts;
+  const { ordersSpendScriptTxInput, ordersSpendScriptDetails } =
+    deployedScripts;
 
   // check if order tx input is from ordersSpendScriptAddress
   const ordersSpendScriptAddress = makeAddress(
@@ -221,37 +162,16 @@ const cancel = async (
     );
   }
 
-  // order token policy id
-  const ordersMintPolicyHash = makeMintingPolicyHash(
-    makeValidatorHash(ordersMintScriptDetails.validatorHash)
-  );
-
-  // order value
-  const orderTokenAssetClass = makeAssetClass(
-    ordersMintPolicyHash,
-    ORDER_ASSET_HEX_NAME
-  );
-  const orderTokenValue: [ByteArrayLike, IntLike][] = [
-    [orderTokenAssetClass.tokenName, -1n],
-  ];
-
   // start building tx
   const txBuilder = makeTxBuilder({
     isMainnet,
   });
 
   // <-- attach orders spend and mint scripts
-  txBuilder.refer(ordersMintScriptTxInput, ordersSpendScriptTxInput);
+  txBuilder.refer(ordersSpendScriptTxInput);
 
   // <-- spend order tx input
   txBuilder.spendUnsafe(orderTxInput, buildOrdersSpendCancelOrderRedeemer());
-
-  // <-- burn order token value
-  txBuilder.mintPolicyTokensUnsafe(
-    ordersMintPolicyHash,
-    orderTokenValue,
-    buildOrdersMintBurnOrdersRedeemer()
-  );
 
   // <-- add signer
   txBuilder.addSigners(address.spendingCredential);
@@ -313,15 +233,14 @@ const fetchOrdersTxInputs = async (
  * @typedef {object} IsValidOrderTxInputParams
  * @property {NetworkName} network Network
  * @property {TxInput} orderTxInput Order TxInput
- * @property {Address} ordersSpendScriptAddress Orders Spend Script Address
- * @property {number} maxOrderAmount max_order_amount from Settings
+ * @property {Settings} settings Settings
+ * @property {Trie} whitelistDB Whitelist DB
  */
 interface IsValidOrderTxInputParams {
   network: NetworkName;
   orderTxInput: TxInput;
-  ordersSpendScriptDetails: ScriptDetails;
-  maxOrderAmount: number;
-  halNftPrice: bigint;
+  settings: Settings;
+  whitelistDB: Trie;
 }
 
 /**
@@ -329,24 +248,28 @@ interface IsValidOrderTxInputParams {
  * @param {IsValidOrderTxInputParams} params
  * @returns {boolean} True if valid order UTxO, false otherwise
  */
-const isValidOrderTxInput = (
+const isValidOrderTxInput = async (
   params: IsValidOrderTxInputParams
-): Result<true, Error> => {
-  const {
-    network,
-    orderTxInput,
-    ordersSpendScriptDetails,
-    maxOrderAmount,
-    halNftPrice,
-  } = params;
-  const isMainnet = network == "mainnet";
-  const ordersSpendScriptAddress = makeAddress(
-    isMainnet,
-    makeValidatorHash(ordersSpendScriptDetails.validatorHash)
+): Promise<Result<true, Error>> => {
+  const { network, orderTxInput, settings, whitelistDB } = params;
+  const { data: settingsV1Data } = settings;
+  const settingsV1Result = mayFail(() =>
+    decodeSettingsV1Data(settingsV1Data, network)
   );
+  if (!settingsV1Result.ok) {
+    return Err(
+      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
+    );
+  }
+  const {
+    max_order_amount,
+    hal_nft_price,
+    orders_spend_script_address,
+    minting_start_time,
+  } = settingsV1Result.data;
 
   // check if address matches
-  if (!orderTxInput.address.isEqual(ordersSpendScriptAddress)) {
+  if (!orderTxInput.address.isEqual(orders_spend_script_address)) {
     return Err(
       new Error("Order TxInput must be from Orders Spend Script Address")
     );
@@ -359,21 +282,63 @@ const isValidOrderTxInput = (
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));
   }
-  const { amount } = decodedResult.data;
+  const { destination_address, amount } = decodedResult.data;
 
   // check amount
-  if (amount > maxOrderAmount) {
+  if (amount > max_order_amount) {
     return Err(
       new Error(
-        `Amount must be less than or equal to ${maxOrderAmount} (max_order_amount)`
+        `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
       )
     );
   }
 
   // check lovelace is enough
-  const expectedLovelace = BigInt(amount) * halNftPrice;
+  const expectedLovelace = BigInt(amount) * hal_nft_price;
   if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
+  }
+
+  // check whitelist
+  const value = await whitelistDB.get(
+    Buffer.from(destination_address.toCbor())
+  );
+  if (!value) {
+    if (Date.now() < minting_start_time) {
+      return Err(
+        new Error(
+          `Minting not started yet for everyone. Wait until ${new Date(
+            minting_start_time
+          ).toLocaleString()}`
+        )
+      );
+    }
+  } else {
+    const whitelistedItemResult = decodeWhitelistItem(value);
+    if (!whitelistedItemResult.ok) {
+      return Err(
+        new Error(
+          `Failed to decode whitelisted item: ${whitelistedItemResult.error}`
+        )
+      );
+    }
+    const [time, whitelisted_amount] = whitelistedItemResult.data;
+    if (Date.now() < time) {
+      return Err(
+        new Error(
+          `Minting not started yet for whitelisted users. Wait until ${new Date(
+            time
+          ).toLocaleString()}`
+        )
+      );
+    }
+    if (amount > whitelisted_amount) {
+      return Err(
+        new Error(
+          `Amount must be less than or equal to ${whitelisted_amount} (whitelisted amount)`
+        )
+      );
+    }
   }
 
   return Ok(true);

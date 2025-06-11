@@ -26,7 +26,6 @@ export const CONTRACT_NAMES = [
   "mint_proxy.mint",
   "mint_v1.withdraw",
   "minting_data.spend",
-  "orders_mint.mint",
   "orders_spend.spend",
   "ref_spend.spend",
 ];
@@ -38,6 +37,3 @@ export const SETTINGS_HANDLE_NAME = "hal@handle_settings";
 export const MINTING_DATA_HANDLE_NAME = "hal_root@handle_settings";
 
 export const MPT_MINTED_VALUE = "minted";
-
-export const ORDER_ASSET_UTF8_NAME = "HAL_ORDER";
-export const ORDER_ASSET_HEX_NAME = "48414c5f4f52444552";

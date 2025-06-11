@@ -1,4 +1,3 @@
-import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import { BlockFrostAPI } from "@blockfrost/blockfrost-js";
 import { bytesToHex } from "@helios-lang/codec-utils";
 import { makeAddress } from "@helios-lang/ledger";
@@ -13,13 +12,11 @@ import {
 } from "../../src/constants/index.js";
 import {
   buildContracts,
-  buildMintingData,
   buildSettingsData,
   buildSettingsV1Data,
   checkAccountRegistrationStatus,
   deploy,
   getBlockfrostV0Client,
-  MintingData,
   registerStakingAddress,
   Settings,
   SettingsV1,
@@ -51,22 +48,6 @@ const doOnChainActions = async (commandImpl: CommandImpl) => {
             console.log(settingsCbor);
             console.log("\n");
           },
-        },
-        {
-          title: "minting-data",
-          description: "Build Minting Data Datum CBOR",
-          value: async () => {
-            const mintingDataCbor = buildMintingDataCbor(commandImpl.mpt!);
-            console.log(
-              "\n\n------- Lock This Minting Data CBOR with asset -------\n"
-            );
-            console.log(mintingDataCbor.cbor);
-            console.log("\n");
-            console.log("\n------- To This address -------\n");
-            console.log(mintingDataCbor.lockAddress.toString());
-            console.log("\n");
-          },
-          disabled: !commandImpl.mpt,
         },
         {
           title: "staking-addresses",
@@ -133,9 +114,9 @@ const buildSettingsDataCbor = () => {
     ALLOWED_MINTER,
     HAL_NFT_PRICE,
     PAYMENT_ADDRESS,
-    ORDERS_MINTER,
     REF_SPEND_ADMIN,
     MAX_ORDER_AMOUNT,
+    MINTING_START_TIME,
   } = configs;
 
   const contractsConfig = buildContracts({
@@ -147,7 +128,6 @@ const buildSettingsDataCbor = () => {
     halPolicyHash,
     mintV1: mintV1Config,
     mintingData: mintingDataConfig,
-    ordersMint: ordersMintConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
   } = contractsConfig;
@@ -160,12 +140,11 @@ const buildSettingsDataCbor = () => {
     payment_address: PAYMENT_ADDRESS,
     ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
     orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
-    orders_mint_policy_id: ordersMintConfig.ordersMintPolicyHash.toHex(),
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
-    orders_minter: ORDERS_MINTER,
     ref_spend_admin: REF_SPEND_ADMIN,
     max_order_amount: MAX_ORDER_AMOUNT,
+    minting_start_time: MINTING_START_TIME,
   };
   const settings: Settings = {
     mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),
@@ -174,28 +153,6 @@ const buildSettingsDataCbor = () => {
   };
 
   return bytesToHex(buildSettingsData(settings).toCbor());
-};
-
-const buildMintingDataCbor = (db: Trie) => {
-  const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH } = configs;
-
-  const contractsConfig = buildContracts({
-    network: NETWORK as NetworkName,
-    mint_version: MINT_VERSION,
-    admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
-  });
-  const { mintingData: mintingDataConfig } = contractsConfig;
-
-  // we already have settings asset using legacy handle.
-  const mintingData: MintingData = {
-    mpt_root_hash: db.hash.toString("hex"),
-  };
-
-  return {
-    cbor: bytesToHex(buildMintingData(mintingData).toCbor()),
-    lockAddress: mintingDataConfig.mintingDataValidatorAddress,
-  };
 };
 
 const getStakingAddresses = () => {

@@ -59,7 +59,6 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
     mintProxy: mintProxyConfig,
     mintV1: mintV1Config,
     mintingData: mintingDataConfig,
-    ordersMint: ordersMintConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
   } = contractsConfig;
@@ -102,14 +101,6 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
         validatorHash: mintV1Config.mintV1ValidatorHash.toHex(),
         scriptStakingAddress: mintV1Config.mintV1StakingAddress.toBech32(),
       };
-    case "orders_mint.mint":
-      return {
-        ...extractScriptCborsFromUplcProgram(
-          ordersMintConfig.ordersMintUplcProgram
-        ),
-        validatorHash: ordersMintConfig.ordersMintValidatorHash.toHex(),
-        policyId: ordersMintConfig.ordersMintPolicyHash.toHex(),
-      };
     case "orders_spend.spend":
       return {
         ...extractScriptCborsFromUplcProgram(
@@ -117,8 +108,7 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
         ),
         datumCbor: bytesToHex(
           makeOrdersSpendUplcProgramParameterDatum(
-            halPolicyHash.toHex(),
-            ordersMintConfig.ordersMintPolicyHash.toHex()
+            halPolicyHash.toHex()
           ).data.toCbor()
         ),
         validatorHash: ordersSpendConfig.ordersValidatorHash.toHex(),
@@ -134,7 +124,7 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
       };
     default:
       throw new Error(
-        `Contract name must be one of "mint_proxy.mint" | "mint_v1.withdraw" | "minting_data_proxy.spend" | "minting_data_v1.withdraw" | "orders_spend.spend" | "orders_mint.mint" | "ref_spend.spend"`
+        `Contract name must be one of "mint_proxy.mint" | "mint_v1.withdraw" | "minting_data_proxy.spend" | "minting_data_v1.withdraw" | "orders_spend.spend" | "ref_spend.spend"`
       );
   }
 };
@@ -157,8 +147,6 @@ interface DeployedScripts {
   mintingDataScriptTxInput: TxInput;
   mintV1ScriptDetails: ScriptDetails;
   mintV1ScriptTxInput: TxInput;
-  ordersMintScriptDetails: ScriptDetails;
-  ordersMintScriptTxInput: TxInput;
   ordersSpendScriptDetails: ScriptDetails;
   ordersSpendScriptTxInput: TxInput;
   refSpendScriptDetails: ScriptDetails;
@@ -221,24 +209,6 @@ const fetchAllDeployedScripts = async (
         decodeUplcProgramV2FromCbor(mintV1ScriptDetails.unoptimizedCbor)
       );
 
-    // "orders_mint.mint"
-    const ordersMintScriptDetails = await fetchDeployedScript(
-      ScriptType.DEMI_ORDERS
-    );
-    invariant(
-      ordersMintScriptDetails.refScriptUtxo,
-      "Orders Mint has no Ref script UTxO"
-    );
-    const ordersMintScriptTxInput = await blockfrostV0Client.getUtxo(
-      makeTxOutputId(ordersMintScriptDetails.refScriptUtxo)
-    );
-    if (ordersMintScriptDetails.unoptimizedCbor)
-      ordersMintScriptTxInput.output.refScript = (
-        ordersMintScriptTxInput.output.refScript as UplcProgramV2
-      )?.withAlt(
-        decodeUplcProgramV2FromCbor(ordersMintScriptDetails.unoptimizedCbor)
-      );
-
     // "orders_spend.spend"
     const ordersSpendScriptDetails = await fetchDeployedScript(
       ScriptType.DEMI_ORDERS
@@ -282,8 +252,6 @@ const fetchAllDeployedScripts = async (
       mintingDataScriptTxInput,
       mintV1ScriptDetails,
       mintV1ScriptTxInput,
-      ordersMintScriptDetails,
-      ordersMintScriptTxInput,
       ordersSpendScriptDetails,
       ordersSpendScriptTxInput,
       refSpendScriptDetails,

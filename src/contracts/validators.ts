@@ -75,28 +75,7 @@ const getMintingDataSpendUplcProgram = (
     );
 };
 
-const getOrdersMintUplcProgram = (): UplcProgramV2 => {
-  const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "orders_mint.mint"
-  );
-  const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "orders_mint.mint"
-  );
-  invariant(
-    !!optimizedFoundValidator && !!unOptimizedFoundValidator,
-    "Orders Mint Validator not found"
-  );
-  return decodeUplcProgramV2FromCbor(
-    optimizedFoundValidator.compiledCode
-  ).withAlt(
-    decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode)
-  );
-};
-
-const getOrdersSpendUplcProgram = (
-  hal_policy_id: string,
-  orders_mint_policy_id: string
-): UplcProgramV2 => {
+const getOrdersSpendUplcProgram = (hal_policy_id: string): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
     (validator) => validator.title == "orders_spend.spend"
   );
@@ -108,15 +87,10 @@ const getOrdersSpendUplcProgram = (
     "Orders Spend Validator not found"
   );
   return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
-    .apply(
-      makeOrdersSpendUplcProgramParameter(hal_policy_id, orders_mint_policy_id)
-    )
+    .apply(makeOrdersSpendUplcProgramParameter(hal_policy_id))
     .withAlt(
       decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
-        makeOrdersSpendUplcProgramParameter(
-          hal_policy_id,
-          orders_mint_policy_id
-        )
+        makeOrdersSpendUplcProgramParameter(hal_policy_id)
       )
     );
 };
@@ -143,7 +117,6 @@ export {
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
   getMintV1WithdrawUplcProgram,
-  getOrdersMintUplcProgram,
   getOrdersSpendUplcProgram,
   getRefSpendUplcProgram,
 };

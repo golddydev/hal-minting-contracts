@@ -6,3 +6,4 @@ export * from "./orders.js";
 export * from "./ref_spend.js";
 export * from "./settings.js";
 export * from "./settings_v1.js";
+export * from "./whitelist.js";
