@@ -9,14 +9,13 @@ type OrderSpendRedeemer {
 }
 
 // This is Spending validator
-// Where Order Tx Input is sent
-// with Order NFT (orders_mint)
+// Where Order UTxO is sent
+// with OrderDatum and enough lovelace to pay
 //
 // ===== Parameters =====
 // `hal_policy_id`: Policy id of HAL NFT
-// `orders_mint_policy_id`: Policy id of Order NFT
 //
-validator(hal_policy_id: PolicyId, orders_mint_policy_id: PolicyId) {
+validator(hal_policy_id: PolicyId) {
   fn spend(
     datum: OrderDatum,
     redeemer: OrderSpendRedeemer,
@@ -28,12 +27,7 @@ validator(hal_policy_id: PolicyId, orders_mint_policy_id: PolicyId) {
     when redeemer is {
       ExecuteOrders -> can_execute_orders(transaction, hal_policy_id)
       CancelOrder ->
-        can_cancel_order(
-          transaction,
-          datum,
-          spending_output_reference,
-          orders_mint_policy_id,
-        )
+        can_cancel_order(transaction, datum, spending_output_reference)
     }
   }
 }

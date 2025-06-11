@@ -2,10 +2,10 @@ use aiken/list
 use aiken/transaction.{OutputReference, Transaction}
 use aiken/transaction/value.{PolicyId}
 use common/utils.{get_own_script_hash, get_own_utxo, get_own_utxos_count}
-use hal_nft_mint/orders.{OrderDatum, order_asset_name}
+use hal_nft_mint/orders.{OrderDatum}
 
 // Validation:
-// When minting engine spends Orders UTxO and burns Orders NFTs
+// When minting engine spends Orders UTxO
 //
 // Checks:
 // - must mint H.A.L. NFT(s)
@@ -31,15 +31,13 @@ pub fn can_execute_orders(
 // Checks:
 // - must be signed by owner of Order
 // - there must be only one UTxO from this script
-// - must burn only one Order NFT
 //
 pub fn can_cancel_order(
   transaction: Transaction,
   datum: OrderDatum,
   spending_output_reference: OutputReference,
-  orders_mint_policy_id: PolicyId,
 ) -> Bool {
-  let Transaction { inputs, extra_signatories, mint, .. } = transaction
+  let Transaction { inputs, extra_signatories, .. } = transaction
 
   // must be signed by owner of Order
   let is_owner_signed = list.has(extra_signatories, datum.owner_key_hash)
@@ -50,13 +48,6 @@ pub fn can_cancel_order(
   let own_script_hash = get_own_script_hash(own_utxo)
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxo_count == 1
-
-  // must burn only one Order NFT
-  let expected_mint_value =
-    value.zero()
-      |> value.add(orders_mint_policy_id, order_asset_name, -1)
-  let is_order_burnt = value.from_minted_value(mint) == expected_mint_value
-  expect is_order_burnt
 
   True
 }
