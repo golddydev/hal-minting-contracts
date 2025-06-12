@@ -1,13 +1,7 @@
-import { IntLike } from "@helios-lang/codec-utils";
-import { ByteArrayLike } from "@helios-lang/codec-utils";
 import {
   Address,
   makeAddress,
-  makeAssetClass,
-  makeAssets,
   makeInlineTxOutputDatum,
-  makeMintingPolicyHash,
-  makePubKeyHash,
   makeValidatorHash,
   makeValue,
   TxInput,
@@ -16,16 +10,16 @@ import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { ScriptDetails } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
 
-import { fetchSettings } from "../configs/index.js";
-import { HAL_NFT_PRICE, ORDER_ASSET_HEX_NAME } from "../constants/index.js";
 import {
-  buildOrderData,
-  buildOrdersMintBurnOrdersRedeemer,
-  buildOrdersMintMintOrderRedeemer,
+  buildOrderDatumData,
   buildOrdersSpendCancelOrderRedeemer,
-  decodeOrderDatum,
+  decodeOrderDatumData,
+  decodeSettingsDatum,
+  decodeSettingsV1Data,
   OrderDatum,
+  Settings,
 } from "../contracts/index.js";
+import { Order } from "../contracts/types/orders.js";
 import {
   getBlockfrostV0Client,
   getNetwork,
@@ -38,15 +32,13 @@ import { DeployedScripts } from "./deploy.js";
  * @interface
  * @typedef {object} RequestParams
  * @property {NetworkName} network Network
- * @property {Address} address User's Wallet Address to perform order
- * @property {number} amount Amount of H.A.L. NFTs to order
+ * @property {Order[]} orders Orders to request
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  */
 interface RequestParams {
   network: NetworkName;
-  address: Address;
-  amount: number;
-  deployedScripts: DeployedScripts;
+  orders: Order[];
+  settingsAssetTxInput: TxInput;
 }
 
 /**
@@ -57,97 +49,69 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, address, amount, deployedScripts } = params;
+  const { network, orders, settingsAssetTxInput } = params;
   const isMainnet = network == "mainnet";
-  if (address.era == "Byron")
-    return Err(new Error("Byron Address not supported"));
-  if (address.spendingCredential.kind == "ValidatorHash")
-    return Err(new Error("Must be Base address"));
 
-  if (amount <= 0n) {
-    return Err(new Error("Amount must be greater than 0"));
+  for (const [address, amount] of orders) {
+    if (address.spendingCredential.kind == "ValidatorHash")
+      return Err(new Error("Must be Base address"));
+
+    if (amount <= 0n) {
+      return Err(new Error("Amount must be greater than 0"));
+    }
   }
 
-  const {
-    ordersMintScriptTxInput,
-    ordersMintScriptDetails,
-    ordersSpendScriptDetails,
-  } = deployedScripts;
-
-  // fetch settings
-  const settingsResult = await fetchSettings(network);
-  if (!settingsResult.ok)
-    return Err(new Error(`Failed to fetch settings: ${settingsResult.error}`));
-  const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-  const { orders_minter, max_order_amount } = settingsV1;
-
-  // check amount is not greater than max_order_amount
-  if (amount > max_order_amount) {
+  // decode settings
+  const settingsResult = mayFail(() =>
+    decodeSettingsDatum(settingsAssetTxInput.datum)
+  );
+  if (!settingsResult.ok) {
+    return Err(new Error(`Failed to decode settings: ${settingsResult.error}`));
+  }
+  const { data: settingsV1Data } = settingsResult.data;
+  const settingsV1Result = mayFail(() =>
+    decodeSettingsV1Data(settingsV1Data, network)
+  );
+  if (!settingsV1Result.ok) {
     return Err(
-      new Error(
-        `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
-      )
+      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
+  const { max_order_amount, hal_nft_price, orders_spend_script_address } =
+    settingsV1Result.data;
 
-  // orders spend script address
-  const ordersSpendScriptAddress = makeAddress(
-    isMainnet,
-    makeValidatorHash(ordersSpendScriptDetails.validatorHash)
-  );
-
-  // order token policy id
-  const ordersMintPolicyHash = makeMintingPolicyHash(
-    makeValidatorHash(ordersMintScriptDetails.validatorHash)
-  );
-
-  const order: OrderDatum = {
-    owner_key_hash: address.spendingCredential.toHex(),
-    price: HAL_NFT_PRICE,
-    destination_address: address,
-    amount,
-  };
-
-  // order value
-  const orderTokenAssetClass = makeAssetClass(
-    ordersMintPolicyHash,
-    ORDER_ASSET_HEX_NAME
-  );
-  const orderTokenValue: [ByteArrayLike, IntLike][] = [
-    [orderTokenAssetClass.tokenName, 1n],
-  ];
-  const orderValue = makeValue(
-    HAL_NFT_PRICE * BigInt(amount),
-    makeAssets([[orderTokenAssetClass, 1n]])
-  );
+  // check amount is not greater than max_order_amount
+  for (const [_, amount] of orders) {
+    if (amount > max_order_amount) {
+      return Err(
+        new Error(
+          `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
+        )
+      );
+    }
+  }
 
   // start building tx
   const txBuilder = makeTxBuilder({
     isMainnet,
   });
 
-  // <-- attach settings asset as reference input
-  txBuilder.refer(settingsAssetTxInput);
+  // <-- pay order value to order spend script address for each order
+  for (const [address, amount] of orders) {
+    const orderDatum: OrderDatum = {
+      owner_key_hash: address.spendingCredential.toHex(),
+      destination_address: address,
+      amount,
+    };
 
-  // <-- add orders_minter signer
-  txBuilder.addSigners(makePubKeyHash(orders_minter));
+    const orderValue = makeValue(hal_nft_price * BigInt(amount));
 
-  // <-- attach orders mint script
-  txBuilder.refer(ordersMintScriptTxInput);
-
-  // <-- mint order token
-  txBuilder.mintPolicyTokensUnsafe(
-    ordersMintPolicyHash,
-    orderTokenValue,
-    buildOrdersMintMintOrderRedeemer(address, amount)
-  );
-
-  // <-- pay order value to order spend script adress
-  txBuilder.payUnsafe(
-    ordersSpendScriptAddress,
-    orderValue,
-    makeInlineTxOutputDatum(buildOrderData(order))
-  );
+    txBuilder.payUnsafe(
+      orders_spend_script_address,
+      orderValue,
+      makeInlineTxOutputDatum(buildOrderDatumData(orderDatum))
+    );
+  }
 
   return Ok(txBuilder);
 };
@@ -182,12 +146,8 @@ const cancel = async (
   if (address.spendingCredential.kind == "ValidatorHash")
     return Err(new Error("Must be Base address"));
 
-  const {
-    ordersMintScriptTxInput,
-    ordersMintScriptDetails,
-    ordersSpendScriptTxInput,
-    ordersSpendScriptDetails,
-  } = deployedScripts;
+  const { ordersSpendScriptTxInput, ordersSpendScriptDetails } =
+    deployedScripts;
 
   // check if order tx input is from ordersSpendScriptAddress
   const ordersSpendScriptAddress = makeAddress(
@@ -200,37 +160,16 @@ const cancel = async (
     );
   }
 
-  // order token policy id
-  const ordersMintPolicyHash = makeMintingPolicyHash(
-    makeValidatorHash(ordersMintScriptDetails.validatorHash)
-  );
-
-  // order value
-  const orderTokenAssetClass = makeAssetClass(
-    ordersMintPolicyHash,
-    ORDER_ASSET_HEX_NAME
-  );
-  const orderTokenValue: [ByteArrayLike, IntLike][] = [
-    [orderTokenAssetClass.tokenName, -1n],
-  ];
-
   // start building tx
   const txBuilder = makeTxBuilder({
     isMainnet,
   });
 
   // <-- attach orders spend and mint scripts
-  txBuilder.refer(ordersMintScriptTxInput, ordersSpendScriptTxInput);
+  txBuilder.refer(ordersSpendScriptTxInput);
 
   // <-- spend order tx input
   txBuilder.spendUnsafe(orderTxInput, buildOrdersSpendCancelOrderRedeemer());
-
-  // <-- burn order token value
-  txBuilder.mintPolicyTokensUnsafe(
-    ordersMintPolicyHash,
-    orderTokenValue,
-    buildOrdersMintBurnOrdersRedeemer()
-  );
 
   // <-- add signer
   txBuilder.addSigners(address.spendingCredential);
@@ -278,7 +217,9 @@ const fetchOrdersTxInputs = async (
 
   // remove invalid order utxos
   const orderUtxos = orderUtxosResult.data.filter((utxo) => {
-    const decodedResult = mayFail(() => decodeOrderDatum(utxo.datum, network));
+    const decodedResult = mayFail(() =>
+      decodeOrderDatumData(utxo.datum, network)
+    );
     return decodedResult.ok;
   });
 
@@ -290,14 +231,12 @@ const fetchOrdersTxInputs = async (
  * @typedef {object} IsValidOrderTxInputParams
  * @property {NetworkName} network Network
  * @property {TxInput} orderTxInput Order TxInput
- * @property {Address} ordersSpendScriptAddress Orders Spend Script Address
- * @property {number} maxOrderAmount max_order_amount from Settings
+ * @property {Settings} settings Settings
  */
 interface IsValidOrderTxInputParams {
   network: NetworkName;
   orderTxInput: TxInput;
-  ordersSpendScriptDetails: ScriptDetails;
-  maxOrderAmount: number;
+  settings: Settings;
 }
 
 /**
@@ -305,19 +244,24 @@ interface IsValidOrderTxInputParams {
  * @param {IsValidOrderTxInputParams} params
  * @returns {boolean} True if valid order UTxO, false otherwise
  */
-const isValidOrderTxInput = (
+const isValidOrderTxInput = async (
   params: IsValidOrderTxInputParams
-): Result<true, Error> => {
-  const { network, orderTxInput, ordersSpendScriptDetails, maxOrderAmount } =
-    params;
-  const isMainnet = network == "mainnet";
-  const ordersSpendScriptAddress = makeAddress(
-    isMainnet,
-    makeValidatorHash(ordersSpendScriptDetails.validatorHash)
+): Promise<Result<true, Error>> => {
+  const { network, orderTxInput, settings } = params;
+  const { data: settingsV1Data } = settings;
+  const settingsV1Result = mayFail(() =>
+    decodeSettingsV1Data(settingsV1Data, network)
   );
+  if (!settingsV1Result.ok) {
+    return Err(
+      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
+    );
+  }
+  const { max_order_amount, hal_nft_price, orders_spend_script_address } =
+    settingsV1Result.data;
 
   // check if address matches
-  if (!orderTxInput.address.isEqual(ordersSpendScriptAddress)) {
+  if (!orderTxInput.address.isEqual(orders_spend_script_address)) {
     return Err(
       new Error("Order TxInput must be from Orders Spend Script Address")
     );
@@ -325,7 +269,7 @@ const isValidOrderTxInput = (
 
   // check if datum is valid
   const decodedResult = mayFail(() =>
-    decodeOrderDatum(orderTxInput.datum, network)
+    decodeOrderDatumData(orderTxInput.datum, network)
   );
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));
@@ -333,16 +277,16 @@ const isValidOrderTxInput = (
   const { amount } = decodedResult.data;
 
   // check amount
-  if (amount > maxOrderAmount) {
+  if (amount > max_order_amount) {
     return Err(
       new Error(
-        `Amount must be less than or equal to ${maxOrderAmount} (max_order_amount)`
+        `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
       )
     );
   }
 
   // check lovelace is enough
-  const expectedLovelace = BigInt(amount) * HAL_NFT_PRICE;
+  const expectedLovelace = BigInt(amount) * hal_nft_price;
   if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
   }

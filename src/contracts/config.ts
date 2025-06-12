@@ -12,7 +12,6 @@ import {
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
   getMintV1WithdrawUplcProgram,
-  getOrdersMintUplcProgram,
   getOrdersSpendUplcProgram,
   getRefSpendUplcProgram,
 } from "./validators.js";
@@ -73,17 +72,9 @@ const buildContracts = (params: BuildContractsParams) => {
     mintV1StakingAddress.stakingCredential
   );
 
-  // "orders_mint.mint"
-  const ordersMintUplcProgram = getOrdersMintUplcProgram();
-  const ordersMintValidatorHash = makeValidatorHash(
-    ordersMintUplcProgram.hash()
-  );
-  const ordersMintPolicyHash = makeMintingPolicyHash(ordersMintValidatorHash);
-
   // "orders.spend"
   const ordersSpendUplcProgram = getOrdersSpendUplcProgram(
-    halPolicyHash.toHex(),
-    ordersMintPolicyHash.toHex()
+    halPolicyHash.toHex()
   );
   const ordersValidatorHash = makeValidatorHash(ordersSpendUplcProgram.hash());
   const ordersSpendValidatorAddress = makeAddress(
@@ -115,11 +106,6 @@ const buildContracts = (params: BuildContractsParams) => {
       mintV1ValidatorHash,
       mintV1StakingAddress,
       mintV1RegistrationDCert,
-    },
-    ordersMint: {
-      ordersMintUplcProgram,
-      ordersMintValidatorHash,
-      ordersMintPolicyHash,
     },
     ordersSpend: {
       ordersSpendUplcProgram,

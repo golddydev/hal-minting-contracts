@@ -45,18 +45,13 @@ pub fn orders_spend_script_address() -> Address {
     |> credential.with_delegation_key(#"6666")
 }
 
-pub const orders_mint_policy_id: PolicyId =
-  #"12345678123456781234567812345678123456781234567800000000"
-
 pub const minting_data_script_hash: ScriptHash = #"3333"
-
-pub const orders_minter: VerificationKeyHash = #"11113333"
 
 pub const ref_spend_admin: VerificationKeyHash = #"22223333"
 
 pub const max_order_amount: Int = 5
 
-pub const max_min_lovelace: Int = 5_000_000
+pub const minting_start_time: Int = 1718102400
 
 // other constants
 pub const min_order_lovelace = 3_000_000

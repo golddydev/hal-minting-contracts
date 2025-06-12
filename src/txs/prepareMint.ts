@@ -9,55 +9,66 @@ import {
   makePubKeyHash,
   makeStakingAddress,
   makeStakingValidatorHash,
+  makeTxOutput,
   makeValue,
+  ShelleyAddress,
   TxInput,
+  TxOutput,
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
 import {
   MPT_MINTED_VALUE,
-  ORDER_ASSET_HEX_NAME,
   PREFIX_100,
   PREFIX_222,
 } from "../constants/index.js";
 import {
+  AssetNameProof,
   buildMintingData,
   buildMintingDataMintRedeemer,
-  buildMintV1MintHandlesRedeemer,
+  buildMintV1MintNFTsRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeMintingDataDatum,
-  decodeOrderDatum,
+  decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
-  Fulfilment,
   makeVoidData,
+  makeWhitelistedItemData,
   MintingData,
+  Order,
   parseMPTProofJSON,
+  Proofs,
+  WhitelistedItem,
+  WhitelistProof,
 } from "../contracts/index.js";
 import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
-import { DecodedOrder, Order } from "./types.js";
+import { HalAssetInfo, HalUserOutputData } from "./types.js";
 
 /**
  * @interface
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {Order[]} orders Orders
+ * @property {TxInput[]} ordersTxInputs Orders UTxOs
+ * @property {HalAssetInfo[]} assetsInfo H.A.L. Assets' Info
  * @property {Trie} db Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
+ * @property {number | undefined} mintingTime After when this transaction is valid from
  */
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  orders: Order[];
+  ordersTxInputs: TxInput[];
+  assetsInfo: HalAssetInfo[];
   db: Trie;
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
   mintingDataAssetTxInput: TxInput;
+  mintingTime?: number | undefined;
 }
 
 /**
@@ -71,8 +82,9 @@ const prepareMintTransaction = async (
   Result<
     {
       txBuilder: TxBuilder;
-      totalPrice: bigint;
       db: Trie;
+      userOutputsData: HalUserOutputData[];
+      referenceOutputs: TxOutput[];
     },
     Error
   >
@@ -80,47 +92,20 @@ const prepareMintTransaction = async (
   const {
     network,
     address,
-    orders,
+    ordersTxInputs,
+    assetsInfo: assetsInfoFromParam,
     db,
     deployedScripts,
     settingsAssetTxInput,
     mintingDataAssetTxInput,
+    mintingTime = Date.now(),
   } = params;
+  const assetsInfo = [...assetsInfoFromParam];
   const isMainnet = network == "mainnet";
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
 
-  // refactor Orders Tx Inputs
-  // NOTE:
-  // sort orderUtxos before process
-  // because tx inputs is sorted lexicographically
-  // we have to insert handle in `REVERSE` order as tx inputs
-  orders
-    .sort((a, b) =>
-      a.orderTxInput.id.toString() > b.orderTxInput.id.toString() ? 1 : -1
-    )
-    .reverse();
-  if (orders.length == 0) return Err(new Error("No Order requested"));
-  console.log(`${orders.length} Orders are picked`);
-
-  const decodedOrders: DecodedOrder[] = [];
-  for (const order of orders) {
-    const { orderTxInput, assetsInfo } = order;
-    const decodedOrderResult = mayFail(() =>
-      decodeOrderDatum(orderTxInput.datum, network)
-    );
-    if (!decodedOrderResult.ok) {
-      return Err(new Error(`Invalid Order Datum: ${decodedOrderResult.error}`));
-    }
-    const { destination_address, price, amount } = decodedOrderResult.data;
-    decodedOrders.push({
-      orderTxInput,
-      assetsInfo,
-      destinationAddress: destination_address,
-      price,
-      amount,
-    });
-  }
+  console.log(`${ordersTxInputs.length} Orders are picked`);
 
   const {
     mintProxyScriptTxInput,
@@ -149,10 +134,23 @@ const prepareMintTransaction = async (
   const {
     policy_id,
     allowed_minter,
-    payment_address,
-    orders_mint_policy_id,
+    hal_nft_price,
     ref_spend_script_address,
+    minting_start_time,
   } = settingsV1Result.data;
+
+  // aggregate orders information
+  const aggregatedOrdersResult = aggregateOrdersInformation({
+    network,
+    ordersTxInputs,
+    halNftPrice: hal_nft_price,
+  });
+  if (!aggregatedOrdersResult.ok) {
+    return Err(
+      new Error(`Failed to aggregate orders: ${aggregatedOrdersResult.error}`)
+    );
+  }
+  const aggregatedOrders = aggregatedOrdersResult.data;
 
   // hal policy id
   const halPolicyHash = makeMintingPolicyHash(policy_id);
@@ -167,44 +165,51 @@ const prepareMintTransaction = async (
     );
   }
   const mintingData = mintingDataResult.data;
+  const { mpt_root_hash } = mintingData;
 
   // check if current db trie hash is same as minting data root hash
   if (
-    mintingData.mpt_root_hash.toLowerCase() !=
+    mpt_root_hash.toLowerCase() !=
     (db.hash?.toString("hex") || Buffer.alloc(32).toString("hex")).toLowerCase()
   ) {
     return Err(new Error("ERROR: Local DB and On Chain Root Hash mismatch"));
   }
 
-  const totalPrice = decodedOrders.reduce(
-    (acc, cur) => acc + BigInt(cur.amount) * cur.price,
-    0n
-  );
+  // check if current whitelist db trie hash is same as minting data root hash
+  // if (
+  //   whitelist_mpt_root_hash.toLowerCase() !=
+  //   (
+  //     whitelistDB.hash?.toString("hex") || Buffer.alloc(32).toString("hex")
+  //   ).toLowerCase()
+  // ) {
+  //   return Err(
+  //     new Error(
+  //       "ERROR: Local Whitelist DB and On Chain Whitelist Root Hash mismatch"
+  //     )
+  //   );
+  // }
 
-  // make Fulfilments for Minting Data V1 Redeemer
+  // make Proofs List for Minting Data V1 Redeemer
   // prepare H.A.L. NFTs value to mint
-  const fulfilments: Fulfilment[] = [];
-  const mintingHalsData = [];
+  const proofsList: Proofs[] = [];
+  const userOutputsData: HalUserOutputData[] = [];
   const halTokenValue: [ByteArrayLike, IntLike][] = [];
+  const referenceOutputs: TxOutput[] = [];
 
-  for (const decodedOrder of decodedOrders) {
-    const fulfilment: Fulfilment = [];
-    const refOutputsData = [];
+  for (const aggregatedOrder of aggregatedOrders) {
+    const assetNameProofs: AssetNameProof[] = [];
+    const assetUtf8Names: string[] = [];
+    const [destinationAddress, amount] = aggregatedOrder;
     const userValue = makeValue(1n);
-    const { orderTxInput, assetsInfo, destinationAddress, amount } =
-      decodedOrder;
 
-    if (assetsInfo.length !== amount) {
-      return Err(
-        new Error(
-          `The number of Assets in Fulfilment is different from amount from Order Datum.`
-        )
-      );
-    }
-
-    for (const assetInfo of assetsInfo) {
+    for (let i = 0; i < amount; i++) {
+      const assetInfo = assetsInfo.shift();
+      if (!assetInfo) {
+        return Err(new Error("Assets Info doesn't match with Orders' amount"));
+      }
       const [assetUtf8Name, assetDatum] = assetInfo;
       const assetHexName = Buffer.from(assetUtf8Name, "utf8").toString("hex");
+      assetUtf8Names.push(assetUtf8Name);
 
       try {
         const hasKey = typeof (await db.get(assetUtf8Name)) !== "undefined";
@@ -215,9 +220,14 @@ const prepareMintTransaction = async (
         const mpfProof = await db.prove(assetUtf8Name);
         await db.delete(assetUtf8Name);
         await db.insert(assetUtf8Name, MPT_MINTED_VALUE);
-        fulfilment.push([assetHexName, parseMPTProofJSON(mpfProof.toJSON())]);
+        assetNameProofs.push([
+          assetHexName,
+          parseMPTProofJSON(mpfProof.toJSON()),
+        ]);
       } catch (error) {
-        return Err(new Error(convertError(error)));
+        return Err(
+          new Error(`Failed to make asset name proof: ${convertError(error)}`)
+        );
       }
 
       const refAssetClass = makeAssetClass(
@@ -229,59 +239,139 @@ const prepareMintTransaction = async (
         `${PREFIX_222}${assetHexName}`
       );
 
-      const refValue = makeValue(1n, makeAssets([[refAssetClass, 1n]]));
       // add user asset into one value.
       userValue.assets = userValue.assets.add(
         makeAssets([[userAssetClass, 1n]])
       );
 
-      refOutputsData.push({
-        assetDatum,
-        refValue,
-      });
+      // make reference output value
+      const refValue = makeValue(1n, makeAssets([[refAssetClass, 1n]]));
 
+      // push reference output
+      referenceOutputs.push(
+        makeTxOutput(ref_spend_script_address, refValue, assetDatum)
+      );
+
+      // add hal token value to mint
       halTokenValue.push(
         [refAssetClass.tokenName, 1n],
         [userAssetClass.tokenName, 1n]
       );
     }
-    fulfilments.push(fulfilment);
-    mintingHalsData.push({
-      orderTxInput,
+
+    // check address is whitelisted or not
+    let whitelistProof: WhitelistProof | undefined;
+    // const destinationAddressKey = Buffer.from(
+    //   destinationAddress.toUplcData().toCbor()
+    // );
+    // try {
+    //   const whitelistedItemValue = await whitelistDB.get(destinationAddressKey);
+    //   if (whitelistedItemValue) {
+    //     const whitelistedItemResult = decodeWhitelistItem(whitelistedItemValue);
+    //     if (!whitelistedItemResult.ok) {
+    //       return Err(
+    //         new Error(
+    //           `Failed to decode whitelisted item: ${whitelistedItemResult.error}`
+    //         )
+    //       );
+    //     }
+    //     const [whitelisted_time, whitelisted_amount] =
+    //       whitelistedItemResult.data;
+    //     if (whitelisted_amount > 0) {
+    //       // if whitelisted amount is bigger than 0
+    //       // proceed with whitelisted option
+    //       if (amount > whitelisted_amount) {
+    //         // if requested amount is bigger than whitelisted amount
+    //         return Err(
+    //           new Error(
+    //             `Address ${destinationAddress.toBech32()} has ${whitelisted_amount} whitelisted amount but order amount is ${amount}`
+    //           )
+    //         );
+    //       }
+    //       // if current time is less than whitelisted time
+    //       if (mintingTime < whitelisted_time) {
+    //         return Err(
+    //           new Error(
+    //             `Address ${destinationAddress.toBech32()} has whitelisted since ${new Date(
+    //               whitelisted_time
+    //             ).toLocaleString()} but order is being processed at ${new Date(
+    //               mintingTime
+    //             ).toLocaleString()}`
+    //           )
+    //         );
+    //       }
+
+    //       // then make proof
+    //       const proof = await whitelistDB.prove(destinationAddressKey);
+    //       whitelistProof = [
+    //         whitelistedItemResult.data,
+    //         parseMPTProofJSON(proof.toJSON()),
+    //       ];
+
+    //       // update whitelisted item
+    //       const newWhitelistedItem: WhitelistedItem = [
+    //         whitelisted_time,
+    //         whitelisted_amount - amount,
+    //       ];
+    //       const newWhitelistedItemValue = Buffer.from(
+    //         makeWhitelistedItemData(newWhitelistedItem).toCbor()
+    //       );
+
+    //       // update whitelist DB
+    //       await whitelistDB.delete(destinationAddressKey);
+    //       await whitelistDB.insert(
+    //         destinationAddressKey,
+    //         newWhitelistedItemValue
+    //       );
+    //     }
+    //   }
+    // } catch (error) {
+    //   return Err(
+    //     new Error(`Failed to make whitelist proof: ${convertError(error)}`)
+    //   );
+    // }
+
+    // if not whitelisted
+    // check minting start time
+    // if (!whitelistProof) {
+    if (mintingTime < minting_start_time) {
+      return Err(
+        new Error(
+          `Minting is not started yet for everyone. Please wait until ${new Date(
+            minting_start_time
+          ).toLocaleString()}`
+        )
+      );
+    }
+    // }
+
+    proofsList.push([assetNameProofs, whitelistProof]);
+    userOutputsData.push({
+      assetUtf8Names,
       destinationAddress,
-      refOutputsData,
-      userValue,
+      userOutput: makeTxOutput(destinationAddress, userValue),
     });
   }
 
   // update all handles in minting data
+  // update whitelist data
   const newMintingData: MintingData = {
     ...mintingData,
     mpt_root_hash: db.hash.toString("hex"),
   };
 
   // minting data asset value
-  const mintingDataValue = makeValue(
-    mintingDataAssetTxInput.value.lovelace,
-    mintingDataAssetTxInput.value.assets
-  );
+  const mintingDataValue = makeValue(1n, mintingDataAssetTxInput.value.assets);
 
   // build redeemer for mint v1 `MintNFTs`
-  const mintV1MintHandlesRedeemer = buildMintV1MintHandlesRedeemer();
+  const mintV1MintNFTsRedeemer = buildMintV1MintNFTsRedeemer();
 
-  // build redeemer for minting data `Mint(Fulfilments)`
-  const mintingDataMintRedeemer = buildMintingDataMintRedeemer(fulfilments);
+  // build redeemer for minting data `Mint(proofsList)`
+  const mintingDataMintRedeemer = buildMintingDataMintRedeemer(proofsList);
 
-  // prepare order tokens value to collect
-  const ordersMintPolicyHash = makeMintingPolicyHash(orders_mint_policy_id);
-  const orderTokenAssetClass = makeAssetClass(
-    ordersMintPolicyHash,
-    ORDER_ASSET_HEX_NAME
-  );
-  const orderTokensValue = makeValue(
-    1n,
-    makeAssets([[orderTokenAssetClass, BigInt(decodedOrders.length)]])
-  );
+  // build redeemer for orders spend `ExecuteOrders`
+  const ordersSpendExecuteOrdersRedeemer =
+    buildOrdersSpendExecuteOrdersRedeemer();
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -309,8 +399,11 @@ const prepareMintTransaction = async (
       makeStakingValidatorHash(mintV1ScriptDetails.validatorHash)
     ),
     0n,
-    mintV1MintHandlesRedeemer
+    mintV1MintNFTsRedeemer
   );
+
+  // <-- start from minting time
+  txBuilder.validFromTime(mintingTime);
 
   // <-- spend minting data utxo
   txBuilder.spendUnsafe(mintingDataAssetTxInput, mintingDataMintRedeemer);
@@ -322,9 +415,6 @@ const prepareMintTransaction = async (
     makeInlineTxOutputDatum(buildMintingData(newMintingData))
   );
 
-  // <-- collect order nfts to order_nfts_output
-  txBuilder.payUnsafe(payment_address, orderTokensValue);
-
   // <-- mint hal nfts
   txBuilder.mintPolicyTokensUnsafe(
     halPolicyHash,
@@ -333,78 +423,169 @@ const prepareMintTransaction = async (
   );
 
   // <-- spend order utxos
-  // <-- send minted HALs to destination with datum
-  const ordersSpendExecuteOrdersRedeemer =
-    buildOrdersSpendExecuteOrdersRedeemer();
-
-  for (const mintingHalData of mintingHalsData) {
-    const { orderTxInput, destinationAddress, refOutputsData, userValue } =
-      mintingHalData;
-
-    // <-- spend order UTxO
+  for (const orderTxInput of ordersTxInputs) {
     txBuilder.spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer);
-
-    // <-- pay ref outputs
-    for (const refOutputData of refOutputsData) {
-      const { refValue, assetDatum } = refOutputData;
-      txBuilder.payUnsafe(ref_spend_script_address, refValue, assetDatum);
-    }
-
-    // <-- pay user output
-    txBuilder.payUnsafe(destinationAddress, userValue);
   }
 
   return Ok({
     txBuilder,
-    totalPrice,
     db,
+    userOutputsData,
+    referenceOutputs,
   });
 };
 
 /**
  * @interface
- * @typedef {object} RollBackOrdersFromTrieParams
- * @property {Order[]} orders Orders
+ * @typedef {object} AggregateOrdersInformationParams
+ * @property {NetworkName} network Network
+ * @property {Order[]} ordersTxInputs Orders UTxOs
+ */
+interface AggregateOrdersInformationParams {
+  network: NetworkName;
+  ordersTxInputs: TxInput[];
+  halNftPrice: bigint;
+}
+
+/**
+ * @description Aggregate Orders Tx Inputs Information and sort Tx Inputs
+ * @param {AggregateOrdersInformationParams} params
+ * @returns {Result<Order[],  Error>} Result or Error
+ */
+const aggregateOrdersInformation = (
+  params: AggregateOrdersInformationParams
+): Result<Order[], Error> => {
+  const { network, ordersTxInputs, halNftPrice } = params;
+  let aggregatedOrders: Order[] = [];
+
+  // refactor Orders Tx Inputs
+  // NOTE:
+  // sort orderUtxos before process
+  // because tx inputs is sorted lexicographically
+  ordersTxInputs.sort((a, b) => (a.id.toString() > b.id.toString() ? 1 : -1));
+
+  for (const orderTxInput of ordersTxInputs) {
+    const decodedResult = mayFail(() =>
+      decodeOrderDatumData(orderTxInput.datum, network)
+    );
+    if (!decodedResult.ok) {
+      return Err(new Error(`Invalid Order Datum: ${decodedResult.error}`));
+    }
+    const { destination_address, amount } = decodedResult.data;
+
+    // check lovelace is enough
+    if (orderTxInput.output.value.lovelace < halNftPrice * BigInt(amount)) {
+      return Err(
+        new Error(
+          `Order UTxO "${orderTxInput.id.toString()}" has insufficient lovelace`
+        )
+      );
+    }
+
+    aggregatedOrders = addOrderToAggregatedOrders(
+      aggregatedOrders,
+      destination_address,
+      amount
+    );
+  }
+
+  return Ok(aggregatedOrders);
+};
+
+const addOrderToAggregatedOrders = (
+  aggregatedOrders: Order[],
+  address: ShelleyAddress,
+  amount: number
+) => {
+  const newAggregatedOrders: Order[] = [];
+
+  let added: boolean = false;
+  for (const aggregatedOrder of aggregatedOrders) {
+    const [aggregatedAddress, aggregatedAmount] = aggregatedOrder;
+    if (address.toHex() === aggregatedAddress.toHex()) {
+      added = true;
+      newAggregatedOrders.push([address, aggregatedAmount + amount]);
+    } else {
+      newAggregatedOrders.push(aggregatedOrder);
+    }
+  }
+  if (!added) {
+    newAggregatedOrders.push([address, amount]);
+  }
+
+  return newAggregatedOrders;
+};
+
+/**
+ * @interface
+ * @typedef {object} RollBackOrdersFromTriesParams
+ * @property {string[]} utf8Names H.A.L. Assets' UTF-8 Names
+ * @property {Array<{address: ShelleyAddress; whitelistedItem: WhitelistedItem;}>} whitelistedItemsData Original Whitelisted Items Data that may be changed
  * @property {Trie} db Trie DB
  */
-interface RollBackOrdersFromTrieParams {
-  orders: Order[];
+interface RollBackOrdersFromTriesParams {
+  utf8Names: string[];
+  whitelistedItemsData: Array<{
+    address: ShelleyAddress;
+    whitelistedItem: WhitelistedItem;
+  }>;
   db: Trie;
+  whitelistDB: Trie;
 }
 
 /**
  * @description Roll Back Orders from Trie after minting is failed
- * @param {RollBackOrdersFromTrieParams} params
+ * @param {RollBackOrdersFromTriesParams} params
  * @returns {Promise<Result<void,  Error>>} Result or Error
  */
-const rollBackOrdersFromTrie = async (
-  params: RollBackOrdersFromTrieParams
+const rollBackOrdersFromTries = async (
+  params: RollBackOrdersFromTriesParams
 ): Promise<Result<void, Error>> => {
-  const { orders, db } = params;
+  const { utf8Names, whitelistedItemsData, db, whitelistDB } = params;
 
-  for (const order of orders) {
-    const { assetsInfo } = order;
-    for (const assetInfo of assetsInfo) {
-      try {
-        const value = await db.get(assetInfo[0]);
-        const needRollback =
-          typeof value !== "undefined" &&
-          Buffer.from(value).toString() === MPT_MINTED_VALUE;
-        if (needRollback) {
-          await db.delete(assetInfo[0]);
-          await db.insert(assetInfo[0], "");
-        }
-      } catch (error) {
-        return Err(
-          new Error(
-            `Failed to roll back "${assetInfo[0]}" : ${convertError(error)}`
-          )
-        );
+  for (const utf8Name of utf8Names) {
+    try {
+      const value = await db.get(utf8Name);
+      const needRollback =
+        typeof value !== "undefined" &&
+        Buffer.from(value).toString() === MPT_MINTED_VALUE;
+      if (needRollback) {
+        await db.delete(utf8Name);
+        await db.insert(utf8Name, "");
       }
+    } catch (error) {
+      return Err(
+        new Error(`Failed to roll back "${utf8Name}" : ${convertError(error)}`)
+      );
     }
   }
+
+  for (const whitelistedItemData of whitelistedItemsData) {
+    const { address, whitelistedItem } = whitelistedItemData;
+    const key = Buffer.from(address.toUplcData().toCbor());
+    const value = Buffer.from(
+      makeWhitelistedItemData(whitelistedItem).toCbor()
+    );
+    const currentValue = await whitelistDB.get(key);
+    if (
+      currentValue &&
+      currentValue.toString("hex") !== value.toString("hex")
+    ) {
+      await whitelistDB.delete(key);
+      await whitelistDB.insert(key, value);
+    }
+  }
+
   return Ok();
 };
 
-export type { PrepareMintParams, RollBackOrdersFromTrieParams };
-export { prepareMintTransaction, rollBackOrdersFromTrie };
+export type {
+  AggregateOrdersInformationParams,
+  PrepareMintParams,
+  RollBackOrdersFromTriesParams,
+};
+export {
+  aggregateOrdersInformation,
+  prepareMintTransaction,
+  rollBackOrdersFromTries,
+};

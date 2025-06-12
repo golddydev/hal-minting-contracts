@@ -19,6 +19,8 @@ pub const mpt_minted_value = "minted"
 pub type MintingData {
   // mpt root hash
   mpt_root_hash: ByteArray,
+  // whitelist mpt root hash
+  whitelist_mpt_root_hash: ByteArray,
 }
 
 pub fn find_minting_data(inputs: List<Input>) -> (Output, MintingData) {
