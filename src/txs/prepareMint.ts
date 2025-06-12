@@ -57,7 +57,7 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
- * @property {number} mintingTime After when this transaction is valid from
+ * @property {number | undefined} mintingTime After when this transaction is valid from
  */
 interface PrepareMintParams {
   network: NetworkName;
@@ -68,7 +68,7 @@ interface PrepareMintParams {
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
   mintingDataAssetTxInput: TxInput;
-  mintingTime: number;
+  mintingTime?: number | undefined;
 }
 
 /**
@@ -98,7 +98,7 @@ const prepareMintTransaction = async (
     deployedScripts,
     settingsAssetTxInput,
     mintingDataAssetTxInput,
-    mintingTime,
+    mintingTime = Date.now(),
   } = params;
   const assetsInfo = [...assetsInfoFromParam];
   const isMainnet = network == "mainnet";
