@@ -1,9 +1,10 @@
 use aiken/bytearray
-use aiken/cbor.{serialise}
+use aiken/cbor.{diagnostic, serialise}
 use aiken/dict
 use aiken/interval.{is_entirely_after}
 use aiken/list
 use aiken/merkle_patricia_forestry as mpt
+use aiken/pairs
 use aiken/transaction.{InlineDatum, Input, Output, ValidityRange}
 use aiken/transaction/credential.{Address}
 use aiken/transaction/value.{AssetName, PolicyId, Value}
@@ -100,6 +101,7 @@ fn update_mpt_root(
   root: mpt.MerklePatriciaForestry,
   proofs: List<AssetNameProof>,
 ) -> mpt.MerklePatriciaForestry {
+  trace @"update_mpt_root"
   when proofs is {
     [] -> root
     [(asset_name, mpt_proof), ..rest_proofs] -> {
@@ -122,6 +124,7 @@ fn update_whitelist_mpt_root(
   destination_address: Address,
   ordered_amount: Int,
 ) -> mpt.MerklePatriciaForestry {
+  trace @"update_whitelist_mpt_root"
   when whitelist_proof_opt is {
     None -> {
       // tx must starts after minting start time
@@ -172,15 +175,18 @@ fn check_user_output(
   expect user_output_address == destination_address
 
   // check value
-  let hal_tokens = value.tokens(user_output_value, policy_id)
+  let hal_token_pairs =
+    user_output_value |> value.tokens(policy_id) |> dict.to_pairs
   let has_all_assets =
     list.all(
       asset_names,
       fn(asset_name) -> Bool {
         let user_asset_name = bytearray.concat(prefix_222, asset_name)
-        dict.get(hal_tokens, user_asset_name) == Some(1)
+        pairs.get_first(hal_token_pairs, user_asset_name) == Some(1)
       },
     )
+  trace @"has_all_assets"
+  trace diagnostic(has_all_assets)
   expect has_all_assets
 
   True

@@ -55,9 +55,11 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @property {TxInput[]} ordersTxInputs Orders UTxOs
  * @property {HalAssetInfo[]} assetsInfo H.A.L. Assets' Info
  * @property {Trie} db Trie DB
+ * @property {Trie} whitelistDB Whitelist Trie DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
+ * @property {number} mintingTime After when this transaction is valid from
  */
 interface PrepareMintParams {
   network: NetworkName;
@@ -69,6 +71,7 @@ interface PrepareMintParams {
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
   mintingDataAssetTxInput: TxInput;
+  mintingTime: number;
 }
 
 /**
@@ -100,6 +103,7 @@ const prepareMintTransaction = async (
     deployedScripts,
     settingsAssetTxInput,
     mintingDataAssetTxInput,
+    mintingTime,
   } = params;
   const assetsInfo = [...assetsInfoFromParam];
   const isMainnet = network == "mainnet";
@@ -107,8 +111,6 @@ const prepareMintTransaction = async (
     return Err(new Error("Byron Address not supported"));
 
   console.log(`${ordersTxInputs.length} Orders are picked`);
-
-  const currentTime = Date.now();
 
   const {
     mintProxyScriptTxInput,
@@ -264,7 +266,9 @@ const prepareMintTransaction = async (
 
     // check address is whitelisted or not
     let whitelistProof: WhitelistProof | undefined;
-    const destinationAddressKey = Buffer.from(destinationAddress.toCbor());
+    const destinationAddressKey = Buffer.from(
+      destinationAddress.toUplcData().toCbor()
+    );
     try {
       const whitelistedItemValue = await whitelistDB.get(destinationAddressKey);
       if (whitelistedItemValue) {
@@ -290,13 +294,13 @@ const prepareMintTransaction = async (
             );
           }
           // if current time is less than whitelisted time
-          if (currentTime < whitelisted_time) {
+          if (mintingTime < whitelisted_time) {
             return Err(
               new Error(
                 `Address ${destinationAddress.toBech32()} has whitelisted since ${new Date(
                   whitelisted_time
                 ).toLocaleString()} but order is being processed at ${new Date(
-                  currentTime
+                  mintingTime
                 ).toLocaleString()}`
               )
             );
@@ -335,7 +339,7 @@ const prepareMintTransaction = async (
     // if not whitelisted
     // check minting start time
     if (!whitelistProof) {
-      if (currentTime < minting_start_time) {
+      if (mintingTime < minting_start_time) {
         return Err(
           new Error(
             `Minting is not started yet for everyone. Please wait until ${new Date(
@@ -404,8 +408,8 @@ const prepareMintTransaction = async (
     mintV1MintNFTsRedeemer
   );
 
-  // <-- start from current time
-  txBuilder.validFromTime(currentTime);
+  // <-- start from minting time
+  txBuilder.validFromTime(mintingTime);
 
   // <-- spend minting data utxo
   txBuilder.spendUnsafe(mintingDataAssetTxInput, mintingDataMintRedeemer);
@@ -436,46 +440,6 @@ const prepareMintTransaction = async (
     userOutputsData,
     referenceOutputs,
   });
-};
-
-/**
- * @interface
- * @typedef {object} RollBackOrdersFromTrieParams
- * @property {string[]} utf8Names H.A.L. Assets' UTF-8 Names
- * @property {Trie} db Trie DB
- */
-interface RollBackOrdersFromTrieParams {
-  utf8Names: string[];
-  db: Trie;
-}
-
-/**
- * @description Roll Back Orders from Trie after minting is failed
- * @param {RollBackOrdersFromTrieParams} params
- * @returns {Promise<Result<void,  Error>>} Result or Error
- */
-const rollBackOrdersFromTrie = async (
-  params: RollBackOrdersFromTrieParams
-): Promise<Result<void, Error>> => {
-  const { utf8Names, db } = params;
-
-  for (const utf8Name of utf8Names) {
-    try {
-      const value = await db.get(utf8Name);
-      const needRollback =
-        typeof value !== "undefined" &&
-        Buffer.from(value).toString() === MPT_MINTED_VALUE;
-      if (needRollback) {
-        await db.delete(utf8Name);
-        await db.insert(utf8Name, "");
-      }
-    } catch (error) {
-      return Err(
-        new Error(`Failed to roll back "${utf8Name}" : ${convertError(error)}`)
-      );
-    }
-  }
-  return Ok();
 };
 
 /**
@@ -559,13 +523,76 @@ const addOrderToAggregatedOrders = (
   return newAggregatedOrders;
 };
 
+/**
+ * @interface
+ * @typedef {object} RollBackOrdersFromTriesParams
+ * @property {string[]} utf8Names H.A.L. Assets' UTF-8 Names
+ * @property {Array<{address: ShelleyAddress; whitelistedItem: WhitelistedItem;}>} whitelistedItemsData Original Whitelisted Items Data that may be changed
+ * @property {Trie} db Trie DB
+ */
+interface RollBackOrdersFromTriesParams {
+  utf8Names: string[];
+  whitelistedItemsData: Array<{
+    address: ShelleyAddress;
+    whitelistedItem: WhitelistedItem;
+  }>;
+  db: Trie;
+  whitelistDB: Trie;
+}
+
+/**
+ * @description Roll Back Orders from Trie after minting is failed
+ * @param {RollBackOrdersFromTriesParams} params
+ * @returns {Promise<Result<void,  Error>>} Result or Error
+ */
+const rollBackOrdersFromTries = async (
+  params: RollBackOrdersFromTriesParams
+): Promise<Result<void, Error>> => {
+  const { utf8Names, whitelistedItemsData, db, whitelistDB } = params;
+
+  for (const utf8Name of utf8Names) {
+    try {
+      const value = await db.get(utf8Name);
+      const needRollback =
+        typeof value !== "undefined" &&
+        Buffer.from(value).toString() === MPT_MINTED_VALUE;
+      if (needRollback) {
+        await db.delete(utf8Name);
+        await db.insert(utf8Name, "");
+      }
+    } catch (error) {
+      return Err(
+        new Error(`Failed to roll back "${utf8Name}" : ${convertError(error)}`)
+      );
+    }
+  }
+
+  for (const whitelistedItemData of whitelistedItemsData) {
+    const { address, whitelistedItem } = whitelistedItemData;
+    const key = Buffer.from(address.toUplcData().toCbor());
+    const value = Buffer.from(
+      makeWhitelistedItemData(whitelistedItem).toCbor()
+    );
+    const currentValue = await whitelistDB.get(key);
+    if (
+      currentValue &&
+      currentValue.toString("hex") !== value.toString("hex")
+    ) {
+      await whitelistDB.delete(key);
+      await whitelistDB.insert(key, value);
+    }
+  }
+
+  return Ok();
+};
+
 export type {
   AggregateOrdersInformationParams,
   PrepareMintParams,
-  RollBackOrdersFromTrieParams,
+  RollBackOrdersFromTriesParams,
 };
 export {
   aggregateOrdersInformation,
   prepareMintTransaction,
-  rollBackOrdersFromTrie,
+  rollBackOrdersFromTries,
 };

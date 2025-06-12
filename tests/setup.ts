@@ -32,9 +32,11 @@ import {
   DeployedScripts,
   fillAssets,
   init,
+  makeWhitelistedItemData,
   MintingData,
   Settings,
   SettingsV1,
+  WhitelistedItem,
 } from "../src/index.js";
 import { extractScriptCborsFromUplcProgram } from "./utils.js";
 
@@ -44,6 +46,7 @@ const ACCOUNT_LOVELACE = 5_000_000_000n;
 const MIN_LOVELACE = 5_000_000n;
 
 const dbPath = "./tests/test-db";
+const whitelistDBPath = "./tests/whitelist-test-db";
 
 const settingsAssetClass = makeAssetClass(
   "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c4068616e646c655f73657474696e6773"
@@ -53,6 +56,8 @@ const mintingDataAssetClass = makeAssetClass(
 );
 
 const HAL_NFT_PRICE = 180_000_000n;
+
+const GRACE_PERIOD = 60 * 1000; // 1 min
 
 const deployScript = async (
   scriptType: ScriptType,
@@ -122,13 +127,6 @@ const setup = async () => {
   const allowedMinterPubKeyHash: string =
     allowedMinterWallet.spendingPubKeyHash.toHex();
 
-  // orders minter wallet
-  const ordersMinterWallet: SimpleWallet =
-    emulator.createWallet(ACCOUNT_LOVELACE);
-  emulator.tick(200);
-  const ordersMinterPubKeyHash: string =
-    ordersMinterWallet.spendingPubKeyHash.toHex();
-
   // ref spend admin wallet
   const refSpendAdminWallet = emulator.createWallet(ACCOUNT_LOVELACE);
   emulator.tick(200);
@@ -144,9 +142,16 @@ const setup = async () => {
     emulator.tick(200);
   }
 
+  // whitelisted user is user 5
+  const mintingStartTime = new Date("2025-07-01").valueOf();
+  const whitelistedTime = new Date("2025-06-30").valueOf();
+  const user5Wallet = usersWallets[4];
+
   // ============ build merkle trie db ============
   await fs.rm(dbPath, { recursive: true, force: true });
   const db = await init(dbPath);
+  await fs.rm(whitelistDBPath, { recursive: true, force: true });
+  const whitelistDB = await init(whitelistDBPath);
 
   // ============ build contracts ============
   const mintVersion = 0n;
@@ -161,7 +166,6 @@ const setup = async () => {
     mintProxy: mintProxyConfig,
     mintV1: mintV1Config,
     mintingData: mintingDataConfig,
-    ordersMint: ordersMintConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
   } = contractsConfig;
@@ -174,12 +178,11 @@ const setup = async () => {
     payment_address: paymentWallet.address,
     ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
     orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
-    orders_mint_policy_id: ordersMintConfig.ordersMintPolicyHash.toHex(),
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
-    orders_minter: ordersMinterPubKeyHash,
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
     max_order_amount: 5,
+    minting_start_time: mintingStartTime,
   };
   const settings: Settings = {
     mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),
@@ -191,15 +194,27 @@ const setup = async () => {
   // insert 10,000 hal assets names
   // with empty string value
   console.log("======= Starting Pre Filling DB =======\n");
-  const assetNames = Array.from({ length: 10000 }, (_, i) => `hal-${i + 1}`);
+  const assetNames = Array.from({ length: 200 }, (_, i) => `hal-${i + 1}`);
   await fillAssets(db, assetNames, () => {});
   console.log("======= DB Pre Filled =======\n");
   console.log("DB Root Hash:\n", db.hash?.toString("hex"));
   console.log("===========================\n");
 
+  // prepare whitelist db
+  console.log("======= Starting Prepareing Whitelist DB =======\n");
+  const whitelistedItem: WhitelistedItem = [whitelistedTime, 10];
+  await whitelistDB.insert(
+    Buffer.from(user5Wallet.address.toUplcData().toCbor()),
+    Buffer.from(makeWhitelistedItemData(whitelistedItem).toCbor())
+  );
+  console.log("======= Whitelist DB Pre Filled =======\n");
+  console.log("Whitelist DB Root Hash:\n", whitelistDB.hash?.toString("hex"));
+  console.log("===========================\n");
+
   // ============ prepare minting data ============
   const mintingData: MintingData = {
     mpt_root_hash: db.hash?.toString("hex"),
+    whitelist_mpt_root_hash: whitelistDB.hash?.toString("hex"),
   };
 
   // ============ prepare settings and minting data asset ============
@@ -253,12 +268,6 @@ const setup = async () => {
         mintingDataConfig.mintingDataSpendUplcProgram
       )
     );
-  const [ordersMintScriptDetails, ordersMintScriptTxInput] = await deployScript(
-    ScriptType.DEMI_ORDERS,
-    emulator,
-    fundWallet,
-    ...extractScriptCborsFromUplcProgram(ordersMintConfig.ordersMintUplcProgram)
-  );
   const [ordersSpendScriptDetails, ordersSpendScriptTxInput] =
     await deployScript(
       ScriptType.DEMI_ORDERS,
@@ -294,8 +303,6 @@ const setup = async () => {
     mintV1ScriptTxInput,
     mintingDataScriptDetails,
     mintingDataScriptTxInput,
-    ordersMintScriptDetails,
-    ordersMintScriptTxInput,
     ordersSpendScriptDetails,
     ordersSpendScriptTxInput,
     refSpendScriptDetails,
@@ -372,6 +379,7 @@ const setup = async () => {
     network,
     emulator,
     db,
+    whitelistDB,
     contractsConfig,
     allowedMinterPubKeyHash,
     legacyPolicyId,
@@ -387,12 +395,13 @@ const setup = async () => {
       fundWallet,
       adminWallet,
       allowedMinterWallet,
-      ordersMinterWallet,
       refSpendAdminWallet,
       paymentWallet,
       usersWallets,
     },
     ordersTxInputs,
+    normalMintingTime: mintingStartTime + GRACE_PERIOD,
+    whitelistMintingTime: whitelistedTime + GRACE_PERIOD,
   };
 };
 

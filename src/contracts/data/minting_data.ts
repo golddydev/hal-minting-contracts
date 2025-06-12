@@ -82,8 +82,10 @@ const buildWhitelistProofData = (
   // whitelistProof is Some
   const [whitelist_item, mpt_proof] = whitelistProofOpt;
   return makeConstrData(0, [
-    buildWhitelistedItemData(whitelist_item),
-    buildMPTProofData(mpt_proof),
+    makeListData([
+      buildWhitelistedItemData(whitelist_item),
+      buildMPTProofData(mpt_proof),
+    ]),
   ]);
 };
 

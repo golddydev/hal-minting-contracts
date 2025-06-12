@@ -6,8 +6,9 @@ import {
   makeAssets,
   makeInlineTxOutputDatum,
   makeValue,
+  TxInput,
 } from "@helios-lang/ledger";
-import { Emulator, SimpleWallet } from "@helios-lang/tx-utils";
+import { Emulator, NetworkName, SimpleWallet } from "@helios-lang/tx-utils";
 import {
   decodeUplcProgramV2FromCbor,
   makeByteArrayData,
@@ -19,7 +20,14 @@ import fs from "fs/promises";
 import { Result } from "ts-res";
 
 import { PREFIX_100, PREFIX_222 } from "../src/constants/index.js";
-import { BuildTxError, invariant, TxSuccessResult } from "../src/index.js";
+import {
+  BuildTxError,
+  decodeOrderDatumData,
+  HalUserOutputData,
+  invariant,
+  SettingsV1,
+  TxSuccessResult,
+} from "../src/index.js";
 
 const alwaysSucceedMintUplcProgram = (): UplcProgramV2 => {
   return decodeUplcProgramV2FromCbor(
@@ -160,10 +168,48 @@ const makeHalAssetDatum = (assetName: string) => {
   );
 };
 
+const checkMintedAssets = async (
+  network: NetworkName,
+  emulator: Emulator,
+  settingsV1: SettingsV1,
+  ordersTxInputs: TxInput[],
+  userOutputsData: HalUserOutputData[]
+) => {
+  const { policy_id, ref_spend_script_address } = settingsV1;
+  const refSpendBalance = await balanceOfAddress(
+    emulator,
+    ref_spend_script_address
+  );
+
+  for (let i = 0; i < userOutputsData.length; i++) {
+    const halOutputsData = userOutputsData[i];
+    const decoded = decodeOrderDatumData(ordersTxInputs[i].datum, network);
+    const userBalance = await balanceOfAddress(
+      emulator,
+      decoded.destination_address
+    );
+    for (const assetName of halOutputsData.assetUtf8Names) {
+      invariant(
+        userBalance.isGreaterOrEqual(userAssetValue(policy_id, assetName)) ==
+          true,
+        "User Balance is not correct"
+      );
+
+      invariant(
+        refSpendBalance.isGreaterOrEqual(
+          referenceAssetValue(policy_id, assetName)
+        ) == true,
+        "Ref Spend Wallet Balance is not correct"
+      );
+    }
+  }
+};
+
 export {
   alwaysSucceedMintUplcProgram,
   balanceOfAddress,
   balanceOfWallet,
+  checkMintedAssets,
   extractScriptCborsFromUplcProgram,
   logMemAndCpu,
   makeHalAssetDatum,
