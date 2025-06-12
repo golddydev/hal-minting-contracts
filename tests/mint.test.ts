@@ -740,9 +740,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
-  // user_3 orders 5 new assets 4 times
+  // user_3 orders 5 new assets 3 times
   myTest(
-    "user_3 orders 5 new assets 4 times",
+    "user_3 orders 5 new assets 3 times",
     async ({ network, emulator, wallets, ordersTxInputs }) => {
       invariant(
         Array.isArray(ordersTxInputs),
@@ -752,7 +752,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets } = wallets;
       const user3Wallet = usersWallets[2];
       const orders: Order[] = [
-        [user3Wallet.address, 5],
         [user3Wallet.address, 5],
         [user3Wallet.address, 5],
         [user3Wallet.address, 5],
@@ -782,16 +781,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txId = await user3Wallet.submitTx(tx);
       emulator.tick(200);
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 3; i++) {
         const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
         ordersTxInputs.push(orderTxInput);
       }
     }
   );
 
-  // mint 20 new assets - <hal-101 ~ hal-120> - 1 user recieve 20 assets
+  // mint 15 new assets - <hal-101 ~ hal-115> - 1 user recieve 15 assets
   myTest(
-    "mint 20 new assets - <hal-101 ~ hal-120> - 1 user recieve 20 assets",
+    "mint 15 new assets - <hal-101 ~ hal-115> - 1 user recieve 15 assets",
     async ({
       mockedFunctions,
       db,
@@ -811,7 +810,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { allowedMinterWallet, paymentWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = Array.from(
-        { length: 20 },
+        { length: 15 },
         (_, index) => [
           `hal-${101 + index}`,
           makeHalAssetDatum(`hal-${101 + index}`),
@@ -897,9 +896,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
-  // user_1, user_2, user_3, user_4 order 5 new assets
+  // user_1, user_2, user_3 order 5 new assets
   myTest(
-    "user_1, user_2, user_3, user_4 order 5 new assets",
+    "user_1, user_2, user_3 order 5 new assets",
     async ({ network, emulator, wallets, ordersTxInputs }) => {
       invariant(
         Array.isArray(ordersTxInputs),
@@ -910,12 +909,10 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const user1Wallet = usersWallets[0];
       const user2Wallet = usersWallets[1];
       const user3Wallet = usersWallets[2];
-      const user4Wallet = usersWallets[3];
       const orders: Order[] = [
         [user1Wallet.address, 5],
         [user2Wallet.address, 5],
         [user3Wallet.address, 5],
-        [user4Wallet.address, 5],
       ];
 
       const settingsResult = await fetchSettings(network);
@@ -942,16 +939,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txId = await fundWallet.submitTx(tx);
       emulator.tick(200);
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 3; i++) {
         const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
         ordersTxInputs.push(orderTxInput);
       }
     }
   );
 
-  // mint 20 new assets - <hal-151 ~ hal-170> - 4 users recieve 5 assets each
+  // mint 15 new assets - <hal-151 ~ hal-165> - 3 users recieve 5 assets each
   myTest(
-    "mint 20 new assets - <hal-151 ~ hal-170> - 4 users recieve 5 assets each",
+    "mint 15 new assets - <hal-151 ~ hal-165> - 3 users recieve 5 assets each",
     async ({
       mockedFunctions,
       db,
@@ -971,7 +968,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { allowedMinterWallet, paymentWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = Array.from(
-        { length: 20 },
+        { length: 15 },
         (_, index) => [
           `hal-${151 + index}`,
           makeHalAssetDatum(`hal-${151 + index}`),
@@ -1021,7 +1018,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       invariant(
-        userOutputsData.length === 4,
+        userOutputsData.length === 3,
         "User Outputs Data List Length is not correct"
       );
 

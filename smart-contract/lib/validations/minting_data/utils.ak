@@ -1,5 +1,5 @@
 use aiken/bytearray
-use aiken/cbor.{diagnostic, serialise}
+use aiken/cbor.{serialise}
 use aiken/dict
 use aiken/interval.{is_entirely_after}
 use aiken/list
@@ -185,8 +185,6 @@ fn check_user_output(
         pairs.get_first(hal_token_pairs, user_asset_name) == Some(1)
       },
     )
-  trace @"has_all_assets"
-  trace diagnostic(has_all_assets)
   expect has_all_assets
 
   True

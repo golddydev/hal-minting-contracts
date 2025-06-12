@@ -194,7 +194,7 @@ const setup = async () => {
   // insert 10,000 hal assets names
   // with empty string value
   console.log("======= Starting Pre Filling DB =======\n");
-  const assetNames = Array.from({ length: 200 }, (_, i) => `hal-${i + 1}`);
+  const assetNames = Array.from({ length: 10000 }, (_, i) => `hal-${i + 1}`);
   await fillAssets(db, assetNames, () => {});
   console.log("======= DB Pre Filled =======\n");
   console.log("DB Root Hash:\n", db.hash?.toString("hex"));
