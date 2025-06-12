@@ -107,6 +107,8 @@ pub fn can_mint(
     )
 
   // check reference outputs
+  let hal_assets_count = list.length(hal_asset_names)
+  let rest_outputs = list.take(rest_outputs, hal_assets_count)
   let are_ref_outputs_valid =
     check_ref_outputs(
       hal_asset_names,
