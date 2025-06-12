@@ -4,7 +4,7 @@ import {
   TxOutput,
 } from "@helios-lang/ledger";
 
-type HalAssetInfo = [string, InlineTxOutputDatum];
+type HalAssetInfo = [string, InlineTxOutputDatum, boolean?];
 
 interface HalUserOutputData {
   assetUtf8Names: string[];
