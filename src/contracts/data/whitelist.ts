@@ -2,6 +2,9 @@ import {
   decodeUplcData,
   expectIntData,
   expectListData,
+  makeIntData,
+  makeListData,
+  UplcData,
 } from "@helios-lang/uplc";
 import { Err, Ok, Result } from "ts-res";
 
@@ -28,4 +31,11 @@ const decodeWhitelistItem = (value: Buffer): Result<WhitelistedItem, Error> => {
   }
 };
 
-export { decodeWhitelistItem };
+const makeWhitelistedItemData = (
+  whitelistedItem: WhitelistedItem
+): UplcData => {
+  const [time, amount] = whitelistedItem;
+  return makeListData([makeIntData(time), makeIntData(amount)]);
+};
+
+export { decodeWhitelistItem, makeWhitelistedItemData };

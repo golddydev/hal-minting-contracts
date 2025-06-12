@@ -1,4 +1,3 @@
-import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import {
   Address,
   makeAddress,
@@ -17,7 +16,6 @@ import {
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
-  decodeWhitelistItem,
   OrderDatum,
   Settings,
 } from "../contracts/index.js";
@@ -234,13 +232,11 @@ const fetchOrdersTxInputs = async (
  * @property {NetworkName} network Network
  * @property {TxInput} orderTxInput Order TxInput
  * @property {Settings} settings Settings
- * @property {Trie} whitelistDB Whitelist DB
  */
 interface IsValidOrderTxInputParams {
   network: NetworkName;
   orderTxInput: TxInput;
   settings: Settings;
-  whitelistDB: Trie;
 }
 
 /**
@@ -251,7 +247,7 @@ interface IsValidOrderTxInputParams {
 const isValidOrderTxInput = async (
   params: IsValidOrderTxInputParams
 ): Promise<Result<true, Error>> => {
-  const { network, orderTxInput, settings, whitelistDB } = params;
+  const { network, orderTxInput, settings } = params;
   const { data: settingsV1Data } = settings;
   const settingsV1Result = mayFail(() =>
     decodeSettingsV1Data(settingsV1Data, network)
@@ -261,12 +257,8 @@ const isValidOrderTxInput = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const {
-    max_order_amount,
-    hal_nft_price,
-    orders_spend_script_address,
-    minting_start_time,
-  } = settingsV1Result.data;
+  const { max_order_amount, hal_nft_price, orders_spend_script_address } =
+    settingsV1Result.data;
 
   // check if address matches
   if (!orderTxInput.address.isEqual(orders_spend_script_address)) {
@@ -282,7 +274,7 @@ const isValidOrderTxInput = async (
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));
   }
-  const { destination_address, amount } = decodedResult.data;
+  const { amount } = decodedResult.data;
 
   // check amount
   if (amount > max_order_amount) {
@@ -297,48 +289,6 @@ const isValidOrderTxInput = async (
   const expectedLovelace = BigInt(amount) * hal_nft_price;
   if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
-  }
-
-  // check whitelist
-  const value = await whitelistDB.get(
-    Buffer.from(destination_address.toCbor())
-  );
-  if (!value) {
-    if (Date.now() < minting_start_time) {
-      return Err(
-        new Error(
-          `Minting not started yet for everyone. Wait until ${new Date(
-            minting_start_time
-          ).toLocaleString()}`
-        )
-      );
-    }
-  } else {
-    const whitelistedItemResult = decodeWhitelistItem(value);
-    if (!whitelistedItemResult.ok) {
-      return Err(
-        new Error(
-          `Failed to decode whitelisted item: ${whitelistedItemResult.error}`
-        )
-      );
-    }
-    const [time, whitelisted_amount] = whitelistedItemResult.data;
-    if (Date.now() < time) {
-      return Err(
-        new Error(
-          `Minting not started yet for whitelisted users. Wait until ${new Date(
-            time
-          ).toLocaleString()}`
-        )
-      );
-    }
-    if (amount > whitelisted_amount) {
-      return Err(
-        new Error(
-          `Amount must be less than or equal to ${whitelisted_amount} (whitelisted amount)`
-        )
-      );
-    }
   }
 
   return Ok(true);

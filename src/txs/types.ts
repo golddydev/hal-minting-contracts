@@ -1,11 +1,15 @@
-import { InlineTxOutputDatum, TxOutput } from "@helios-lang/ledger";
+import {
+  InlineTxOutputDatum,
+  ShelleyAddress,
+  TxOutput,
+} from "@helios-lang/ledger";
 
 type HalAssetInfo = [string, InlineTxOutputDatum];
 
-interface HalOutputsData {
-  refOutputs: TxOutput[];
-  userOutput: TxOutput;
+interface HalUserOutputData {
   assetUtf8Names: string[];
+  destinationAddress: ShelleyAddress;
+  userOutput: TxOutput;
 }
 
-export type { HalAssetInfo, HalOutputsData };
+export type { HalAssetInfo, HalUserOutputData };
