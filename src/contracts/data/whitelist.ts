@@ -15,15 +15,15 @@ const decodeWhitelistItem = (value: Buffer): Result<WhitelistedItem, Error> => {
   try {
     const data = decodeUplcData(value);
     const listData = expectListData(data, "whitelisted_item must be List Data");
-    const time = expectIntData(
+    const time_gap = expectIntData(
       listData.items[0],
-      "time must be Int Data"
+      "time_gap must be Int Data"
     ).value;
     const amount = expectIntData(
       listData.items[1],
       "amount must be Int Data"
     ).value;
-    return Ok([Number(time), Number(amount)]);
+    return Ok([Number(time_gap), Number(amount)]);
   } catch (error) {
     return Err(
       new Error(`Failed to decode whitelisted item: ${convertError(error)}`)
@@ -34,8 +34,8 @@ const decodeWhitelistItem = (value: Buffer): Result<WhitelistedItem, Error> => {
 const makeWhitelistedItemData = (
   whitelistedItem: WhitelistedItem
 ): UplcData => {
-  const [time, amount] = whitelistedItem;
-  return makeListData([makeIntData(time), makeIntData(amount)]);
+  const [time_gap, amount] = whitelistedItem;
+  return makeListData([makeIntData(time_gap), makeIntData(amount)]);
 };
 
 export { decodeWhitelistItem, makeWhitelistedItemData };
