@@ -28,6 +28,7 @@ interface DeployParams {
   mintVersion: bigint;
   adminVerificationKeyHash: string;
   contractName: string;
+  ordersSpendRandomizer?: string | undefined;
 }
 
 interface DeployData {
@@ -46,13 +47,19 @@ interface DeployData {
  * @returns {Promise<DeployData>} Deploy Data
  */
 const deploy = async (params: DeployParams): Promise<DeployData> => {
-  const { network, mintVersion, adminVerificationKeyHash, contractName } =
-    params;
+  const {
+    network,
+    mintVersion,
+    adminVerificationKeyHash,
+    contractName,
+    ordersSpendRandomizer = "",
+  } = params;
 
   const contractsConfig = buildContracts({
     network,
     mint_version: mintVersion,
     admin_verification_key_hash: adminVerificationKeyHash,
+    orders_spend_randomizer: ordersSpendRandomizer,
   });
   const {
     halPolicyHash,
@@ -108,7 +115,8 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
         ),
         datumCbor: bytesToHex(
           makeOrdersSpendUplcProgramParameterDatum(
-            halPolicyHash.toHex()
+            halPolicyHash.toHex(),
+            ordersSpendRandomizer
           ).data.toCbor()
         ),
         validatorHash: ordersSpendConfig.ordersValidatorHash.toHex(),
