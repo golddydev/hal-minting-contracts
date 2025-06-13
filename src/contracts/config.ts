@@ -22,11 +22,13 @@ import {
  * @property {NetworkName} network Cardano Network
  * @property {bigint} mint_version HAL NFT version
  * @property {string} admin_verification_key_hash Admin Verification Key Hash
+ * @property {string} orders_spend_randomizer Orders Spend Randomizer (hex string)
  */
 interface BuildContractsParams {
   network: NetworkName;
   mint_version: bigint;
   admin_verification_key_hash: string;
+  orders_spend_randomizer?: string | undefined;
 }
 
 /**
@@ -35,7 +37,12 @@ interface BuildContractsParams {
  * @returns All Contracts
  */
 const buildContracts = (params: BuildContractsParams) => {
-  const { network, mint_version, admin_verification_key_hash } = params;
+  const {
+    network,
+    mint_version,
+    admin_verification_key_hash,
+    orders_spend_randomizer = "",
+  } = params;
   const isMainnet = network == "mainnet";
 
   // "mint_proxy.mint"
@@ -74,7 +81,8 @@ const buildContracts = (params: BuildContractsParams) => {
 
   // "orders.spend"
   const ordersSpendUplcProgram = getOrdersSpendUplcProgram(
-    halPolicyHash.toHex()
+    halPolicyHash.toHex(),
+    orders_spend_randomizer
   );
   const ordersValidatorHash = makeValidatorHash(ordersSpendUplcProgram.hash());
   const ordersSpendValidatorAddress = makeAddress(

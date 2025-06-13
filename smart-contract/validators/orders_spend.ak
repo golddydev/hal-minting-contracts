@@ -14,8 +14,9 @@ type OrderSpendRedeemer {
 //
 // ===== Parameters =====
 // `hal_policy_id`: Policy id of HAL NFT
+// `randomizer`: Random bytearray to make validator hash random
 //
-validator(hal_policy_id: PolicyId) {
+validator(hal_policy_id: PolicyId, _randomizer: ByteArray) {
   fn spend(
     datum: OrderDatum,
     redeemer: OrderSpendRedeemer,

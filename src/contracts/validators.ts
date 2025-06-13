@@ -75,7 +75,10 @@ const getMintingDataSpendUplcProgram = (
     );
 };
 
-const getOrdersSpendUplcProgram = (hal_policy_id: string): UplcProgramV2 => {
+const getOrdersSpendUplcProgram = (
+  hal_policy_id: string,
+  randomizer: string
+): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
     (validator) => validator.title == "orders_spend.spend"
   );
@@ -87,10 +90,10 @@ const getOrdersSpendUplcProgram = (hal_policy_id: string): UplcProgramV2 => {
     "Orders Spend Validator not found"
   );
   return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
-    .apply(makeOrdersSpendUplcProgramParameter(hal_policy_id))
+    .apply(makeOrdersSpendUplcProgramParameter(hal_policy_id, randomizer))
     .withAlt(
       decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
-        makeOrdersSpendUplcProgramParameter(hal_policy_id)
+        makeOrdersSpendUplcProgramParameter(hal_policy_id, randomizer)
       )
     );
 };

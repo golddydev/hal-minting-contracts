@@ -1,3 +1,4 @@
+import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import {
   Address,
   makeAddress,
@@ -16,6 +17,7 @@ import {
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
+  decodeWhitelistedItem,
   OrderDatum,
   Settings,
 } from "../contracts/index.js";
@@ -232,11 +234,15 @@ const fetchOrdersTxInputs = async (
  * @property {NetworkName} network Network
  * @property {TxInput} orderTxInput Order TxInput
  * @property {Settings} settings Settings
+ * @property {Trie} whitelistDB Whitelist DB
+ * @property {number | undefined} mintingTime Minting Time
  */
 interface IsValidOrderTxInputParams {
   network: NetworkName;
   orderTxInput: TxInput;
   settings: Settings;
+  whitelistDB: Trie;
+  mintingTime?: number | undefined;
 }
 
 /**
@@ -247,7 +253,13 @@ interface IsValidOrderTxInputParams {
 const isValidOrderTxInput = async (
   params: IsValidOrderTxInputParams
 ): Promise<Result<true, Error>> => {
-  const { network, orderTxInput, settings } = params;
+  const {
+    network,
+    orderTxInput,
+    settings,
+    whitelistDB,
+    mintingTime = Date.now(),
+  } = params;
   const { data: settingsV1Data } = settings;
   const settingsV1Result = mayFail(() =>
     decodeSettingsV1Data(settingsV1Data, network)
@@ -257,8 +269,12 @@ const isValidOrderTxInput = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const { max_order_amount, hal_nft_price, orders_spend_script_address } =
-    settingsV1Result.data;
+  const {
+    max_order_amount,
+    hal_nft_price,
+    orders_spend_script_address,
+    minting_start_time,
+  } = settingsV1Result.data;
 
   // check if address matches
   if (!orderTxInput.address.isEqual(orders_spend_script_address)) {
@@ -274,10 +290,10 @@ const isValidOrderTxInput = async (
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));
   }
-  const { amount } = decodedResult.data;
+  const { destination_address, amount: ordered_amount } = decodedResult.data;
 
   // check amount
-  if (amount > max_order_amount) {
+  if (ordered_amount > max_order_amount) {
     return Err(
       new Error(
         `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
@@ -286,9 +302,56 @@ const isValidOrderTxInput = async (
   }
 
   // check lovelace is enough
-  const expectedLovelace = BigInt(amount) * hal_nft_price;
+  const expectedLovelace = BigInt(ordered_amount) * hal_nft_price;
   if (orderTxInput.value.lovelace < expectedLovelace) {
     return Err(new Error("Insufficient Lovelace"));
+  }
+
+  // check minting time
+  if (mintingTime < minting_start_time) {
+    // check whitelisted or not
+    const key = Buffer.from(destination_address.toUplcData().toCbor());
+    const value = await whitelistDB.get(key);
+    if (!value) {
+      return Err(
+        new Error(
+          `${destination_address.toBech32()} is not whitelisted. Wait until ${new Date(
+            minting_start_time
+          ).toLocaleString()}`
+        )
+      );
+    }
+
+    // check whitelisted time gap and amount
+    const decodedWhitelistedItemResult = decodeWhitelistedItem(value);
+    if (!decodedWhitelistedItemResult.ok) {
+      return Err(
+        new Error(
+          `${destination_address.toBech32()} has invalid whitelisted item data in Trie: ${
+            decodedWhitelistedItemResult.error
+          }`
+        )
+      );
+    }
+    const [time_gap, amount] = decodedWhitelistedItemResult.data;
+    const whitelistedTime = minting_start_time - time_gap;
+    if (mintingTime < whitelistedTime) {
+      return Err(
+        new Error(
+          `${destination_address.toBech32()} is whitelisted but couldn't mint yet. Wait until ${new Date(
+            whitelistedTime
+          ).toLocaleString()}`
+        )
+      );
+    }
+
+    if (ordered_amount > amount) {
+      return Err(
+        new Error(
+          `${destination_address.toBech32()} has ${amount} whitelisted amount but order amount is ${ordered_amount}`
+        )
+      );
+    }
   }
 
   return Ok(true);

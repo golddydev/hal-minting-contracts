@@ -67,6 +67,7 @@ pub fn are_all_orders_fulfilled(
               whitelist_root,
               whitelist_proof,
               validity_range,
+              minting_start_time,
               destination_address,
               ordered_amount,
             )
@@ -131,17 +132,18 @@ fn update_whitelist_mpt_root(
   root: mpt.MerklePatriciaForestry,
   whitelist_proof: WhitelistProof,
   validity_range: ValidityRange,
+  minting_start_time: Int,
   destination_address: Address,
   ordered_amount: Int,
 ) -> mpt.MerklePatriciaForestry {
   trace @"update_whitelist_mpt_root"
   let (whitelisted_item, mpt_proof) = whitelist_proof
   let old_cbor = serialise(whitelisted_item)
-  let (whitelisted_time, whitelisted_amount) = whitelisted_item
+  let (time_gap, whitelisted_amount) = whitelisted_item
 
-  // tx must starts after whitelisted time
+  // tx must starts after minting_start_time - time_gap
   let is_after_whitelisted_time =
-    is_entirely_after(validity_range, whitelisted_time)
+    is_entirely_after(validity_range, minting_start_time - time_gap)
   expect is_after_whitelisted_time
 
   // whitelisted amount must be bigger than or equal to ordered amount
@@ -149,7 +151,7 @@ fn update_whitelist_mpt_root(
 
   // make new whitelisted item
   let new_whitelisted_item: WhitelistedItem =
-    (whitelisted_time, whitelisted_amount - ordered_amount)
+    (time_gap, whitelisted_amount - ordered_amount)
   let new_cbor = serialise(new_whitelisted_item)
 
   // update root
