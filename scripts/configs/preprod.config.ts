@@ -5,6 +5,7 @@ import { makeAddress } from "@helios-lang/ledger";
 export const MINT_VERSION = 0n;
 export const ADMIN_VERIFICATION_KEY_HASH =
   "4da965a049dfd15ed1ee19fba6e2974a0b79fc416dd1796a1f97f5e1";
+export const ORDERS_SPEND_RANDOMIZER = "";
 // ------- End contract config -------
 
 // ------- Settings Data  -------

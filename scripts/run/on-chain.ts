@@ -111,6 +111,7 @@ const buildSettingsDataCbor = () => {
   const {
     MINT_VERSION,
     ADMIN_VERIFICATION_KEY_HASH,
+    ORDERS_SPEND_RANDOMIZER,
     ALLOWED_MINTER,
     HAL_NFT_PRICE,
     PAYMENT_ADDRESS,
@@ -123,6 +124,7 @@ const buildSettingsDataCbor = () => {
     network: NETWORK as NetworkName,
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
+    orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
   });
   const {
     halPolicyHash,
@@ -173,7 +175,8 @@ const getStakingAddresses = () => {
 
 const doDeployActions = async () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH } = configs;
+  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
+    configs;
 
   let finished: boolean = false;
   while (!finished) {
@@ -191,6 +194,7 @@ const doDeployActions = async () => {
               mintVersion: MINT_VERSION,
               adminVerificationKeyHash: ADMIN_VERIFICATION_KEY_HASH,
               contractName: contract,
+              ordersSpendRandomizer: ORDERS_SPEND_RANDOMIZER,
             });
 
             const { filepath } = await prompts({
