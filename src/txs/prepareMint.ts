@@ -359,8 +359,12 @@ const prepareMintTransaction = async (
   // update whitelist data
   const newMintingData: MintingData = {
     ...mintingData,
-    mpt_root_hash: db.hash.toString("hex"),
-    whitelist_mpt_root_hash: whitelistDB.hash.toString("hex"),
+    mpt_root_hash: (
+      db.hash?.toString("hex") || Buffer.alloc(32).toString("hex")
+    ).toLowerCase(),
+    whitelist_mpt_root_hash: (
+      whitelistDB.hash?.toString("hex") || Buffer.alloc(32).toString("hex")
+    ).toLowerCase(),
   };
 
   // minting data asset value
