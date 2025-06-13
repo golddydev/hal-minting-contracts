@@ -33,6 +33,7 @@ import {
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
+  decodeWhitelistedItem,
   makeVoidData,
   makeWhitelistedItemData,
   MintingData,
@@ -54,6 +55,7 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @property {TxInput[]} ordersTxInputs Orders UTxOs
  * @property {HalAssetInfo[]} assetsInfo H.A.L. Assets' Info
  * @property {Trie} db Trie DB
+ * @property {Trie} whitelistDB Whitelist DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
@@ -65,6 +67,7 @@ interface PrepareMintParams {
   ordersTxInputs: TxInput[];
   assetsInfo: HalAssetInfo[];
   db: Trie;
+  whitelistDB: Trie;
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
   mintingDataAssetTxInput: TxInput;
@@ -95,6 +98,7 @@ const prepareMintTransaction = async (
     ordersTxInputs,
     assetsInfo: assetsInfoFromParam,
     db,
+    whitelistDB,
     deployedScripts,
     settingsAssetTxInput,
     mintingDataAssetTxInput,
@@ -165,7 +169,7 @@ const prepareMintTransaction = async (
     );
   }
   const mintingData = mintingDataResult.data;
-  const { mpt_root_hash } = mintingData;
+  const { mpt_root_hash, whitelist_mpt_root_hash } = mintingData;
 
   // check if current db trie hash is same as minting data root hash
   if (
@@ -176,18 +180,18 @@ const prepareMintTransaction = async (
   }
 
   // check if current whitelist db trie hash is same as minting data root hash
-  // if (
-  //   whitelist_mpt_root_hash.toLowerCase() !=
-  //   (
-  //     whitelistDB.hash?.toString("hex") || Buffer.alloc(32).toString("hex")
-  //   ).toLowerCase()
-  // ) {
-  //   return Err(
-  //     new Error(
-  //       "ERROR: Local Whitelist DB and On Chain Whitelist Root Hash mismatch"
-  //     )
-  //   );
-  // }
+  if (
+    whitelist_mpt_root_hash.toLowerCase() !=
+    (
+      whitelistDB.hash?.toString("hex") || Buffer.alloc(32).toString("hex")
+    ).toLowerCase()
+  ) {
+    return Err(
+      new Error(
+        "ERROR: Local Whitelist DB and On Chain Whitelist Root Hash mismatch"
+      )
+    );
+  }
 
   // make Proofs List for Minting Data V1 Redeemer
   // prepare H.A.L. NFTs value to mint
@@ -199,6 +203,7 @@ const prepareMintTransaction = async (
   for (const aggregatedOrder of aggregatedOrders) {
     const assetNameProofs: AssetNameProof[] = [];
     const assetUtf8Names: string[] = [];
+    let whitelistProof: WhitelistProof | undefined;
     const [destinationAddress, amount] = aggregatedOrder;
     const userValue = makeValue(1n);
 
@@ -259,91 +264,88 @@ const prepareMintTransaction = async (
       );
     }
 
-    // check address is whitelisted or not
-    let whitelistProof: WhitelistProof | undefined;
-    // const destinationAddressKey = Buffer.from(
-    //   destinationAddress.toUplcData().toCbor()
-    // );
-    // try {
-    //   const whitelistedItemValue = await whitelistDB.get(destinationAddressKey);
-    //   if (whitelistedItemValue) {
-    //     const whitelistedItemResult = decodeWhitelistItem(whitelistedItemValue);
-    //     if (!whitelistedItemResult.ok) {
-    //       return Err(
-    //         new Error(
-    //           `Failed to decode whitelisted item: ${whitelistedItemResult.error}`
-    //         )
-    //       );
-    //     }
-    //     const [whitelisted_time, whitelisted_amount] =
-    //       whitelistedItemResult.data;
-    //     if (whitelisted_amount > 0) {
-    //       // if whitelisted amount is bigger than 0
-    //       // proceed with whitelisted option
-    //       if (amount > whitelisted_amount) {
-    //         // if requested amount is bigger than whitelisted amount
-    //         return Err(
-    //           new Error(
-    //             `Address ${destinationAddress.toBech32()} has ${whitelisted_amount} whitelisted amount but order amount is ${amount}`
-    //           )
-    //         );
-    //       }
-    //       // if current time is less than whitelisted time
-    //       if (mintingTime < whitelisted_time) {
-    //         return Err(
-    //           new Error(
-    //             `Address ${destinationAddress.toBech32()} has whitelisted since ${new Date(
-    //               whitelisted_time
-    //             ).toLocaleString()} but order is being processed at ${new Date(
-    //               mintingTime
-    //             ).toLocaleString()}`
-    //           )
-    //         );
-    //       }
-
-    //       // then make proof
-    //       const proof = await whitelistDB.prove(destinationAddressKey);
-    //       whitelistProof = [
-    //         whitelistedItemResult.data,
-    //         parseMPTProofJSON(proof.toJSON()),
-    //       ];
-
-    //       // update whitelisted item
-    //       const newWhitelistedItem: WhitelistedItem = [
-    //         whitelisted_time,
-    //         whitelisted_amount - amount,
-    //       ];
-    //       const newWhitelistedItemValue = Buffer.from(
-    //         makeWhitelistedItemData(newWhitelistedItem).toCbor()
-    //       );
-
-    //       // update whitelist DB
-    //       await whitelistDB.delete(destinationAddressKey);
-    //       await whitelistDB.insert(
-    //         destinationAddressKey,
-    //         newWhitelistedItemValue
-    //       );
-    //     }
-    //   }
-    // } catch (error) {
-    //   return Err(
-    //     new Error(`Failed to make whitelist proof: ${convertError(error)}`)
-    //   );
-    // }
-
-    // if not whitelisted
-    // check minting start time
-    // if (!whitelistProof) {
+    // chekc minting time
     if (mintingTime < minting_start_time) {
-      return Err(
-        new Error(
-          `Minting is not started yet for everyone. Please wait until ${new Date(
-            minting_start_time
-          ).toLocaleString()}`
-        )
+      // have to be whitelisted
+      const destinationAddressKey = Buffer.from(
+        destinationAddress.toUplcData().toCbor()
       );
+      try {
+        const whitelistedItemValue = await whitelistDB.get(
+          destinationAddressKey
+        );
+        if (!whitelistedItemValue) {
+          return Err(
+            new Error(
+              `Address ${destinationAddress.toBech32()} is not whitelisted. Wait until ${new Date(
+                minting_start_time
+              ).toLocaleString()}`
+            )
+          );
+        }
+
+        const whitelistedItemResult =
+          decodeWhitelistedItem(whitelistedItemValue);
+        if (!whitelistedItemResult.ok) {
+          return Err(
+            new Error(
+              `Address ${destinationAddress.toBech32()} has invalid whitelisted item data in Trie: ${
+                whitelistedItemResult.error
+              }`
+            )
+          );
+        }
+        const [time_gap, whitelisted_amount] = whitelistedItemResult.data;
+        const whitelistedTime = minting_start_time - time_gap;
+        if (mintingTime < whitelistedTime) {
+          return Err(
+            new Error(
+              `Address ${destinationAddress.toBech32()} is whitelisted but couldn't mint yet. Wait until ${new Date(
+                whitelistedTime
+              ).toLocaleString()}`
+            )
+          );
+        }
+        if (amount > whitelisted_amount) {
+          return Err(
+            new Error(
+              `Address ${destinationAddress.toBech32()} has ${whitelisted_amount} whitelisted amount but order amount is ${amount}`
+            )
+          );
+        }
+
+        // then make proof
+        const proof = await whitelistDB.prove(destinationAddressKey);
+        whitelistProof = [
+          whitelistedItemResult.data,
+          parseMPTProofJSON(proof.toJSON()),
+        ];
+
+        // update whitelisted item
+        const newWhitelistedItem: WhitelistedItem = [
+          time_gap,
+          whitelisted_amount - amount,
+        ];
+        const newWhitelistedItemValue = Buffer.from(
+          makeWhitelistedItemData(newWhitelistedItem).toCbor()
+        );
+
+        // update whitelist DB
+        await whitelistDB.delete(destinationAddressKey);
+        await whitelistDB.insert(
+          destinationAddressKey,
+          newWhitelistedItemValue
+        );
+      } catch (error) {
+        return Err(
+          new Error(
+            `Failed to make whitelist proof for ${destinationAddress.toBech32()}: ${convertError(
+              error
+            )}`
+          )
+        );
+      }
     }
-    // }
 
     proofsList.push([assetNameProofs, whitelistProof]);
     userOutputsData.push({
@@ -358,6 +360,7 @@ const prepareMintTransaction = async (
   const newMintingData: MintingData = {
     ...mintingData,
     mpt_root_hash: db.hash.toString("hex"),
+    whitelist_mpt_root_hash: whitelistDB.hash.toString("hex"),
   };
 
   // minting data asset value

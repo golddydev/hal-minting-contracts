@@ -11,7 +11,7 @@ import { Err, Ok, Result } from "ts-res";
 import { convertError } from "../../helpers/index.js";
 import { WhitelistedItem } from "../types/whitelist.js";
 
-const decodeWhitelistItem = (value: Buffer): Result<WhitelistedItem, Error> => {
+const decodeWhitelistedItem = (value: Buffer): Result<WhitelistedItem, Error> => {
   try {
     const data = decodeUplcData(value);
     const listData = expectListData(data, "whitelisted_item must be List Data");
@@ -38,4 +38,4 @@ const makeWhitelistedItemData = (
   return makeListData([makeIntData(time_gap), makeIntData(amount)]);
 };
 
-export { decodeWhitelistItem, makeWhitelistedItemData };
+export { decodeWhitelistedItem, makeWhitelistedItemData };
