@@ -5,6 +5,7 @@ import { assert, describe } from "vitest";
 import { PREFIX_100, PREFIX_222 } from "../src/constants/index.js";
 import {
   buildOrdersSpendCancelOrderRedeemer,
+  buildOrdersSpendRefundOrderRedeemer,
   cancel,
   decodeMintingDataDatum,
   fetchMintingData,
@@ -14,6 +15,7 @@ import {
   mayFailTransaction,
   Order,
   prepareMintTransaction,
+  refund,
   request,
   rollBackOrdersFromTries,
   update,
@@ -42,12 +44,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
+      const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
         network,
         orders,
-        settingsAssetTxInput,
+        settings,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -245,12 +247,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
+      const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
         network,
         orders,
-        settingsAssetTxInput,
+        settings,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -461,12 +463,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
+      const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
         network,
         orders,
-        settingsAssetTxInput,
+        settings,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -587,6 +589,48 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
+  // cannot refund 2 orders in a transaction
+  myTest(
+    "cannot refund 2 orders in a transaction",
+    async ({ network, wallets, ordersTxInputs, deployedScripts }) => {
+      invariant(
+        Array.isArray(ordersTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const { usersWallets } = wallets;
+      const user2Wallet = usersWallets[1];
+
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput } = settingsResult.data;
+
+      const txBuilderResult = await refund({
+        network,
+        orderTxInput: ordersTxInputs[0],
+        deployedScripts,
+        settingsAssetTxInput,
+      });
+      invariant(txBuilderResult.ok, "Refund Tx Building failed");
+
+      // hack: cancel one other order also
+      // without burning order token
+      const txBuilder = txBuilderResult.data;
+      txBuilder.spendUnsafe(
+        ordersTxInputs[1],
+        buildOrdersSpendRefundOrderRedeemer()
+      );
+
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        user2Wallet.address,
+        await user2Wallet.utxos
+      ).complete();
+      invariant(!txResult.ok, "Refund Tx Complete should fail");
+      assert(txResult.error.message.includes("expect own_utxo_count == 1"));
+    }
+  );
+
   // can cancel one order
   myTest(
     "can cancel one order",
@@ -599,11 +643,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
       const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsV1 } = settingsResult.data;
-      const { hal_nft_price } = settingsV1;
+      const orderUtxoLovelace = ordersTxInputs[1].value.lovelace;
 
       const txBuilderResult = await cancel({
         network,
@@ -630,7 +670,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const afterUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
 
       invariant(
-        afterUser2Lovelace - beforeUser2Lovelace > hal_nft_price - 1_000_000n,
+        afterUser2Lovelace - beforeUser2Lovelace >
+          orderUtxoLovelace - 1_000_000n,
         "User 2 Lovelace is not correct"
       );
 
@@ -638,103 +679,56 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
-  // mint 2 new assets - <hal-9, hal-10>
+  // can refund one order
   myTest(
-    "mint 2 new assets - <hal-9, hal-10>",
-    async ({
-      mockedFunctions,
-      db,
-      whitelistDB,
-      network,
-      emulator,
-      wallets,
-      ordersTxInputs,
-      deployedScripts,
-      normalMintingTime,
-    }) => {
+    "can refund one order",
+    async ({ network, emulator, wallets, ordersTxInputs, deployedScripts }) => {
       invariant(
         Array.isArray(ordersTxInputs),
         "Orders tx inputs is not an array"
       );
 
-      const { allowedMinterWallet, paymentWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = [
-        ["hal-9", makeHalAssetDatum("hal-9")],
-        ["hal-10", makeHalAssetDatum("hal-10")],
-      ];
+      const { usersWallets, allowedMinterWallet } = wallets;
+      const user2Wallet = usersWallets[1];
+      const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
+      const orderUtxoLovelace = ordersTxInputs[0].value.lovelace;
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-      const mintingDataResult = await fetchMintingData();
-      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
-      const { mintingDataAssetTxInput } = mintingDataResult.data;
+      const { settingsAssetTxInput } = settingsResult.data;
 
-      const txBuilderResult = await prepareMintTransaction({
+      const txBuilderResult = await refund({
         network,
-        address: allowedMinterWallet.address,
-        ordersTxInputs,
-        assetsInfo,
-        db,
-        whitelistDB,
+        orderTxInput: ordersTxInputs[0],
         deployedScripts,
         settingsAssetTxInput,
-        mintingDataAssetTxInput,
-        mintingTime: normalMintingTime,
       });
-      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+      invariant(txBuilderResult.ok, "Refund Tx Building failed");
 
-      const { txBuilder, userOutputsData, referenceOutputs } =
-        txBuilderResult.data;
-      txBuilder.addOutput(
-        ...userOutputsData.map((item) => item.userOutput),
-        ...referenceOutputs
-      );
-
+      const txBuilder = txBuilderResult.data;
       txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
       const txResult = await mayFailTransaction(
         txBuilder,
-        paymentWallet.address,
+        user2Wallet.address,
         []
       ).complete();
-      invariant(txResult.ok, "Mint Tx Complete Failed");
+      invariant(txResult.ok, "Refund Tx Complete failed");
       logMemAndCpu(txResult);
 
       const { tx } = txResult.data;
-      tx.addSignatures(await allowedMinterWallet.signTx(tx));
-      const txId = await allowedMinterWallet.submitTx(tx);
+      tx.addSignatures(await user2Wallet.signTx(tx));
+      await user2Wallet.submitTx(tx);
       emulator.tick(200);
 
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        ordersTxInputs,
-        userOutputsData
+      const afterUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
+
+      invariant(
+        afterUser2Lovelace - beforeUser2Lovelace >
+          orderUtxoLovelace - 1_000_000n,
+        "User 2 Lovelace is not correct"
       );
 
-      // update minting data input
-      const newMintingDataAssetTxInput = await emulator.getUtxo(
-        makeTxOutputId(txId, 0)
-      );
-      const newMintingData = decodeMintingDataDatum(
-        newMintingDataAssetTxInput.datum
-      );
-      mockedFunctions.mockedFetchMintingData.mockReturnValue(
-        new Promise((resolve) =>
-          resolve(
-            Ok({
-              mintingData: newMintingData,
-              mintingDataAssetTxInput: newMintingDataAssetTxInput,
-            })
-          )
-        )
-      );
-
-      // empty orders detail
-      ordersTxInputs.length = 0;
+      ordersTxInputs.splice(0, 1);
     }
   );
 
@@ -757,12 +751,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
+      const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
         network,
         orders,
-        settingsAssetTxInput,
+        settings,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -915,12 +909,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
+      const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
         network,
         orders,
-        settingsAssetTxInput,
+        settings,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 

@@ -56,9 +56,14 @@ const buildOrdersSpendCancelOrderRedeemer = (): UplcData => {
   return makeConstrData(1, []);
 };
 
+const buildOrdersSpendRefundOrderRedeemer = (): UplcData => {
+  return makeConstrData(2, []);
+};
+
 export {
   buildOrderDatumData,
   buildOrdersSpendCancelOrderRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
+  buildOrdersSpendRefundOrderRedeemer,
   decodeOrderDatumData,
 };
