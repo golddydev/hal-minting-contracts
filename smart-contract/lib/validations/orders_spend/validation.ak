@@ -1,8 +1,12 @@
 use aiken/list
-use aiken/transaction.{OutputReference, Transaction}
+use aiken/transaction.{Output, OutputReference, Transaction}
 use aiken/transaction/value.{PolicyId}
-use common/utils.{get_own_script_hash, get_own_utxo, get_own_utxos_count}
+use common/utils.{get_own_script_hash,
+  get_own_utxo, get_own_utxos_count} as common_utils
 use hal_nft_mint/orders.{OrderDatum}
+use hal_nft_mint/settings.{Settings, find_settings}
+use hal_nft_mint/settings_v1.{SettingsV1}
+use validations/orders_spend/utils.{is_refunded_output_address_valid}
 
 // Validation:
 // When minting engine spends Orders UTxO
@@ -48,6 +52,69 @@ pub fn can_cancel_order(
   let own_script_hash = get_own_script_hash(own_utxo)
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxo_count == 1
+
+  True
+}
+
+// Validation:
+// When admin tries to refund Order
+//
+// Checks:
+// - must attach Setting in reference inputs
+// - must be signed by allowed_minter
+// - there must be only one UTxO from this script
+// - first output must be Refunded to Output to owner in Order Datum
+//   with enough lovelace (Own UTxO - Fee)
+//
+pub fn can_refund_order(
+  transaction: Transaction,
+  datum: OrderDatum,
+  spending_output_reference: OutputReference,
+) -> Bool {
+  let Transaction {
+    inputs,
+    reference_inputs,
+    outputs,
+    fee,
+    extra_signatories,
+    ..
+  } = transaction
+
+  // parse order datum
+  let OrderDatum { owner_key_hash, .. } = datum
+
+  // must attach Setting in reference inputs
+  let Settings { data: settings_data, .. } = find_settings(reference_inputs)
+  expect settings_datum: SettingsV1 = settings_data
+  let SettingsV1 { allowed_minter, .. } = settings_datum
+
+  // must be signed by allowed_minter
+  expect list.has(extra_signatories, allowed_minter)
+
+  // there must be only one UTxO from this script
+  let own_utxo = get_own_utxo(inputs, spending_output_reference)
+  let own_script_hash = get_own_script_hash(own_utxo)
+  let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
+  expect own_utxo_count == 1
+
+  // first output must be Refunded to Output to owner in Order Datum
+  // with enough lovelace (Own UTxO - Fee)
+  expect [refunded_output, ..] = outputs
+  let Output { address: refunded_address, value: refunded_value, .. } =
+    refunded_output
+
+  // check address
+  let is_refunded_address_valid =
+    is_refunded_output_address_valid(refunded_address, owner_key_hash)
+  expect is_refunded_address_valid
+
+  // check value
+  let Output { value: own_utxo_value, .. } = own_utxo
+  let expected_lovelace =
+    value.lovelace_of(own_utxo_value) - value.lovelace_of(fee)
+  let is_refunded_value_enough =
+    value.lovelace_of(refunded_value) >= expected_lovelace
+  expect is_refunded_value_enough
 
   True
 }

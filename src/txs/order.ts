@@ -3,6 +3,7 @@ import {
   Address,
   makeAddress,
   makeInlineTxOutputDatum,
+  makePubKeyHash,
   makeValidatorHash,
   makeValue,
   TxInput,
@@ -14,6 +15,7 @@ import { Err, Ok, Result } from "ts-res";
 import {
   buildOrderDatumData,
   buildOrdersSpendCancelOrderRedeemer,
+  buildOrdersSpendRefundOrderRedeemer,
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
@@ -35,12 +37,12 @@ import { DeployedScripts } from "./deploy.js";
  * @typedef {object} RequestParams
  * @property {NetworkName} network Network
  * @property {Order[]} orders Orders to request
- * @property {DeployedScripts} deployedScripts Deployed Scripts
+ * @property {Settings} settings Settings
  */
 interface RequestParams {
   network: NetworkName;
   orders: Order[];
-  settingsAssetTxInput: TxInput;
+  settings: Settings;
 }
 
 /**
@@ -51,7 +53,7 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, orders, settingsAssetTxInput } = params;
+  const { network, orders, settings } = params;
   const isMainnet = network == "mainnet";
 
   for (const [address, amount] of orders) {
@@ -64,13 +66,7 @@ const request = async (
   }
 
   // decode settings
-  const settingsResult = mayFail(() =>
-    decodeSettingsDatum(settingsAssetTxInput.datum)
-  );
-  if (!settingsResult.ok) {
-    return Err(new Error(`Failed to decode settings: ${settingsResult.error}`));
-  }
-  const { data: settingsV1Data } = settingsResult.data;
+  const { data: settingsV1Data } = settings;
   const settingsV1Result = mayFail(() =>
     decodeSettingsV1Data(settingsV1Data, network)
   );
@@ -175,6 +171,85 @@ const cancel = async (
 
   // <-- add signer
   txBuilder.addSigners(address.spendingCredential);
+
+  return Ok(txBuilder);
+};
+
+/**
+ * @interface
+ * @typedef {object} RefundParams
+ * @property {NetworkName} network Network
+ * @property {TxInput} orderTxInput Order Tx Input
+ * @property {DeployedScripts} deployedScripts Deployed Scripts
+ * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
+ */
+interface RefundParams {
+  network: NetworkName;
+  orderTxInput: TxInput;
+  deployedScripts: DeployedScripts;
+  settingsAssetTxInput: TxInput;
+}
+
+/**
+ * @description Refund Order UTxO
+ * @param {RefundParams} params
+ * @returns {Promise<Result<TxBuilder,  Error>>} Transaction Result
+ */
+const refund = async (
+  params: RefundParams
+): Promise<Result<TxBuilder, Error>> => {
+  const { network, orderTxInput, deployedScripts, settingsAssetTxInput } =
+    params;
+  const isMainnet = network == "mainnet";
+
+  const { ordersSpendScriptTxInput, ordersSpendScriptDetails } =
+    deployedScripts;
+
+  // decode settings
+  const settingsResult = mayFail(() =>
+    decodeSettingsDatum(settingsAssetTxInput.datum)
+  );
+  if (!settingsResult.ok) {
+    return Err(new Error(`Failed to decode settings: ${settingsResult.error}`));
+  }
+  const { data: settingsV1Data } = settingsResult.data;
+  const settingsV1Result = mayFail(() =>
+    decodeSettingsV1Data(settingsV1Data, network)
+  );
+  if (!settingsV1Result.ok) {
+    return Err(
+      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
+    );
+  }
+  const { allowed_minter } = settingsV1Result.data;
+
+  // check if order tx input is from ordersSpendScriptAddress
+  const ordersSpendScriptAddress = makeAddress(
+    isMainnet,
+    makeValidatorHash(ordersSpendScriptDetails.validatorHash)
+  );
+  if (!orderTxInput.address.isEqual(ordersSpendScriptAddress)) {
+    return Err(
+      new Error("Order Tx Input must be from Orders Spend Script Address")
+    );
+  }
+
+  // start building tx
+  const txBuilder = makeTxBuilder({
+    isMainnet,
+  });
+
+  // <-- attach settings asset as reference input
+  txBuilder.refer(settingsAssetTxInput);
+
+  // <-- attach orders spend and mint scripts
+  txBuilder.refer(ordersSpendScriptTxInput);
+
+  // <-- spend order tx input
+  txBuilder.spendUnsafe(orderTxInput, buildOrdersSpendRefundOrderRedeemer());
+
+  // <-- add signer (allowed_minter)
+  txBuilder.addSigners(makePubKeyHash(allowed_minter));
 
   return Ok(txBuilder);
 };
@@ -361,6 +436,7 @@ export type {
   CancelParams,
   FetchOrdersTxInputsParams,
   IsValidOrderTxInputParams,
+  RefundParams,
   RequestParams,
 };
-export { cancel, fetchOrdersTxInputs, isValidOrderTxInput, request };
+export { cancel, fetchOrdersTxInputs, isValidOrderTxInput, refund, request };

@@ -167,7 +167,7 @@ const fetchAllDeployedScripts = async (
   try {
     // "mint_proxy.mint"
     const mintProxyScriptDetails = await fetchDeployedScript(
-      ScriptType.DEMI_MINT_PROXY
+      ScriptType.HAL_MINT_PROXY
     );
     invariant(
       mintProxyScriptDetails.refScriptUtxo,
@@ -185,7 +185,7 @@ const fetchAllDeployedScripts = async (
 
     // "minting_data.spend"
     const mintingDataScriptDetails = await fetchDeployedScript(
-      ScriptType.DEMI_MINTING_DATA
+      ScriptType.HAL_MINTING_DATA
     );
     invariant(
       mintingDataScriptDetails.refScriptUtxo,
@@ -202,7 +202,7 @@ const fetchAllDeployedScripts = async (
       );
 
     // "mint_v1.withdraw"
-    const mintV1ScriptDetails = await fetchDeployedScript(ScriptType.DEMI_MINT);
+    const mintV1ScriptDetails = await fetchDeployedScript(ScriptType.HAL_MINT);
     invariant(
       mintV1ScriptDetails.refScriptUtxo,
       "Mint V1 has no Ref script UTxO"
@@ -219,7 +219,7 @@ const fetchAllDeployedScripts = async (
 
     // "orders_spend.spend"
     const ordersSpendScriptDetails = await fetchDeployedScript(
-      ScriptType.DEMI_ORDERS
+      ScriptType.HAL_ORDERS_SPEND
     );
     invariant(
       ordersSpendScriptDetails.refScriptUtxo,
@@ -237,7 +237,7 @@ const fetchAllDeployedScripts = async (
 
     // "ref_spend.spend"
     const refSpendScriptDetails = await fetchDeployedScript(
-      ScriptType.DEMI_ORDERS
+      ScriptType.HAL_REF_SPEND
     );
     invariant(
       refSpendScriptDetails.refScriptUtxo,
