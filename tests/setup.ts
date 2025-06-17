@@ -247,7 +247,7 @@ const setup = async () => {
 
   // ============ Deploy Scripts ============
   const [mintProxyScriptDetails, mintProxyScriptTxInput] = await deployScript(
-    ScriptType.DEMI_MINT_PROXY,
+    ScriptType.HAL_MINT_PROXY,
     emulator,
     fundWallet,
     ...extractScriptCborsFromUplcProgram(
@@ -255,14 +255,14 @@ const setup = async () => {
     )
   );
   const [mintV1ScriptDetails, mintV1ScriptTxInput] = await deployScript(
-    ScriptType.DEMI_MINT,
+    ScriptType.HAL_MINT,
     emulator,
     fundWallet,
     ...extractScriptCborsFromUplcProgram(mintV1Config.mintV1WithdrawUplcProgram)
   );
   const [mintingDataScriptDetails, mintingDataScriptTxInput] =
     await deployScript(
-      ScriptType.DEMI_MINTING_DATA,
+      ScriptType.HAL_MINTING_DATA,
       emulator,
       fundWallet,
       ...extractScriptCborsFromUplcProgram(
@@ -271,7 +271,7 @@ const setup = async () => {
     );
   const [ordersSpendScriptDetails, ordersSpendScriptTxInput] =
     await deployScript(
-      ScriptType.DEMI_ORDERS,
+      ScriptType.HAL_ORDERS_SPEND,
       emulator,
       fundWallet,
       ...extractScriptCborsFromUplcProgram(
@@ -279,7 +279,7 @@ const setup = async () => {
       )
     );
   const [refSpendScriptDetails, refSpendScriptTxInput] = await deployScript(
-    ScriptType.DEMI_ORDERS,
+    ScriptType.HAL_REF_SPEND,
     emulator,
     fundWallet,
     ...extractScriptCborsFromUplcProgram(refSpendConfig.refSpendUplcProgram)
