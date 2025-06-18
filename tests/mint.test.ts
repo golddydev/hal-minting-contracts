@@ -732,6 +732,152 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
+  // user_1 orders 3 new assets
+  myTest(
+    "user_1 orders 3 new assets",
+    async ({ network, emulator, wallets, ordersTxInputs }) => {
+      invariant(
+        Array.isArray(ordersTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const { usersWallets } = wallets;
+      const user1Wallet = usersWallets[0];
+      const orders: Order[] = [[user1Wallet.address, 3]];
+
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settings } = settingsResult.data;
+
+      const txBuilderResult = await request({
+        network,
+        orders,
+        settings,
+      });
+      invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        user1Wallet.address,
+        await user1Wallet.utxos
+      ).complete();
+      invariant(txResult.ok, "Order Tx Complete failed");
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await user1Wallet.signTx(tx));
+      const txId = await user1Wallet.submitTx(tx);
+      emulator.tick(200);
+
+      const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
+      ordersTxInputs.push(orderTxInput);
+    }
+  );
+
+  // mint 3 new assets - <hal-9, hal-10, hal-11>
+  myTest(
+    "mint 3 new assets - <hal-9, hal-10, hal-11>",
+    async ({
+      mockedFunctions,
+      db,
+      whitelistDB,
+      network,
+      emulator,
+      wallets,
+      ordersTxInputs,
+      deployedScripts,
+      normalMintingTime,
+    }) => {
+      invariant(
+        Array.isArray(ordersTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const { allowedMinterWallet, paymentWallet } = wallets;
+
+      const assetsInfo: HalAssetInfo[] = [
+        ["hal-9", makeHalAssetDatum("hal-9")],
+        ["hal-10", makeHalAssetDatum("hal-10")],
+        ["hal-11", makeHalAssetDatum("hal-11")],
+      ];
+
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
+      const txBuilderResult = await prepareMintTransaction({
+        network,
+        address: allowedMinterWallet.address,
+        ordersTxInputs,
+        assetsInfo,
+        db,
+        whitelistDB,
+        deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
+        mintingTime: normalMintingTime,
+      });
+      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+
+      const { txBuilder, userOutputsData, referenceOutputs } =
+        txBuilderResult.data;
+      txBuilder.addOutput(
+        ...userOutputsData.map((item) => item.userOutput),
+        ...referenceOutputs
+      );
+
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        paymentWallet.address,
+        []
+      ).complete();
+      invariant(txResult.ok, "Mint Tx Complete Failed");
+      logMemAndCpu(txResult);
+
+      // set emulator time
+      emulator.currentSlot = Math.ceil(normalMintingTime / 1000);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      const txId = await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      // check minted assets
+      await checkMintedAssets(
+        network,
+        emulator,
+        settingsV1,
+        ordersTxInputs,
+        userOutputsData
+      );
+
+      // update minting data input
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
+        makeTxOutputId(txId, 0)
+      );
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
+      mockedFunctions.mockedFetchMintingData.mockReturnValue(
+        new Promise((resolve) =>
+          resolve(
+            Ok({
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
+            })
+          )
+        )
+      );
+
+      // empty orders detail
+      ordersTxInputs.length = 0;
+    }
+  );
+
   // user_3 orders 5 new assets 3 times
   myTest(
     "user_3 orders 5 new assets 3 times",
