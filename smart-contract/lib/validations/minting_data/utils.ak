@@ -185,7 +185,10 @@ fn check_user_output(
         pairs.get_first(hal_token_pairs, user_asset_name) == Some(1)
       },
     )
+  let has_no_other_hal_assets =
+    list.length(hal_token_pairs) == list.length(asset_names)
   expect has_all_assets
+  expect has_no_other_hal_assets
 
   True
 }
@@ -237,7 +240,7 @@ pub fn check_hal_tokens_minted(
 ) -> Bool {
   let minted_hal_tokens = value.tokens(minted_value, policy_id)
 
-  let are_hal_tokens_minted_correctly =
+  let are_all_hal_tokens_minted =
     list.all(
       hal_asset_names,
       fn(hal_asset_name) -> Bool {
@@ -252,8 +255,13 @@ pub fn check_hal_tokens_minted(
         True
       },
     )
+  let no_other_hal_tokens_minted =
+    dict.size(minted_hal_tokens) == list.length(hal_asset_names) * 2
 
-  are_hal_tokens_minted_correctly
+  expect are_all_hal_tokens_minted
+  expect no_other_hal_tokens_minted
+
+  True
 }
 
 // This function returns aggregated orders information
