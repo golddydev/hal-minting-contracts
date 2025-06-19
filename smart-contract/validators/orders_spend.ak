@@ -1,6 +1,5 @@
 use aiken/transaction.{ScriptContext, Spend}
 use aiken/transaction/value.{PolicyId}
-use hal_nft_mint/orders.{OrderDatum}
 use validations/orders_spend/validation.{
   can_cancel_order, can_execute_orders, can_refund_order,
 }
@@ -21,7 +20,7 @@ type OrderSpendRedeemer {
 //
 validator(hal_policy_id: PolicyId, _randomizer: ByteArray) {
   fn spend(
-    datum: OrderDatum,
+    datum: Data,
     redeemer: OrderSpendRedeemer,
     ctx: ScriptContext,
   ) -> Bool {
@@ -32,8 +31,7 @@ validator(hal_policy_id: PolicyId, _randomizer: ByteArray) {
       ExecuteOrders -> can_execute_orders(transaction, hal_policy_id)
       CancelOrder ->
         can_cancel_order(transaction, datum, spending_output_reference)
-      RefundOrder ->
-        can_refund_order(transaction, datum, spending_output_reference)
+      RefundOrder -> can_refund_order(transaction, spending_output_reference)
     }
   }
 }
