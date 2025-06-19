@@ -33,7 +33,7 @@ pub fn can_execute_orders(
 //
 // Checks:
 // - must be signed by owner of Order
-// - there must be only one UTxO from this script
+// - there must be only one UTxO in transaction inputs from this script
 //
 pub fn can_cancel_order(
   transaction: Transaction,
@@ -49,7 +49,7 @@ pub fn can_cancel_order(
   let is_owner_signed = list.has(extra_signatories, datum.owner_key_hash)
   expect is_owner_signed
 
-  // there must be only one UTxO from this script
+  // there must be only one UTxO in transaction inputs from this script
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
   let own_script_hash = get_own_script_hash(own_utxo)
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
