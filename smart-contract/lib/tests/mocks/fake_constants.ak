@@ -45,6 +45,11 @@ pub fn orders_spend_script_address() -> Address {
     |> credential.with_delegation_key(#"6666")
 }
 
+pub fn royalty_spend_script_address() -> Address {
+  credential.from_verification_key(#"7777")
+    |> credential.with_delegation_key(#"8888")
+}
+
 pub const minting_data_script_hash: ScriptHash = #"3333"
 
 pub const ref_spend_admin: VerificationKeyHash = #"22223333"

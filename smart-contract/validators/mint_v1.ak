@@ -1,10 +1,11 @@
 use aiken/transaction.{ScriptContext, WithdrawFrom}
 use common/hashes.{ScriptHash}
-use validations/mint_v1/validation.{can_mint_nfts}
+use validations/mint_v1/validation.{can_mint_nfts, can_mint_royalty_nft}
 
 type MintV1Redeemer {
   MintNFTs
   BurnNFTs
+  MintRoyaltyNFT
 }
 
 // NOTE:
@@ -26,6 +27,7 @@ validator(minting_data_script_hash: ScriptHash) {
         trace @"Burn is disabled now"
         False
       }
+      MintRoyaltyNFT -> can_mint_royalty_nft(transaction)
     }
   }
 }
