@@ -25,6 +25,16 @@ const makeBoolData = (value: boolean): UplcData => {
   return makeConstrData(value ? 1 : 0, []);
 };
 
+const makeOptionData = <T>(
+  value: T | undefined,
+  builder: (value: T) => UplcData
+): UplcData => {
+  if (!value) {
+    return makeConstrData(1, []);
+  }
+  return makeConstrData(0, [builder(value)]);
+};
+
 const buildCredentialData = (credential: SpendingCredential): UplcData => {
   return makeConstrData(credential.kind == "PubKeyHash" ? 0 : 1, [
     makeByteArrayData(credential.toHex()),
@@ -166,6 +176,7 @@ export {
   decodeDatumFromData,
   decodeStakingCredentialFromData,
   makeBoolData,
+  makeOptionData,
   makeRedeemerWrapper,
   makeVoidData,
 };

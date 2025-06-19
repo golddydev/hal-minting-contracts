@@ -37,3 +37,5 @@ export const SETTINGS_HANDLE_NAME = "hal@handle_settings";
 export const MINTING_DATA_HANDLE_NAME = "hal_root@handle_settings";
 
 export const MPT_MINTED_VALUE = "minted";
+
+export const ROYALTY_ASSET_FULL_NAME = "001f4d70526f79616c7479";
