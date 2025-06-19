@@ -13,6 +13,8 @@ interface SettingsV1 {
   ref_spend_script_address: Address;
   // user makes an order (as UTxO) to this address
   orders_spend_script_address: Address;
+  // royalty spend script address
+  royalty_spend_script_address: Address;
   // minting data script is used to check
   // all minting handles logic (for both new and legacy)
   // minting_data_asset is locked inside that script
