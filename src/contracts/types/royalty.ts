@@ -9,11 +9,11 @@ interface RoyaltyDatum {
 
 interface RoyaltyRecipient {
   address: ShelleyAddress;
-  // percentage (fraction)
-  fee: bigint;
-  // fixed (absolute)
+  // percentage (0.1 - 100)
+  fee: number;
+  // fixed (absolute) fee
   min_fee?: bigint | undefined;
-  // fixed (absolute)
+  // fixed (absolute) fee
   max_fee?: bigint | undefined;
 }
 

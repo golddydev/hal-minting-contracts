@@ -197,7 +197,7 @@ const prepareMintTransaction = async (
   // prepare H.A.L. NFTs value to mint
   const proofsList: Proofs[] = [];
   const userOutputsData: HalUserOutputData[] = [];
-  const halTokenValue: [ByteArrayLike, IntLike][] = [];
+  const halTokensValue: [ByteArrayLike, IntLike][] = [];
   const referenceOutputs: TxOutput[] = [];
 
   for (const aggregatedOrder of aggregatedOrders) {
@@ -258,7 +258,7 @@ const prepareMintTransaction = async (
       );
 
       // add hal token value to mint
-      halTokenValue.push(
+      halTokensValue.push(
         [refAssetClass.tokenName, 1n],
         [userAssetClass.tokenName, 1n]
       );
@@ -391,7 +391,7 @@ const prepareMintTransaction = async (
   // <-- attach settings asset as reference input
   txBuilder.refer(settingsAssetTxInput);
 
-  // <-- attach deploy scripts
+  // <-- attach deployed scripts
   txBuilder.refer(
     mintProxyScriptTxInput,
     mintV1ScriptTxInput,
@@ -425,7 +425,7 @@ const prepareMintTransaction = async (
   // <-- mint hal nfts
   txBuilder.mintPolicyTokensUnsafe(
     halPolicyHash,
-    halTokenValue,
+    halTokensValue,
     makeVoidData()
   );
 
