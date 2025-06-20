@@ -38,4 +38,9 @@ export const MINTING_DATA_HANDLE_NAME = "hal_root@handle_settings";
 
 export const MPT_MINTED_VALUE = "minted";
 
+// "Royalty" with asset name labe of 500
 export const ROYALTY_ASSET_FULL_NAME = "001f4d70526f79616c7479";
+
+export const ROYALTY_INCLUDED_KEY = "royalty_included";
+
+export const ROYALTY_INCLUDED_HEX_KEY = "726f79616c74795f696e636c75646564";
