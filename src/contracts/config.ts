@@ -98,6 +98,16 @@ const buildContracts = (params: BuildContractsParams) => {
     refSpendValidatorHash
   );
 
+  // "royalty_spend.spend"
+  const royaltySpendUplcProgram = getRefSpendUplcProgram();
+  const royaltySpendValidatorHash = makeValidatorHash(
+    royaltySpendUplcProgram.hash()
+  );
+  const royaltySpendValidatorAddress = makeAddress(
+    isMainnet,
+    royaltySpendValidatorHash
+  );
+
   return {
     halPolicyHash,
     mintProxy: {
@@ -124,6 +134,11 @@ const buildContracts = (params: BuildContractsParams) => {
       refSpendUplcProgram,
       refSpendValidatorHash,
       refSpendValidatorAddress,
+    },
+    royaltySpend: {
+      royaltySpendUplcProgram,
+      royaltySpendValidatorHash,
+      royaltySpendValidatorAddress,
     },
   };
 };

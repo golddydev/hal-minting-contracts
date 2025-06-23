@@ -17,6 +17,7 @@ import {
   WhitelistedItem,
   WhitelistProof,
 } from "../types/index.js";
+import { makeOptionData } from "./common.js";
 import { buildMPTProofData } from "./mpt.js";
 
 const buildMintingData = (mintingData: MintingData): UplcData => {
@@ -72,20 +73,12 @@ const buildWhitelistedItemData = (
   return makeListData([makeIntData(time), makeIntData(amount)]);
 };
 
-const buildWhitelistProofData = (
-  whitelistProofOpt: WhitelistProof | undefined
-): UplcData => {
-  if (!whitelistProofOpt) {
-    // whitelistProof is None
-    return makeConstrData(1, []);
-  }
+const buildWhitelistProofData = (whitelistProof: WhitelistProof): UplcData => {
   // whitelistProof is Some
-  const [whitelist_item, mpt_proof] = whitelistProofOpt;
-  return makeConstrData(0, [
-    makeListData([
-      buildWhitelistedItemData(whitelist_item),
-      buildMPTProofData(mpt_proof),
-    ]),
+  const [whitelist_item, mpt_proof] = whitelistProof;
+  return makeListData([
+    buildWhitelistedItemData(whitelist_item),
+    buildMPTProofData(mpt_proof),
   ]);
 };
 
@@ -94,7 +87,7 @@ const buildProofsData = (proofs: Proofs): UplcData => {
 
   return makeListData([
     buildAssetNameProofsData(assetNameProofs),
-    buildWhitelistProofData(whitelistProofOpt),
+    makeOptionData(whitelistProofOpt, buildWhitelistProofData),
   ]);
 };
 

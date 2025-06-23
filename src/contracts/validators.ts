@@ -116,10 +116,29 @@ const getRefSpendUplcProgram = (): UplcProgramV2 => {
   );
 };
 
+const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {
+  const optimizedFoundValidator = optimizedBlueprint.validators.find(
+    (validator) => validator.title == "royalty_spend.spend"
+  );
+  const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
+    (validator) => validator.title == "royalty_spend.spend"
+  );
+  invariant(
+    !!optimizedFoundValidator && !!unOptimizedFoundValidator,
+    "Ref Spend Validator not found"
+  );
+  return decodeUplcProgramV2FromCbor(
+    optimizedFoundValidator.compiledCode
+  ).withAlt(
+    decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode)
+  );
+};
+
 export {
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
   getMintV1WithdrawUplcProgram,
   getOrdersSpendUplcProgram,
   getRefSpendUplcProgram,
+  getRoyaltySpendUplcProgram,
 };

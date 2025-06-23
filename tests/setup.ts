@@ -169,6 +169,7 @@ const setup = async () => {
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
+    royaltySpend: royaltySpendConfig,
   } = contractsConfig;
 
   // ============ prepare settings data ============
@@ -179,6 +180,8 @@ const setup = async () => {
     payment_address: paymentWallet.address,
     ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
     orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
+    royalty_spend_script_address:
+      royaltySpendConfig.royaltySpendValidatorAddress,
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
@@ -374,7 +377,7 @@ const setup = async () => {
   });
   mockedGetNetwork.mockReturnValue(network);
 
-  const ordersTxInputs: TxInput[] = [];
+  const orderTxInputs: TxInput[] = [];
 
   return {
     network,
@@ -400,7 +403,7 @@ const setup = async () => {
       paymentWallet,
       usersWallets,
     },
-    ordersTxInputs,
+    orderTxInputs,
     normalMintingTime: mintingStartTime + GRACE_PERIOD,
     whitelistMintingTime: whitelistedTime + GRACE_PERIOD,
   };

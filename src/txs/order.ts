@@ -6,6 +6,7 @@ import {
   makePubKeyHash,
   makeValidatorHash,
   makeValue,
+  ShelleyAddress,
   TxInput,
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
@@ -158,6 +159,17 @@ const cancel = async (
     );
   }
 
+  // check all order tx inputs must have same owner_key_hash in datum
+  const orderDatumResult = mayFail(() =>
+    decodeOrderDatumData(orderTxInput.datum, network)
+  );
+  if (!orderDatumResult.ok) {
+    return Err(
+      new Error(`Order Tx Input datum is invalid: ${orderDatumResult.error}`)
+    );
+  }
+  const { owner_key_hash } = orderDatumResult.data;
+
   // start building tx
   const txBuilder = makeTxBuilder({
     isMainnet,
@@ -170,7 +182,7 @@ const cancel = async (
   txBuilder.spendUnsafe(orderTxInput, buildOrdersSpendCancelOrderRedeemer());
 
   // <-- add signer
-  txBuilder.addSigners(address.spendingCredential);
+  txBuilder.addSigners(makePubKeyHash(owner_key_hash));
 
   return Ok(txBuilder);
 };
@@ -179,13 +191,15 @@ const cancel = async (
  * @interface
  * @typedef {object} RefundParams
  * @property {NetworkName} network Network
- * @property {TxInput} orderTxInput Order Tx Input
+ * @property {TxInput} orderTxInput Order Tx Input to refund
+ * @property {ShelleyAddress} refundingAddress Address to refund Order Tx Input
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  */
 interface RefundParams {
   network: NetworkName;
   orderTxInput: TxInput;
+  refundingAddress: ShelleyAddress;
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
 }
@@ -198,8 +212,13 @@ interface RefundParams {
 const refund = async (
   params: RefundParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, orderTxInput, deployedScripts, settingsAssetTxInput } =
-    params;
+  const {
+    network,
+    orderTxInput,
+    refundingAddress,
+    deployedScripts,
+    settingsAssetTxInput,
+  } = params;
   const isMainnet = network == "mainnet";
 
   const { ordersSpendScriptTxInput, ordersSpendScriptDetails } =
@@ -247,6 +266,23 @@ const refund = async (
 
   // <-- spend order tx input
   txBuilder.spendUnsafe(orderTxInput, buildOrdersSpendRefundOrderRedeemer());
+  const decodedOrderDatum = mayFail(() =>
+    decodeOrderDatumData(orderTxInput.datum, network)
+  );
+  if (decodedOrderDatum.ok) {
+    // check refundingAddress has owner_key_hash as payment cred
+    const ownerKeyHash = decodedOrderDatum.data.owner_key_hash;
+    if (
+      refundingAddress.spendingCredential.toHex().toLowerCase() !==
+      ownerKeyHash.toLowerCase()
+    ) {
+      return Err(
+        new Error(
+          `Order Tx Input ${orderTxInput.id.toString()} must be refunded to "${ownerKeyHash}" payment credential`
+        )
+      );
+    }
+  }
 
   // <-- add signer (allowed_minter)
   txBuilder.addSigners(makePubKeyHash(allowed_minter));
@@ -256,22 +292,22 @@ const refund = async (
 
 /**
  * @interface
- * @typedef {object} FetchOrdersTxInputsParams
+ * @typedef {object} FetchOrderTxInputsParams
  * @property {ScriptDetails} ordersSpendScriptDetails Deployed Orders Spend Script Detail
  * @property {string} blockfrostApiKey Blockfrost API Key
  */
-interface FetchOrdersTxInputsParams {
+interface FetchOrderTxInputsParams {
   ordersSpendScriptDetails: ScriptDetails;
   blockfrostApiKey: string;
 }
 
 /**
- * @description Fetch Orders UTxOs
- * @param {FetchOrdersTxInputsParams} params
+ * @description Fetch Order UTxOs
+ * @param {FetchOrderTxInputsParams} params
  * @returns {Promise<Result<TxInput[], Error>>} Transaction Result
  */
-const fetchOrdersTxInputs = async (
-  params: FetchOrdersTxInputsParams
+const fetchOrderTxInputs = async (
+  params: FetchOrderTxInputsParams
 ): Promise<Result<TxInput[], Error>> => {
   const { ordersSpendScriptDetails, blockfrostApiKey } = params;
   const network = getNetwork(blockfrostApiKey);
@@ -434,9 +470,9 @@ const isValidOrderTxInput = async (
 
 export type {
   CancelParams,
-  FetchOrdersTxInputsParams,
+  FetchOrderTxInputsParams,
   IsValidOrderTxInputParams,
   RefundParams,
   RequestParams,
 };
-export { cancel, fetchOrdersTxInputs, isValidOrderTxInput, refund, request };
+export { cancel, fetchOrderTxInputs, isValidOrderTxInput, refund, request };

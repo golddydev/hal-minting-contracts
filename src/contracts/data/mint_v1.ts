@@ -8,4 +8,12 @@ const buildMintV1BurnNFTsRedeemer = (): UplcData => {
   return makeConstrData(1, []);
 };
 
-export { buildMintV1BurnNFTsRedeemer, buildMintV1MintNFTsRedeemer };
+const buildMintV1MintRoyaltyNFTRedeemer = (): UplcData => {
+  return makeConstrData(2, []);
+};
+
+export {
+  buildMintV1BurnNFTsRedeemer,
+  buildMintV1MintNFTsRedeemer,
+  buildMintV1MintRoyaltyNFTRedeemer,
+};

@@ -132,6 +132,7 @@ const buildSettingsDataCbor = () => {
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
+    royaltySpend: royaltySpendConfig,
   } = contractsConfig;
 
   // we already have settings asset using legacy handle.
@@ -142,6 +143,8 @@ const buildSettingsDataCbor = () => {
     payment_address: PAYMENT_ADDRESS,
     ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
     orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
+    royalty_spend_script_address:
+      royaltySpendConfig.royaltySpendValidatorAddress,
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
     ref_spend_admin: REF_SPEND_ADMIN,

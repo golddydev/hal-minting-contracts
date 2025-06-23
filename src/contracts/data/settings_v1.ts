@@ -21,6 +21,7 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     payment_address,
     ref_spend_script_address,
     orders_spend_script_address,
+    royalty_spend_script_address,
     minting_data_script_hash,
     ref_spend_admin,
     max_order_amount,
@@ -34,6 +35,7 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     buildAddressData(payment_address as ShelleyAddress),
     buildAddressData(ref_spend_script_address as ShelleyAddress),
     buildAddressData(orders_spend_script_address as ShelleyAddress),
+    buildAddressData(royalty_spend_script_address as ShelleyAddress),
     makeByteArrayData(minting_data_script_hash),
     makeByteArrayData(ref_spend_admin),
     makeIntData(max_order_amount),
@@ -45,7 +47,7 @@ const decodeSettingsV1Data = (
   data: UplcData,
   network: NetworkName
 ): SettingsV1 => {
-  const settingsV1ConstrData = expectConstrData(data, 0, 10);
+  const settingsV1ConstrData = expectConstrData(data, 0, 11);
 
   const policy_id = expectByteArrayData(
     settingsV1ConstrData.fields[0],
@@ -82,22 +84,28 @@ const decodeSettingsV1Data = (
     network
   );
 
+  // royalty_spend_script_address
+  const royalty_spend_script_address = decodeAddressFromData(
+    settingsV1ConstrData.fields[6],
+    network
+  );
+
   // minting_data_script_hash
   const minting_data_script_hash = expectByteArrayData(
-    settingsV1ConstrData.fields[6],
+    settingsV1ConstrData.fields[7],
     "minting_data_script_hash must be ByteArray"
   ).toHex();
 
   // ref_spend_admin
   const ref_spend_admin = expectByteArrayData(
-    settingsV1ConstrData.fields[7],
+    settingsV1ConstrData.fields[8],
     "ref_spend_admin must be ByteArray"
   ).toHex();
 
   // max_order_amount
   const max_order_amount = Number(
     expectIntData(
-      settingsV1ConstrData.fields[8],
+      settingsV1ConstrData.fields[9],
       "max_order_amount must be Int"
     ).value
   );
@@ -105,7 +113,7 @@ const decodeSettingsV1Data = (
   // minting_start_time
   const minting_start_time = Number(
     expectIntData(
-      settingsV1ConstrData.fields[9],
+      settingsV1ConstrData.fields[10],
       "minting_start_time must be Int"
     ).value
   );
@@ -117,6 +125,7 @@ const decodeSettingsV1Data = (
     payment_address,
     ref_spend_script_address,
     orders_spend_script_address,
+    royalty_spend_script_address,
     minting_data_script_hash,
     ref_spend_admin,
     max_order_amount,

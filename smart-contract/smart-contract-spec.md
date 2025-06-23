@@ -196,121 +196,49 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
   - must not mint any assets
 
-### 3.4 `orders_mint` minting policy
+### 3.4 `orders_spend` spending validator
 
-This is minting policy which mints `Order NFT` which proves that `Order UTxO` is valid.
+This validator manages the lifecycle of order UTxOs, including execution and cancellation. There is no separate minting policy for Order NFTs; instead, order UTxOs are created and managed directly by this spending validator.
 
 #### 3.4.1 Parameter
 
 - _hal_policy_id_: H.A.L. NFT's Minting Policy Id (`mint_proxy` minting policy)
+- _orders_mint_policy_id_: (Legacy, not used) Order NFT's Minting Policy Id
 
 #### 3.4.2 Datum
-
-None (minting policy)
-
-#### 3.4.3 Redeemer
-
-- `MintOrders(List<Address>)`
-
-- `ExecuteOrders`
-
-- `CancelOrder`
-
-#### 3.4.4 Validation
-
-- `MintOrders(destination_address: Address, amount: Int)`: called when a user tries to request order to mint H.A.L. NFTs
-
-  - must attach `Settings` NFT in reference inputs.
-
-  - `own_minting_policy` (policy id of itself) must be same as `orders_mint_policy_id` from `Settings`
-
-  - must be signed by `orders_minter` from `Settings`
-
-    - This will guarantee that white-listed users can mint early and others have to wait till minting opens to every body.
-
-  - `amount` must be positive.
-
-  - `amount` must not exceed `max_order_amount` from `Settings`.
-
-  - must have valid order output. We assume this output is first output in the transaction outputs.
-
-    - Order output address must be `orders_spend_script_address` from `Settings`.
-
-    - Order output datum must be valid `OrderDatum` format.
-
-      - `price` must be same as `hal_nft_price` from `Settings`.
-
-      - `destination_address` must be same as `destination_address` from Redeemer.
-
-      - `amount` must be same as `amount` from Redeemer.
-
-    - must have only one `Order NFT`. (which is minted in the same transaction)
-
-    - must have enough lovelace. (bigger than or equal to `price * amount`)
-
-    - must NOT have `reference_script`.
-
-  - Only one `Order NFT` is minted.
-
-- `BurnOrders`: called when burn Order NFTs (when a user cancels his Order, when burn empty Order NFTs)
-
-  - Must only burn Order NFTs
-
-    - `asset_name` must be `HAL_ORDER`.
-
-    - `quantity` must be negative.
-
-### 3.5 `orders_spend` spending validator
-
-#### 3.5.1 Parameter
-
-- _hal_policy_id_: H.A.L. NFT's Minting Policy Id (`mint_proxy` minting policy)
-
-- _orders_mint_policy_id_: Order NFT's Minting Policy Id (`orders_mint` minting policy)
-
-#### 3.5.2 Datum
 
 `OrderDatum`
 
 - `owner_key_hash`: wallet's public key hash which is used when a user tries to cancel his order
-
 - `price`: H.A.L. NFT's price (`hal_nft_price` from `Settings` at the time a user requests order)
-
 - `destination_address`: Address to send H.A.L. NFT after that is minted.
 
-#### 3.5.3 Redeemer
+#### 3.4.3 Redeemer
 
 - `ExecuteOrders`: called when minting engine tries to mint H.A.L. NFTs spending `Order UTxOs`.
-
   - at least one of H.A.L. NFTs (`hal_nft_policy_id` from Parameter) are minted. Because other contracts (`minting_data`) will do validations.
-
 - `CancelOrder`: called when a user tries to cancel his order and retrieve his lovelace.
-
   - transaction must be signed by `owner_key_hash` in `OrderDatum`
-
   - there must be only one UTxO from this script (`orders_spend` spending validator) in transaction inputs.
-
     > A user can NOT cancel 2 (or more) orders in the same transaction.
 
-  - must burn only one `Order NFT`
+### 3.5 `ref_spend` spending validator
 
-### 3.6 `ref_spend` spending validator
-
-#### 3.6.1 Parameter
+#### 3.5.1 Parameter
 
 None
 
-#### 3.6.2 Datum
+#### 3.5.2 Datum
 
 Anything
 
-#### 3.6.3 Redeemer
+#### 3.5.3 Redeemer
 
 - `Update(AssetName)`
 
 - `Migrate`
 
-#### 3.6.4 Validation
+#### 3.5.4 Validation
 
 - `Update(AssetName)`: called when user tries to update H.A.L. NFT's datum.
 

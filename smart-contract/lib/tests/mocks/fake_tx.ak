@@ -16,7 +16,8 @@ use tests/mocks/fake_constants.{
   min_order_lovelace, mint_governor, mint_version, minting_data_asset_name,
   minting_data_asset_policy_id, minting_data_script_hash, minting_start_time,
   orders_spend_script_address, payment_address, ref_spend_admin,
-  ref_spend_script_address, settings_asset_name, settings_asset_policy_id,
+  ref_spend_script_address, royalty_spend_script_address, settings_asset_name,
+  settings_asset_policy_id,
 }
 
 pub fn make_output(address: Address, v: Value) -> Output {
@@ -70,6 +71,7 @@ pub fn make_settings_reference_input() -> Input {
       payment_address: payment_address(),
       ref_spend_script_address: ref_spend_script_address(),
       orders_spend_script_address: orders_spend_script_address(),
+      royalty_spend_script_address: royalty_spend_script_address(),
       minting_data_script_hash,
       ref_spend_admin,
       max_order_amount,

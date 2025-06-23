@@ -52,7 +52,7 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @typedef {object} PrepareMintParams
  * @property {NetworkName} network Network
  * @property {Address} address Wallet Address to perform mint
- * @property {TxInput[]} ordersTxInputs Orders UTxOs
+ * @property {TxInput[]} orderTxInputs Orders UTxOs
  * @property {HalAssetInfo[]} assetsInfo H.A.L. Assets' Info
  * @property {Trie} db Trie DB
  * @property {Trie} whitelistDB Whitelist DB
@@ -64,7 +64,7 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
 interface PrepareMintParams {
   network: NetworkName;
   address: Address;
-  ordersTxInputs: TxInput[];
+  orderTxInputs: TxInput[];
   assetsInfo: HalAssetInfo[];
   db: Trie;
   whitelistDB: Trie;
@@ -95,7 +95,7 @@ const prepareMintTransaction = async (
   const {
     network,
     address,
-    ordersTxInputs,
+    orderTxInputs,
     assetsInfo: assetsInfoFromParam,
     db,
     whitelistDB,
@@ -109,7 +109,7 @@ const prepareMintTransaction = async (
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
 
-  console.log(`${ordersTxInputs.length} Orders are picked`);
+  console.log(`${orderTxInputs.length} Orders are picked`);
 
   const {
     mintProxyScriptTxInput,
@@ -146,7 +146,7 @@ const prepareMintTransaction = async (
   // aggregate orders information
   const aggregatedOrdersResult = aggregateOrdersInformation({
     network,
-    ordersTxInputs,
+    orderTxInputs,
     halNftPrice: hal_nft_price,
   });
   if (!aggregatedOrdersResult.ok) {
@@ -197,7 +197,7 @@ const prepareMintTransaction = async (
   // prepare H.A.L. NFTs value to mint
   const proofsList: Proofs[] = [];
   const userOutputsData: HalUserOutputData[] = [];
-  const halTokenValue: [ByteArrayLike, IntLike][] = [];
+  const halTokensValue: [ByteArrayLike, IntLike][] = [];
   const referenceOutputs: TxOutput[] = [];
 
   for (const aggregatedOrder of aggregatedOrders) {
@@ -258,7 +258,7 @@ const prepareMintTransaction = async (
       );
 
       // add hal token value to mint
-      halTokenValue.push(
+      halTokensValue.push(
         [refAssetClass.tokenName, 1n],
         [userAssetClass.tokenName, 1n]
       );
@@ -391,7 +391,7 @@ const prepareMintTransaction = async (
   // <-- attach settings asset as reference input
   txBuilder.refer(settingsAssetTxInput);
 
-  // <-- attach deploy scripts
+  // <-- attach deployed scripts
   txBuilder.refer(
     mintProxyScriptTxInput,
     mintV1ScriptTxInput,
@@ -425,12 +425,12 @@ const prepareMintTransaction = async (
   // <-- mint hal nfts
   txBuilder.mintPolicyTokensUnsafe(
     halPolicyHash,
-    halTokenValue,
+    halTokensValue,
     makeVoidData()
   );
 
   // <-- spend order utxos
-  for (const orderTxInput of ordersTxInputs) {
+  for (const orderTxInput of orderTxInputs) {
     txBuilder.spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer);
   }
 
@@ -446,11 +446,11 @@ const prepareMintTransaction = async (
  * @interface
  * @typedef {object} AggregateOrdersInformationParams
  * @property {NetworkName} network Network
- * @property {Order[]} ordersTxInputs Orders UTxOs
+ * @property {Order[]} orderTxInputs Orders UTxOs
  */
 interface AggregateOrdersInformationParams {
   network: NetworkName;
-  ordersTxInputs: TxInput[];
+  orderTxInputs: TxInput[];
   halNftPrice: bigint;
 }
 
@@ -462,16 +462,16 @@ interface AggregateOrdersInformationParams {
 const aggregateOrdersInformation = (
   params: AggregateOrdersInformationParams
 ): Result<Order[], Error> => {
-  const { network, ordersTxInputs, halNftPrice } = params;
+  const { network, orderTxInputs, halNftPrice } = params;
   let aggregatedOrders: Order[] = [];
 
   // refactor Orders Tx Inputs
   // NOTE:
   // sort orderUtxos before process
   // because tx inputs is sorted lexicographically
-  ordersTxInputs.sort((a, b) => (a.id.toString() > b.id.toString() ? 1 : -1));
+  orderTxInputs.sort((a, b) => (a.id.toString() > b.id.toString() ? 1 : -1));
 
-  for (const orderTxInput of ordersTxInputs) {
+  for (const orderTxInput of orderTxInputs) {
     const decodedResult = mayFail(() =>
       decodeOrderDatumData(orderTxInput.datum, network)
     );
