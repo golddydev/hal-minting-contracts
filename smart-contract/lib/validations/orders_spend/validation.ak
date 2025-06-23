@@ -10,6 +10,9 @@ use validations/orders_spend/utils.{
   is_refunded_output_address_valid,
 }
 
+// when refund, we will be tolerant of 2 ada
+const refund_grace_lovelace = 2_000_000
+
 // Validation:
 // When minting engine spends Orders UTxO
 //
@@ -67,14 +70,8 @@ pub fn can_refund_order(
   spending_output_reference: OutputReference,
   output_index: Int,
 ) -> Bool {
-  let Transaction {
-    inputs,
-    reference_inputs,
-    outputs,
-    fee,
-    extra_signatories,
-    ..
-  } = transaction
+  let Transaction { inputs, reference_inputs, outputs, extra_signatories, .. } =
+    transaction
 
   // must attach Setting in reference inputs
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
@@ -97,7 +94,7 @@ pub fn can_refund_order(
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
   let Output { value: own_utxo_value, .. } = own_utxo
   let expected_lovelace =
-    value.lovelace_of(own_utxo_value) - value.lovelace_of(fee)
+    value.lovelace_of(own_utxo_value) - refund_grace_lovelace
   let is_refunded_value_enough =
     value.lovelace_of(refunded_value) >= expected_lovelace
   expect is_refunded_value_enough
