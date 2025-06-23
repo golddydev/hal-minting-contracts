@@ -11,9 +11,9 @@ import {
   TxInput,
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
-import { ROYALTY_ASSET_FULL_NAME } from "constants/index.js";
 import { Err, Ok, Result } from "ts-res";
 
+import { ROYALTY_ASSET_FULL_NAME } from "../constants/index.js";
 import {
   buildMintV1MintRoyaltyNFTRedeemer,
   buildRoyaltyDatumData,
