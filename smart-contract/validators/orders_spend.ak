@@ -7,7 +7,7 @@ use validations/orders_spend/validation.{
 type OrderSpendRedeemer {
   ExecuteOrders
   CancelOrder
-  RefundOrder
+  RefundOrder(Int)
 }
 
 // This is Spending validator
@@ -29,10 +29,14 @@ validator(hal_policy_id: PolicyId, _randomizer: ByteArray) {
 
     when redeemer is {
       ExecuteOrders -> can_execute_orders(transaction, hal_policy_id)
-      CancelOrder ->
-        can_cancel_order(transaction, datum, spending_output_reference)
-      RefundOrder ->
-        can_refund_order(transaction, datum, spending_output_reference)
+      CancelOrder -> can_cancel_order(transaction, datum)
+      RefundOrder(output_index) ->
+        can_refund_order(
+          transaction,
+          datum,
+          spending_output_reference,
+          output_index,
+        )
     }
   }
 }

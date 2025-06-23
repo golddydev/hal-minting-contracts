@@ -1,13 +1,13 @@
 use aiken/list
 use aiken/transaction.{Output, OutputReference, Transaction}
 use aiken/transaction/value.{PolicyId}
-use common/utils.{get_own_script_hash,
-  get_own_utxo, get_own_utxos_count} as common_utils
+use common/utils.{get_own_utxo} as common_utils
 use hal_nft_mint/orders.{OrderDatum}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/orders_spend/utils.{
-  get_owner_key_hash_from_datum, is_refunded_output_address_valid,
+  build_datum_tag, get_owner_key_hash_from_datum,
+  is_refunded_output_address_valid,
 }
 
 // Validation:
@@ -36,14 +36,9 @@ pub fn can_execute_orders(
 //
 // Checks:
 // - must be signed by owner of Order
-// - there must be only one UTxO in transaction inputs from this script
 //
-pub fn can_cancel_order(
-  transaction: Transaction,
-  datum: Data,
-  spending_output_reference: OutputReference,
-) -> Bool {
-  let Transaction { inputs, extra_signatories, .. } = transaction
+pub fn can_cancel_order(transaction: Transaction, datum: Data) -> Bool {
+  let Transaction { extra_signatories, .. } = transaction
 
   // expect OrderDatum
   expect datum: OrderDatum = datum
@@ -51,12 +46,6 @@ pub fn can_cancel_order(
   // must be signed by owner of Order
   let is_owner_signed = list.has(extra_signatories, datum.owner_key_hash)
   expect is_owner_signed
-
-  // there must be only one UTxO in transaction inputs from this script
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let own_script_hash = get_own_script_hash(own_utxo)
-  let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
-  expect own_utxo_count == 1
 
   True
 }
@@ -67,14 +56,16 @@ pub fn can_cancel_order(
 // Checks:
 // - must attach Setting in reference inputs
 // - must be signed by allowed_minter
-// - there must be only one UTxO in transaction inputs from this script
-// - first output must be Refunded to Output with enough lovelace (Own UTxO - Fee)
-// - must be sent to owner_key_hash if datum is valid
+// - output in output_index must be Refunded Output with enough lovelace (Own UTxO - Fee)
+//   must be sent to owner_key_hash if datum is valid
+//   must have datum tag (generated from spending output reference)
+// 
 //
 pub fn can_refund_order(
   transaction: Transaction,
   datum: Data,
   spending_output_reference: OutputReference,
+  output_index: Int,
 ) -> Bool {
   let Transaction {
     inputs,
@@ -93,24 +84,28 @@ pub fn can_refund_order(
   // must be signed by allowed_minter
   expect list.has(extra_signatories, allowed_minter)
 
-  // there must be only one UTxO in transaction inputs from this script
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let own_script_hash = get_own_script_hash(own_utxo)
-  let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
-  expect own_utxo_count == 1
-
-  // first output must be Refunded to Output with enough lovelace (Own UTxO - Fee)
-  expect [refunded_output, ..] = outputs
-  let Output { address: refunded_address, value: refunded_value, .. } =
-    refunded_output
+  // output in output_index must be Refunded Output
+  expect Some(refunded_output) = list.at(outputs, output_index)
+  let Output {
+    address: refunded_address,
+    value: refunded_value,
+    datum: refunded_datum,
+    ..
+  } = refunded_output
 
   // check value
+  let own_utxo = get_own_utxo(inputs, spending_output_reference)
   let Output { value: own_utxo_value, .. } = own_utxo
   let expected_lovelace =
     value.lovelace_of(own_utxo_value) - value.lovelace_of(fee)
   let is_refunded_value_enough =
     value.lovelace_of(refunded_value) >= expected_lovelace
   expect is_refunded_value_enough
+
+  // must have datum tag (generated from spending output reference)
+  let datum_tag = build_datum_tag(spending_output_reference)
+  let has_datum_tag = refunded_datum == datum_tag
+  expect has_datum_tag
 
   // must be sent to owner_key_hash if datum is valid
   let owner_key_hash_opt = get_owner_key_hash_from_datum(datum)
