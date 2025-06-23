@@ -31,7 +31,8 @@ validator(hal_policy_id: PolicyId, _randomizer: ByteArray) {
       ExecuteOrders -> can_execute_orders(transaction, hal_policy_id)
       CancelOrder ->
         can_cancel_order(transaction, datum, spending_output_reference)
-      RefundOrder -> can_refund_order(transaction, spending_output_reference)
+      RefundOrder ->
+        can_refund_order(transaction, datum, spending_output_reference)
     }
   }
 }

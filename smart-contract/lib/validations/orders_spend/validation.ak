@@ -6,6 +6,9 @@ use common/utils.{get_own_script_hash,
 use hal_nft_mint/orders.{OrderDatum}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
+use validations/orders_spend/utils.{
+  get_owner_key_hash_from_datum, is_refunded_output_address_valid,
+}
 
 // Validation:
 // When minting engine spends Orders UTxO
@@ -66,9 +69,11 @@ pub fn can_cancel_order(
 // - must be signed by allowed_minter
 // - there must be only one UTxO in transaction inputs from this script
 // - first output must be Refunded to Output with enough lovelace (Own UTxO - Fee)
+// - must be sent to owner_key_hash if datum is valid
 //
 pub fn can_refund_order(
   transaction: Transaction,
+  datum: Data,
   spending_output_reference: OutputReference,
 ) -> Bool {
   let Transaction {
@@ -96,7 +101,8 @@ pub fn can_refund_order(
 
   // first output must be Refunded to Output with enough lovelace (Own UTxO - Fee)
   expect [refunded_output, ..] = outputs
-  let Output { value: refunded_value, .. } = refunded_output
+  let Output { address: refunded_address, value: refunded_value, .. } =
+    refunded_output
 
   // check value
   let Output { value: own_utxo_value, .. } = own_utxo
@@ -106,5 +112,16 @@ pub fn can_refund_order(
     value.lovelace_of(refunded_value) >= expected_lovelace
   expect is_refunded_value_enough
 
-  True
+  // must be sent to owner_key_hash if datum is valid
+  let owner_key_hash_opt = get_owner_key_hash_from_datum(datum)
+  when owner_key_hash_opt is {
+    Some(owner_key_hash) -> {
+      let is_refunded_address_valid =
+        is_refunded_output_address_valid(refunded_address, owner_key_hash)
+      expect is_refunded_address_valid
+
+      True
+    }
+    None -> True
+  }
 }
