@@ -32,9 +32,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_1 orders 3 new assets
   myTest(
     "user_1 orders 3 new assets",
-    async ({ network, emulator, wallets, ordersTxInputs }) => {
+    async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -67,7 +67,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      ordersTxInputs.push(orderTxInput);
+      orderTxInputs.push(orderTxInput);
     }
   );
 
@@ -79,12 +79,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       whitelistDB,
       network,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       whitelistMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -106,7 +106,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -138,12 +138,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       network,
       emulator,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       normalMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -165,7 +165,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -205,7 +205,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         network,
         emulator,
         settingsV1,
-        ordersTxInputs,
+        orderTxInputs,
         userOutputsData
       );
 
@@ -228,16 +228,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       // empty orders detail
-      ordersTxInputs.length = 0;
+      orderTxInputs.length = 0;
     }
   );
 
   // user_5 orders 5 new assets who is whitelisted
   myTest(
     "user_5 orders 5 new assets who is whitelisted",
-    async ({ network, emulator, wallets, ordersTxInputs }) => {
+    async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -270,7 +270,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      ordersTxInputs.push(orderTxInput);
+      orderTxInputs.push(orderTxInput);
     }
   );
 
@@ -284,12 +284,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       network,
       emulator,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       whitelistMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -313,7 +313,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -353,7 +353,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         network,
         emulator,
         settingsV1,
-        ordersTxInputs,
+        orderTxInputs,
         userOutputsData
       );
 
@@ -376,7 +376,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       // empty orders detail
-      ordersTxInputs.length = 0;
+      orderTxInputs.length = 0;
     }
   );
 
@@ -448,9 +448,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_2 orders 2 new assets 2 times
   myTest(
     "user_2 orders 2 new assets 2 times",
-    async ({ network, emulator, wallets, ordersTxInputs }) => {
+    async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -487,7 +487,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       for (let i = 0; i < 2; i++) {
         const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        ordersTxInputs.push(orderTxInput);
+        orderTxInputs.push(orderTxInput);
       }
     }
   );
@@ -500,12 +500,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       db,
       whitelistDB,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       normalMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -528,7 +528,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -554,9 +554,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // cannot cancel 2 orders in a transaction
   myTest(
     "cannot cancel 2 orders in a transaction",
-    async ({ network, wallets, ordersTxInputs, deployedScripts }) => {
+    async ({ network, wallets, orderTxInputs, deployedScripts }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -566,7 +566,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await cancel({
         network,
         address: user2Wallet.address,
-        orderTxInput: ordersTxInputs[0],
+        orderTxInput: orderTxInputs[0],
         deployedScripts,
       });
       invariant(txBuilderResult.ok, "Cancel Tx Building failed");
@@ -575,7 +575,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       // without burning order token
       const txBuilder = txBuilderResult.data;
       txBuilder.spendUnsafe(
-        ordersTxInputs[1],
+        orderTxInputs[1],
         buildOrdersSpendCancelOrderRedeemer()
       );
 
@@ -592,9 +592,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // cannot refund 2 orders in a transaction
   myTest(
     "cannot refund 2 orders in a transaction",
-    async ({ network, wallets, ordersTxInputs, deployedScripts }) => {
+    async ({ network, wallets, orderTxInputs, deployedScripts }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -607,7 +607,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const txBuilderResult = await refund({
         network,
-        orderTxInput: ordersTxInputs[0],
+        orderTxInput: orderTxInputs[0],
+        refundingAddress: user2Wallet.address,
         deployedScripts,
         settingsAssetTxInput,
       });
@@ -617,7 +618,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       // without burning order token
       const txBuilder = txBuilderResult.data;
       txBuilder.spendUnsafe(
-        ordersTxInputs[1],
+        orderTxInputs[1],
         buildOrdersSpendRefundOrderRedeemer()
       );
 
@@ -627,6 +628,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
         await user2Wallet.utxos
       ).complete();
       invariant(!txResult.ok, "Refund Tx Complete should fail");
+      console.log({
+        error: txResult.error.message,
+      });
       assert(txResult.error.message.includes("expect own_utxo_count == 1"));
     }
   );
@@ -634,21 +638,21 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // can cancel one order
   myTest(
     "can cancel one order",
-    async ({ network, emulator, wallets, ordersTxInputs, deployedScripts }) => {
+    async ({ network, emulator, wallets, orderTxInputs, deployedScripts }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
       const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-      const orderUtxoLovelace = ordersTxInputs[1].value.lovelace;
+      const orderUtxoLovelace = orderTxInputs[1].value.lovelace;
 
       const txBuilderResult = await cancel({
         network,
         address: user2Wallet.address,
-        orderTxInput: ordersTxInputs[1],
+        orderTxInput: orderTxInputs[1],
         deployedScripts,
       });
       invariant(txBuilderResult.ok, "Cancel Tx Building failed");
@@ -675,23 +679,23 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "User 2 Lovelace is not correct"
       );
 
-      ordersTxInputs.splice(1, 1);
+      orderTxInputs.splice(1, 1);
     }
   );
 
   // can refund one order
   myTest(
     "can refund one order",
-    async ({ network, emulator, wallets, ordersTxInputs, deployedScripts }) => {
+    async ({ network, emulator, wallets, orderTxInputs, deployedScripts }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
       const { usersWallets, allowedMinterWallet } = wallets;
       const user2Wallet = usersWallets[1];
       const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-      const orderUtxoLovelace = ordersTxInputs[0].value.lovelace;
+      const orderUtxoLovelace = orderTxInputs[0].value.lovelace;
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
@@ -699,7 +703,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const txBuilderResult = await refund({
         network,
-        orderTxInput: ordersTxInputs[0],
+        orderTxInput: orderTxInputs[0],
+        refundingAddress: user2Wallet.address,
         deployedScripts,
         settingsAssetTxInput,
       });
@@ -728,16 +733,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
         "User 2 Lovelace is not correct"
       );
 
-      ordersTxInputs.splice(0, 1);
+      orderTxInputs.splice(0, 1);
     }
   );
 
   // user_1 orders 3 new assets
   myTest(
     "user_1 orders 3 new assets",
-    async ({ network, emulator, wallets, ordersTxInputs }) => {
+    async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -770,7 +775,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      ordersTxInputs.push(orderTxInput);
+      orderTxInputs.push(orderTxInput);
     }
   );
 
@@ -784,12 +789,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       network,
       emulator,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       normalMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -811,7 +816,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -851,7 +856,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         network,
         emulator,
         settingsV1,
-        ordersTxInputs,
+        orderTxInputs,
         userOutputsData
       );
 
@@ -874,16 +879,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       // empty orders detail
-      ordersTxInputs.length = 0;
+      orderTxInputs.length = 0;
     }
   );
 
   // user_3 orders 5 new assets 3 times
   myTest(
     "user_3 orders 5 new assets 3 times",
-    async ({ network, emulator, wallets, ordersTxInputs }) => {
+    async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -921,7 +926,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       for (let i = 0; i < 3; i++) {
         const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        ordersTxInputs.push(orderTxInput);
+        orderTxInputs.push(orderTxInput);
       }
     }
   );
@@ -936,12 +941,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       network,
       emulator,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       normalMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -965,7 +970,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -1007,7 +1012,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         network,
         emulator,
         settingsV1,
-        ordersTxInputs,
+        orderTxInputs,
         userOutputsData
       );
 
@@ -1030,16 +1035,16 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       // empty orders detail
-      ordersTxInputs.length = 0;
+      orderTxInputs.length = 0;
     }
   );
 
   // user_1, user_2, user_3 order 5 new assets
   myTest(
     "user_1, user_2, user_3 order 5 new assets",
-    async ({ network, emulator, wallets, ordersTxInputs }) => {
+    async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -1079,7 +1084,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       for (let i = 0; i < 3; i++) {
         const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        ordersTxInputs.push(orderTxInput);
+        orderTxInputs.push(orderTxInput);
       }
     }
   );
@@ -1094,12 +1099,12 @@ describe.sequential("Koralab H.A.L Tests", () => {
       network,
       emulator,
       wallets,
-      ordersTxInputs,
+      orderTxInputs,
       deployedScripts,
       normalMintingTime,
     }) => {
       invariant(
-        Array.isArray(ordersTxInputs),
+        Array.isArray(orderTxInputs),
         "Orders tx inputs is not an array"
       );
 
@@ -1123,7 +1128,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilderResult = await prepareMintTransaction({
         network,
         address: allowedMinterWallet.address,
-        ordersTxInputs,
+        orderTxInputs,
         assetsInfo,
         db,
         whitelistDB,
@@ -1165,7 +1170,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         network,
         emulator,
         settingsV1,
-        ordersTxInputs,
+        orderTxInputs,
         userOutputsData
       );
 
@@ -1188,7 +1193,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       // empty orders detail
-      ordersTxInputs.length = 0;
+      orderTxInputs.length = 0;
     }
   );
 });

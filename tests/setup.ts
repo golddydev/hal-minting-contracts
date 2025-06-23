@@ -377,7 +377,7 @@ const setup = async () => {
   });
   mockedGetNetwork.mockReturnValue(network);
 
-  const ordersTxInputs: TxInput[] = [];
+  const orderTxInputs: TxInput[] = [];
 
   return {
     network,
@@ -403,7 +403,7 @@ const setup = async () => {
       paymentWallet,
       usersWallets,
     },
-    ordersTxInputs,
+    orderTxInputs,
     normalMintingTime: mintingStartTime + GRACE_PERIOD,
     whitelistMintingTime: whitelistedTime + GRACE_PERIOD,
   };

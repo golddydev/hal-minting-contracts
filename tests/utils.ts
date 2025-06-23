@@ -172,7 +172,7 @@ const checkMintedAssets = async (
   network: NetworkName,
   emulator: Emulator,
   settingsV1: SettingsV1,
-  ordersTxInputs: TxInput[],
+  orderTxInputs: TxInput[],
   userOutputsData: HalUserOutputData[]
 ) => {
   const { policy_id, ref_spend_script_address } = settingsV1;
@@ -183,7 +183,7 @@ const checkMintedAssets = async (
 
   for (let i = 0; i < userOutputsData.length; i++) {
     const halOutputsData = userOutputsData[i];
-    const decoded = decodeOrderDatumData(ordersTxInputs[i].datum, network);
+    const decoded = decodeOrderDatumData(orderTxInputs[i].datum, network);
     const userBalance = await balanceOfAddress(
       emulator,
       decoded.destination_address
