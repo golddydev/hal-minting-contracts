@@ -1,4 +1,8 @@
-import { makeAssetClass, makeTxOutputId } from "@helios-lang/ledger";
+import {
+  makeAssetClass,
+  makeInlineTxOutputDatum,
+  makeTxOutputId,
+} from "@helios-lang/ledger";
 import { Ok } from "ts-res";
 import { assert, describe } from "vitest";
 
@@ -12,6 +16,7 @@ import {
   fetchSettings,
   HalAssetInfo,
   invariant,
+  makeVoidData,
   mayFailTransaction,
   Order,
   prepareMintTransaction,
@@ -721,8 +726,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
       logMemAndCpu(txResult);
 
       const { tx } = txResult.data;
-      tx.addSignatures(await user2Wallet.signTx(tx));
-      await user2Wallet.submitTx(tx);
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      await allowedMinterWallet.submitTx(tx);
       emulator.tick(200);
 
       const afterUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
@@ -734,6 +739,105 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       orderTxInputs.splice(0, 1);
+    }
+  );
+
+  // user_1 request order with invalid datum
+  myTest(
+    "user_1 request order with invalid datum",
+    async ({ network, emulator, wallets, orderTxInputs }) => {
+      invariant(
+        Array.isArray(orderTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const { usersWallets } = wallets;
+      const user1Wallet = usersWallets[0];
+
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settings } = settingsResult.data;
+
+      // user_1 make Order UTxO with invalid datum
+      const txBuilderResult = await request({
+        network,
+        orders: [[user1Wallet.address, 2]],
+        settings,
+      });
+      invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      // remove correct datum
+      txBuilder.outputs[0].datum = makeInlineTxOutputDatum(makeVoidData());
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        user1Wallet.address,
+        await user1Wallet.utxos
+      ).complete();
+      invariant(txResult.ok, "Order Tx Complete failed");
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await user1Wallet.signTx(tx));
+      const txId = await user1Wallet.submitTx(tx);
+      emulator.tick(200);
+
+      const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
+      orderTxInputs.push(orderTxInput);
+    }
+  );
+
+  // refund order with invalid datum
+  myTest(
+    "refund order with invalid datum",
+    async ({ network, emulator, wallets, orderTxInputs, deployedScripts }) => {
+      invariant(
+        Array.isArray(orderTxInputs),
+        "Orders tx inputs is not an array"
+      );
+
+      const { usersWallets, allowedMinterWallet } = wallets;
+      const user1Wallet = usersWallets[0];
+      const beforeUser1Lovelace = (await balanceOfWallet(user1Wallet)).lovelace;
+      const orderUtxoLovelace = orderTxInputs[0].value.lovelace;
+
+      const settingsResult = await fetchSettings(network);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput } = settingsResult.data;
+
+      const refundingAddress = user1Wallet.address;
+      const txBuilderResult = await refund({
+        network,
+        orderTxInput: orderTxInputs[0],
+        refundingAddress,
+        deployedScripts,
+        settingsAssetTxInput,
+      });
+      invariant(txBuilderResult.ok, "Refund Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        refundingAddress,
+        []
+      ).complete();
+      invariant(txResult.ok, "Refund Tx Complete failed");
+      logMemAndCpu(txResult);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      const afterUser1Lovelace = (await balanceOfWallet(user1Wallet)).lovelace;
+
+      invariant(
+        afterUser1Lovelace - beforeUser1Lovelace >
+          orderUtxoLovelace - 1_000_000n,
+        "User 1 Lovelace is not correct"
+      );
+
+      orderTxInputs.length = 0;
     }
   );
 
