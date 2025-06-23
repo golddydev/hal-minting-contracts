@@ -1,9 +1,6 @@
-use aiken/builtin.{
-  blake2b_256, choose_data, serialise_data, un_b_data, un_constr_data,
-}
+use aiken/builtin.{choose_data, un_b_data, un_constr_data}
 use aiken/bytearray
 use aiken/list
-use aiken/transaction.{Datum, InlineDatum, OutputReference}
 use aiken/transaction/credential.{Address, VerificationKeyCredential}
 
 pub fn is_refunded_output_address_valid(
@@ -15,13 +12,6 @@ pub fn is_refunded_output_address_valid(
     VerificationKeyCredential(vkh) -> vkh == owner_key_hash
     _ -> False
   }
-}
-
-pub fn build_datum_tag(output_ref: OutputReference) -> Datum {
-  output_ref
-    |> serialise_data
-    |> blake2b_256
-    |> InlineDatum
 }
 
 // This function checks if the datum is a valid OrderDatum

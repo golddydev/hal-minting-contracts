@@ -29,7 +29,8 @@ validator(hal_policy_id: PolicyId, _randomizer: ByteArray) {
 
     when redeemer is {
       ExecuteOrders -> can_execute_orders(transaction, hal_policy_id)
-      CancelOrder -> can_cancel_order(transaction, datum)
+      CancelOrder ->
+        can_cancel_order(transaction, datum, spending_output_reference)
       RefundOrder(output_index) ->
         can_refund_order(
           transaction,
