@@ -17,6 +17,13 @@ pub fn is_refunded_output_address_valid(
   }
 }
 
+pub fn build_datum_tag(output_ref: OutputReference) -> Datum {
+  output_ref
+    |> serialise_data
+    |> blake2b_256
+    |> InlineDatum
+}
+
 // This function checks if the datum is a valid OrderDatum
 // and returns owner_key_hash if datum is valid
 //
@@ -63,13 +70,6 @@ pub fn get_owner_key_hash_from_datum(datum: Data) -> Option<ByteArray> {
     }
     False -> None
   }
-}
-
-pub fn build_datum_tag(output_ref: OutputReference) -> Datum {
-  output_ref
-    |> serialise_data
-    |> blake2b_256
-    |> InlineDatum
 }
 
 fn is_constructor(data: Data) -> Bool {
