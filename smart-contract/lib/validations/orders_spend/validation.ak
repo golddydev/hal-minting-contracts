@@ -76,7 +76,6 @@ pub fn can_refund_order(
   transaction: Transaction,
   datum: Data,
   spending_output_reference: OutputReference,
-  output_index: Int,
 ) -> Bool {
   let Transaction {
     inputs,
@@ -95,8 +94,8 @@ pub fn can_refund_order(
   // must be signed by allowed_minter
   expect list.has(extra_signatories, allowed_minter)
 
-  // output in output_index must be Refunded Output
-  expect Some(refunded_output) = list.at(outputs, output_index)
+  // first output must be Refunded Output
+  expect [refunded_output, ..] = outputs
   let Output { address: refunded_address, value: refunded_value, .. } =
     refunded_output
 
