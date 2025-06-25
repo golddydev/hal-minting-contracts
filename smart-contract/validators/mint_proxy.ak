@@ -3,8 +3,8 @@ use common/utils.{is_withdrawal_script_executed}
 use hal_nft_mint/settings.{Settings, find_settings}
 
 // NOTE:
-// This is minting policy for HAL NFT
-// Whose id (policy id) should not change without strong reason
+// This is minting policy for H.A.L. NFT
+// Whose policy id should not change without strong reason
 // All mint logic is in mint_governor
 //
 // ========================= When policy id can change? =========================

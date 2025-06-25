@@ -4,13 +4,17 @@
 
 - H.A.L. minting engine allows users to mint NFT amongst pre-defined 10,000 NFTs. We use [Merkle Patricia Forestry](https://github.com/aiken-lang/merkle-patricia-forestry) to check that no asset which is not pre-defined is minted and no same asset is minted.
 
+- H.A.L. minting engine has whitelisted-users who can access minting earlier than others. We use [Merkle Patricia Forestry](https://github.com/aiken-lang/merkle-patricia-forestry) to guarantee that no one can access minting earlier unless whitelisted.
+
 - H.A.L. minting engine uses batcher to collect orders from users and mint several NFTs in a single transaction. So users won't know anything about NFT's datum when they request an order. Batcher is white-listed wallet (in `Settings`) and it's the only one who can mint NFTs.
+
+- H.A.L. NFTs have royalty enabled following [CIP 102](https://cips.cardano.org/cip/CIP-0102)
 
 ## 2. Specification
 
 ### 2.1 Actors
 
-- User: An entity who wants to mint NFTs. The only thing user has to do is to request an order. (which will creates `Order NFT` and `Order UTxO`)
+- User: An entity who wants to mint NFTs. The only thing user has to do is to request an order. (which will creates an `Order UTxO` with `Order Datum`)
 
 - Batcher: An entity who collects all orders and mint NFTs. He must be white-listed in `Settings`.
 
@@ -26,11 +30,7 @@
 
   - Asset Name: Among pre-defined 10,000 assets names
 
-- Order Token: The token user will get at the time when they request an order. This token proves validity of `Order UTxO` to `Batcher`. This token must be only attached with `Order UTxO` in Orders Spend Script. (this is guaranteed by smart contract)
-
-  - Policy Id: `orders_mint` minting policy
-
-  - Asset Name: `"HAL_ORDER"` (Defined in `hal_nft_mint/orders.ak`)
+- Royalty NFT: Royalty NFT for all H.A.L. NFTs. See [CIP 102](https://cips.cardano.org/cip/CIP-0102)
 
 - Settings NFT: This is Global `Settings` NFT. The global settings is saved in the form of datum attached to this token in `Kora Lab Admin`'s wallet.
 
@@ -38,7 +38,7 @@
 
   - Asset Name: `"hal@handle_settings"` (Defined in `hal_nft_mint/settings.ak`)
 
-- Minting Data NFT: This is NFT which holds Merkle Patricia Forestry's root hash in the form of datum in `minting_data` spending validator. This root hash is updated every time NFT is minted.
+- Minting Data NFT: This is NFT which holds Merkle Patricia Forestry's root hashes in the form of datum in `minting_data` spending validator. This root hash is updated every time NFT is minted.
 
   - Policy Id: `"f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"` Legacy Ada Handle's policy id (Defined in `hal_nft_mint/minting_data.ak`)
 
@@ -46,7 +46,7 @@
 
 ### 2.3 Smart Contracts
 
-H.A.L. minting engine works by the combination of 6 smart contracts.
+H.A.L. minting engine works by the combination of several smart contracts.
 
 - `mint_proxy` minting policy
 
@@ -54,21 +54,23 @@ H.A.L. minting engine works by the combination of 6 smart contracts.
 
 - `minting_data` spending validator
 
-- `orders_mint` minting policy
-
 - `orders_spend` spending validator
 
 - `ref_spend` spending validator
+
+- `royalty_spend` spending validator
 
 ## 3. Smart Contracts Detail
 
 ### 3.1 `mint_proxy` minting policy
 
-This is minting policy which mints H.A.L. assets
+This is minting policy which mints H.A.L. NFTs.
 
 #### 3.1.1 Parameter
 
-- _version_: The minting policy's version. This is used to indicate that the H.A.L. NFT's version. If this version is changed, H.A.L. NFT's policy id will change
+- _version_: The minting policy's version. This is used to indicate that the H.A.L. NFT's version.
+
+  > NOTE: If this version is changed, H.A.L. NFT's policy id will change
 
 #### 3.1.2 Datum
 
@@ -80,21 +82,21 @@ Anything
 
 #### 3.1.4 Validation
 
-- must attach `Settings` NFT in reference inputs
+- must attach `Settings` NFT in reference inputs.
 
 - _version_ in Parameter must be greater than or equal to 0 and must have same value as `Settings.version`.
 
-- validate that `mint_governor` withdrawal validator (`mint_v1` withdrawal validator) is executed
+- validate that `mint_governor` withdrawal validator (`mint_v1` withdrawal validator) is executed.
 
 ### 3.2 `mint_v1` withdrawal validator
 
-This is withdrawal validator which must be executed in order to mint H.A.L. NFT. This is used not to change H.A.L. NFT's policy id whenever we update minting engine's logic.
+This is withdrawal validator which must be executed in order to mint (or burn) H.A.L. NFTs. This is used not to change H.A.L. NFT's policy id whenever we update minting engine's logic.
 
 #### 3.2.1 Parameter
 
 - _minting_data_script_hash_: This is script hash of `minting_data` spending validator.
 
-  > This implies that whenever `minting_data` spending validator is updated, we must update `mint_v1` withdrawal validator also.
+  > NOTE: whenever `minting_data` spending validator is updated, we must update `mint_v1` withdrawal validator also.
 
 #### 3.2.2 Datum
 
@@ -106,9 +108,11 @@ None (withdrawal validator)
 
 - `BurnNFTs`
 
+- `MintRoyaltyNFT`
+
 #### 3.2.4 Validation
 
-- `MintNFTs`: called when minting engine tries to mint H.A.L. NFTs.
+- `MintNFTs`: called when minting engine to mints H.A.L. NFTs.
 
   - must spend `minting_data` UTxO. (with `Minting Data NFT`)
 
@@ -118,9 +122,31 @@ None (withdrawal validator)
 
   - Burning is not supported yet.
 
+- `MintRoyaltyNFT`: called when an admin mints royalty NFT.
+
+  - must attach `Settings` in reference inputs.
+
+  - must be signed by `allowed_minter` from `Settings`.
+
+  - must mint only one Royalty NFT. See [CIP 102](https://cips.cardano.org/cip/CIP-0102)
+
+    - Token Name: "Royalty"
+
+    - Asset Name Label: 500
+
+  - Royalty NFT must be sent to `royalty_spend` spending validator.
+
 ### 3.3 `minting_data` spending validator
 
-This is spending validator where `Minting Data NFT` is saved with `MPF` `root_hash`. (which is holding information of which asset names are minted or not amongst pre-defined ones)
+This is spending validator where `Minting Data NFT` is saved with `MPF` `root_hash` and `Whitelist MPF` `root_hash`.
+
+`MPF` `root_hash` holds the information of 10,000 pre-defined asset names and their minting status. (which one is minted or not)
+
+`Whitelist MPT` `root_hash` holds the information of whitelist users. See [whitelist.ak](https://github.com/koralabs/hal-minting-contracts/blob/master/smart-contract/lib/hal_nft_mint/whitelist.ak)
+
+- `time_gap`: How earlier they can access minting than others.
+
+- `amount`: How many they can mint in whitelist period.
 
 #### 3.3.1 Parameter
 
@@ -128,69 +154,94 @@ This is spending validator where `Minting Data NFT` is saved with `MPF` `root_ha
 
 #### 3.3.2 Datum
 
-Anything (But that is actually `MintingData` type, we use `Data` type just for case when we accidentally send `Minting Data NFT` with invalid datum)
+Anything (But that is actually `MintingData` type, we use `Data` type just for the case when we accidentally send `Minting Data NFT` with invalid datum)
 
 #### 3.3.3 Redeemer
 
-- `Mint(List<Fulfillments>)`
+- `Mint(List<Proofs>)`
 
 - `UpdateMPT`
 
+```rust
+// asset name hex format without asset name label
+// mpt.Proof is inclusion proof of key as asset name, value as ""
+pub type AssetNameProof =
+  (AssetName, mpt.Proof)
+
+// whitelisted item
+// time_gap: Gap between the time of minting and the time of whitelisting
+// amount: Amount of H.A.L. NFTs that address can mint
+//
+pub type WhitelistedItem =
+  (Int, Int)
+
+// whitelist proof
+// mpt.Proof is including proof of key as Address CBOR Hex, value as WhitelistedItem CBOR Hex
+pub type WhitelistProof =
+  (WhitelistedItem, mpt.Proof)
+
+// asset name proofs and whitelist proof (which is optional)
+pub type Proofs =
+  (List<AssetNameProof>, Option<WhitelistProof>)
+```
+
 #### 3.3.4 Validation
 
-- `Mint(List<Fulfillments>)`: called when minting engine tries to mint H.A.L. NFTs.
+- `Mint(List<Proofs>)`: called when minting engine mints H.A.L. NFTs.
 
   - must attach `Settings` NFT in reference inputs.
 
   - must be signed by `allowed_minter` from `Settings`.
 
-  - assume that transaction inputs contains valid Order UTxOs from `orders_spend_script_address`.
+  - spending_input must UTxO with `Minting Data NFT`.
 
-    - every order UTxO must have only one `Order NFT` and must have correct datum which is `OrderDatum` type. (`OrderDatum` contains `destination_address` where H.A.L. NFT will be sent and `price` of H.A.L. NFT.)
+  - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_address`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
 
-  - assume that transaction outputs are ordered like this
+    This will give us the list of `[ Address: Destination of NFTs, amount: amount of NFTs to mint ]`
 
-    - minting_data_output: Output with updated `MPF` `root_hash`.
+  - for each item from `AggregatedOrders`; `destination_address` and `amount`
 
-      - must have correct datum with updated `MPF` `root_hash` which can be calculated using `mpt_proof` from `Fulfillments` in redeemer.
+    - there must be corresponding user output. (with aggregated amount of H.A.L. NFTs)
 
-        - value of key `asset_name` must be empty string `""`.
+      - for H.A.L. tokens, there must be only aggregated amount of User Assets. Asset Names must be same as the ones from `List<AssetNameProof>`.
 
-        - update value to `"minted"`.
+    - must have corresponding `asset_name_proofs` (`List<AssetNameProof>`) to update `MPF` `root_hash`.
 
-      - must have same value as spending UTxO. (which is `minting_data_input`)
+      > This is inclusion Proof of asset hex name (as key). We update value from empty string to `minted`
 
-      > `Fulfillments` in redeemer must be in `REVERSE` order as `Order UTxOs` in transaction inputs
+    - if `whitelist_proof_opt` is `None`, transaction must start after `minting_start_time` from `Settings`.
 
-    - order_nfts_output: Output with collected `Order NFTs` (which will be burnt later)
+    - if not, we update `Whitelist MPF` `root_hash` with given proof.
 
-      - must have `Order NFTs` of `amount` same as Order UTxOs amount
+      > Key is `destination_address` CBOR Hex and value is `whitelisted_item` (`WhitelistedItem`) CBOR Hex.
 
-    - rest_outputs: List of Pair of (`reference output`, `user_output`).
+      - transaction must start after `minting_start_time - time_gap`.
 
-      - `reference_output` address must be `ref_spend_script_address` in smart contract.
+      - `aggregated_amount` must be smaller than or equal to `amount` in `whitelisted_item`.
 
-      - `reference_output` must have reference H.A.L. asset with `asset_name`. (100 asset name label)
+      - we update `amount` in whitelisted_item to amount - `aggregated_amount` (This will update `Whitelist MPF` `root_hash`)
 
-      - `reference_output` must NOT have reference_script.
+  - first output must be `minting_data_output`; Output with `Minting Data NFT`.
 
-      - `user_output` address must be `destination_address`.
+    - must have correct datum with updated `MPF` `root_hash` and `Whitelist MPF` `root_hash` which can be calculated using `mpt.Proof` from `Proofs` in redeemer.
 
-      - `user_output` must have user H.A.L. asset with `asset_name`. (222 asset name label)
+    - must have same value as spending UTxO. (which is `minting_data_input`)
 
-      > The pairs must be in `REVERSE` order as `Order UTxOs` in transaction inputs. (Same order as `Fulfillments`)
+  - must have reference outputs for all `hal_asset_names` (minted in this transaction)
 
-    - payment_output: Last output must be payment output for H.A.L. NFTs minting cost.
+    > `hal_asset_names` can be reduced from `List<AssetNameProofs>` from redeemer. (We make sure that only those assets are minted.)
 
-      - must have more or equal lovelace to H.A.L. NFTs minting cost which is sum of `price` multiplied by `amount` (from `OrderDatum`) of all `Order UTxOs` substracted by min lovelace used for `reference_output` and `user_output` and transaction fee.
+    - each reference output address must be `ref_spend_script_address` from `Settings`.
 
-        > Order UTxO must pay everything.
+    - must have only one Reference H.A.L. Asset.
 
-    - assure that Pair of H.A.L. `reference_asset` and `user_asset` for `Fulfillments` are minted
+    - must NOT have reference script.
 
-    - assure that Order NFTs are burnt (same amount as H.A.L. NFTs. `Ref` and `User` NFTs correspond one Order NFT.)
+  - for minted H.A.L. tokens, they must be only the ones from `List<AssetNameProofs>`.
 
-- `UpdateMPT`: called when `Admin` tries to update `MPF` `root_hash`.
+    > each asset name will have 2 assets. (User Asset, Reference Asset)
+
+- `UpdateMPT`: called When admin updates `MPF` `root_hash` or `Whitelist MPF` `root_hash`.
 
   - transaction must be signed by `admin_verification_key_hash` from Parameter
 
@@ -198,29 +249,65 @@ Anything (But that is actually `MintingData` type, we use `Data` type just for c
 
 ### 3.4 `orders_spend` spending validator
 
-This validator manages the lifecycle of order UTxOs, including execution and cancellation. There is no separate minting policy for Order NFTs; instead, order UTxOs are created and managed directly by this spending validator.
+This validator manages the lifecycle of order UTxOs, including execution and cancellation and refunding of orders. Users will send lovelace with correctly OrderDatum to this spending validator to request H.A.L. NFTs.
 
 #### 3.4.1 Parameter
 
-- _hal_policy_id_: H.A.L. NFT's Minting Policy Id (`mint_proxy` minting policy)
-- _orders_mint_policy_id_: (Legacy, not used) Order NFT's Minting Policy Id
+- _hal_policy_id_: H.A.L. NFT's Minting Policy Id. (`mint_proxy` minting policy)
+- _randomizer_: Randomizer Hex String used to change `orders_spend` spending validator address without changing logic.
 
 #### 3.4.2 Datum
 
-`OrderDatum`
+```rust
+pub type OrderDatum {
+  // the key hash of the wallet that placed the order that is used for cancelling the order
+  owner_key_hash: ByteArray,
+  // address that the asset should be sent to
+  destination_address: Address,
+  // amount of H.A.L. NFTs to mint
+  amount: Int,
+}
+```
 
-- `owner_key_hash`: wallet's public key hash which is used when a user tries to cancel his order
-- `price`: H.A.L. NFT's price (`hal_nft_price` from `Settings` at the time a user requests order)
-- `destination_address`: Address to send H.A.L. NFT after that is minted.
+We accept `Data` as redeemer, because when users send money with invalid Datum, we need to refund that money to users.
 
 #### 3.4.3 Redeemer
 
-- `ExecuteOrders`: called when minting engine tries to mint H.A.L. NFTs spending `Order UTxOs`.
-  - at least one of H.A.L. NFTs (`hal_nft_policy_id` from Parameter) are minted. Because other contracts (`minting_data`) will do validations.
-- `CancelOrder`: called when a user tries to cancel his order and retrieve his lovelace.
-  - transaction must be signed by `owner_key_hash` in `OrderDatum`
-  - there must be only one UTxO from this script (`orders_spend` spending validator) in transaction inputs.
-    > A user can NOT cancel 2 (or more) orders in the same transaction.
+- `ExecuteOrders`
+
+- `CancelOrder`
+
+- `RefundOrder`
+
+#### 3.4.4 Validation
+
+- `ExecuteOrders`: called when minting engine mints H.A.L. NFTs spending `Order UTxOs` from this script.
+
+  - must mint at least one H.A.L. NFT.
+
+    > `mint_v1` withdrawal validator will do all the validations. Since we don't support burning yet, we can simply check minted value has H.A.L. policy id or not.
+
+- `CancelOrder`: called when an user cancels his Order.
+
+  - `datum` must be type of `OrderDatum`.
+
+  - transaction must be signed by `owner_key_hash` from `OrderDatum`.
+
+  - there must be only one UTxO in transaction inputs from this script.
+
+- `Refund Order`: called when admin refunds Order UTxO to user.
+
+  - must attach `Settings` NFT in reference inputs.
+
+  - must be signed by `allowed_minter` from `Settings`.
+
+  - there must be only one UTxO in transaction inputs from this script.
+
+  - first output must be refunded output.
+
+    - output value must be greater than or equal to spending UTxO.
+
+    - must be sent to `owner_key_hash` if datum is typeof `OrderDatum`.
 
 ### 3.5 `ref_spend` spending validator
 
@@ -240,7 +327,7 @@ Anything
 
 #### 3.5.4 Validation
 
-- `Update(AssetName)`: called when user tries to update H.A.L. NFT's datum.
+- `Update(AssetName)`: called when user updates H.A.L. NFT's datum.
 
   - must attach `Settings` NFT in reference inputs.
 
@@ -250,9 +337,9 @@ Anything
 
   - there must be H.A.L. user asset in transaction inputs.
 
-  - there must be only one UTxO spending in inputs from this script.
+  - there must be only one UTxO in transaction inputs from this script.
 
-  - first output must be UTxO with reference asset.
+  - first output must be reference_output.
 
     - must have same value as spending input. (except `lovelace` because that can change)
 
@@ -260,13 +347,89 @@ Anything
 
     - output address must be same as spending input or `ref_spend_script_address` from `Settings`.
 
-- `Migrate`: called when user (or admin) tries to migrate reference asset to latest Ref Spend script.
+- `Migrate`: called when user (or admin) migrates reference asset to latest `ref_spend` spending validator.
 
   - must attach `Settings` NFT in reference inputs.
 
-  - first output must be UTxO with reference asset.
+  - there must be only one UTxO in transaction inputs from this script.
+
+  - first output must be reference_output.
 
     - output address must be same as `ref_spend_script_address` from `Settings`.
+
+    - output datum must be `CIP68Datum` format as `InlineDatum`. See [CIP 68](https://cips.cardano.org/cip/CIP-68)
+
+    - must have same value as spending input.
+
+    - must have same datum as spending input.
+
+    - must NOT have reference_script.
+
+### 3.6 `royalty_spend` spending validator
+
+#### 3.5.1 Parameter
+
+None
+
+#### 3.5.2 Datum
+
+See [CIP 102](https://cips.cardano.org/cip/CIP-0102)
+
+```rust
+pub type RoyaltyDatum {
+  recipients: List<RoyaltyRecipient>,
+  version: Int,
+  extra: Data,
+}
+
+pub type RoyaltyRecipient {
+  address: Address,
+  // percentage (fraction)
+  fee: Int,
+  // fixed (absolute)
+  min_fee: Option<Int>,
+  // fixed (absolute)
+  max_fee: Option<Int>,
+}
+```
+
+We use `Data` because when `Royalty NFT` is sent with invalid datum, we can fix it.
+
+#### 3.5.3 Redeemer
+
+- `Update`
+
+- `Migrate`
+
+#### 3.5.4 Validation
+
+- `Update`: called when admin updates `RoyaltyDatum`.
+
+  - must attach `Settings` NFT in reference inputs.
+
+  - must be signed by `allowed_minter` from `Settings`.
+
+  - spending UTxO must have only one Royalty Token.
+
+  - there must be only one UTxO in transaction inputs from this script.
+
+  - first output must be royalty output.
+
+    - must have same value as spending input. (except `lovelace` because that can change)
+
+    - must NOT have reference_script.
+
+    - output address must be same as spending input or `royalty_spend_script_address` from `Settings`.
+
+- `Migrate`: called when admin migrates Royalty Token to latest `royalty_spend` spending validator.
+
+  - must attach `Settings` NFT in reference inputs.
+
+  - there must be only one UTxO in transaction inputs from this script.
+
+  - first output must be royalty output.
+
+    - output address must be same as `royalty_spend_script_address` from `Settings`.
 
     - must have same value as spending input.
 

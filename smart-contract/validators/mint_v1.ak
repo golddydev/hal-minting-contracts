@@ -9,7 +9,7 @@ type MintV1Redeemer {
 }
 
 // NOTE:
-// Withdrawal validator which holds all minting logic
+// This is withdrawal validator which holds all minting logic
 // This is referred to as `mint_governor` in Settings datum
 //
 // ======= Parameters =======

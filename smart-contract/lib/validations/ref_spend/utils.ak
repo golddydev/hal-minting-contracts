@@ -12,7 +12,7 @@ pub fn does_spend_user_asset(
         fn(input: Input) -> Bool {
           let Input { output: Output { value: v, .. }, .. } = input
           let has_user_asset =
-            ( v |> value.quantity_of(hal_policy_id, user_asset_name) ) > 0
+            ( v |> value.quantity_of(hal_policy_id, user_asset_name) ) == 1
           has_user_asset
         },
       )

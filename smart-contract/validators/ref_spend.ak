@@ -8,7 +8,7 @@ type RefSpendRedeemer {
 }
 
 // This is Spending validator
-// Where H.A.L. reference asset is saved with datum
+// Where H.A.L. reference assets are locked with datum
 //
 validator {
   fn spend(_d: Data, redeemer: RefSpendRedeemer, ctx: ScriptContext) -> Bool {
