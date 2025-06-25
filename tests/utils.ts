@@ -13,6 +13,8 @@ import {
   decodeUplcProgramV2FromCbor,
   makeByteArrayData,
   makeConstrData,
+  makeIntData,
+  makeMapData,
   UplcProgramV2,
 } from "@helios-lang/uplc";
 import colors from "ansi-colors";
@@ -25,6 +27,7 @@ import {
   decodeOrderDatumData,
   HalUserOutputData,
   invariant,
+  makeVoidData,
   SettingsV1,
   TxSuccessResult,
 } from "../src/index.js";
@@ -164,7 +167,13 @@ const logMemAndCpu = async (
 const makeHalAssetDatum = (assetName: string) => {
   const hexName = Buffer.from(assetName).toString("hex");
   return makeInlineTxOutputDatum(
-    makeConstrData(0, [makeByteArrayData(hexName)])
+    makeConstrData(0, [
+      makeMapData([
+        [makeByteArrayData(Buffer.from("name")), makeByteArrayData(hexName)],
+      ]),
+      makeIntData(0),
+      makeVoidData(),
+    ])
   );
 };
 
