@@ -11,7 +11,7 @@ import { NetworkName } from "@helios-lang/tx-utils";
 import {
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
-  getMintV1WithdrawUplcProgram,
+  getMintWithdrawUplcProgram,
   getOrdersSpendUplcProgram,
   getRefSpendUplcProgram,
 } from "./validators.js";
@@ -64,19 +64,17 @@ const buildContracts = (params: BuildContractsParams) => {
     mintingDataValidatorHash
   );
 
-  // "mint_v1.withdraw"
-  const mintV1WithdrawUplcProgram = getMintV1WithdrawUplcProgram(
+  // "mint.withdraw"
+  const mintWithdrawUplcProgram = getMintWithdrawUplcProgram(
     mintingDataValidatorHash.toHex()
   );
-  const mintV1ValidatorHash = makeValidatorHash(
-    mintV1WithdrawUplcProgram.hash()
-  );
-  const mintV1StakingAddress = makeStakingAddress(
+  const mintValidatorHash = makeValidatorHash(mintWithdrawUplcProgram.hash());
+  const mintStakingAddress = makeStakingAddress(
     isMainnet,
-    makeStakingValidatorHash(mintV1WithdrawUplcProgram.hash())
+    makeStakingValidatorHash(mintWithdrawUplcProgram.hash())
   );
-  const mintV1RegistrationDCert = makeRegistrationDCert(
-    mintV1StakingAddress.stakingCredential
+  const mintRegistrationDCert = makeRegistrationDCert(
+    mintStakingAddress.stakingCredential
   );
 
   // "orders.spend"
@@ -119,11 +117,11 @@ const buildContracts = (params: BuildContractsParams) => {
       mintingDataValidatorHash,
       mintingDataValidatorAddress,
     },
-    mintV1: {
-      mintV1WithdrawUplcProgram,
-      mintV1ValidatorHash,
-      mintV1StakingAddress,
-      mintV1RegistrationDCert,
+    mint: {
+      mintWithdrawUplcProgram,
+      mintValidatorHash,
+      mintStakingAddress,
+      mintRegistrationDCert,
     },
     ordersSpend: {
       ordersSpendUplcProgram,

@@ -22,13 +22,13 @@ const makeMintProxyUplcProgramParameterDatum = (
   return makeInlineTxOutputDatum(makeListData([makeIntData(mint_version)]));
 };
 
-const makeMintV1UplcProgramParameter = (
+const makeMintUplcProgramParameter = (
   minting_data_script_hash: string
 ): UplcValue[] => {
   return [makeUplcDataValue(makeByteArrayData(minting_data_script_hash))];
 };
 
-const makeMintV1UplcProgramParameterDatum = (
+const makeMintUplcProgramParameterDatum = (
   minting_data_script_hash: string
 ): InlineTxOutputDatum => {
   return makeInlineTxOutputDatum(
@@ -77,8 +77,8 @@ export {
   makeMintingDataUplcProgramParameterDatum,
   makeMintProxyUplcProgramParameter,
   makeMintProxyUplcProgramParameterDatum,
-  makeMintV1UplcProgramParameter,
-  makeMintV1UplcProgramParameterDatum,
+  makeMintUplcProgramParameter,
+  makeMintUplcProgramParameterDatum,
   makeOrdersSpendUplcProgramParameter,
   makeOrdersSpendUplcProgramParameterDatum,
 };

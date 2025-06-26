@@ -50,7 +50,7 @@ H.A.L. minting engine works by the combination of several smart contracts.
 
 - `mint_proxy` minting policy
 
-- `mint_v1` withdrawal validator
+- `mint` withdrawal validator
 
 - `minting_data` spending validator
 
@@ -86,9 +86,9 @@ Anything
 
 - _version_ in Parameter must be greater than or equal to 0 and must have same value as `Settings.version`.
 
-- validate that `mint_governor` withdrawal validator (`mint_v1` withdrawal validator) is executed.
+- validate that `mint_governor` withdrawal validator (`mint` withdrawal validator) is executed.
 
-### 3.2 `mint_v1` withdrawal validator
+### 3.2 `mint` withdrawal validator
 
 This is withdrawal validator which must be executed in order to mint (or burn) H.A.L. NFTs. This is used not to change H.A.L. NFT's policy id whenever we update minting engine's logic.
 
@@ -96,7 +96,7 @@ This is withdrawal validator which must be executed in order to mint (or burn) H
 
 - _minting_data_script_hash_: This is script hash of `minting_data` spending validator.
 
-  > NOTE: whenever `minting_data` spending validator is updated, we must update `mint_v1` withdrawal validator also.
+  > NOTE: whenever `minting_data` spending validator is updated, we must update `mint` withdrawal validator also.
 
 #### 3.2.2 Datum
 
@@ -285,7 +285,7 @@ We accept `Data` as redeemer, because when users send money with invalid Datum, 
 
   - must mint at least one H.A.L. NFT.
 
-    > `mint_v1` withdrawal validator will do all the validations. Since we don't support burning yet, we can simply check minted value has H.A.L. policy id or not.
+    > `mint` withdrawal validator will do all the validations. Since we don't support burning yet, we can simply check minted value has H.A.L. policy id or not.
 
 - `CancelOrder`: called when an user cancels his Order.
 

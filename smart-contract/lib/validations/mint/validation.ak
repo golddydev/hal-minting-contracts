@@ -6,9 +6,7 @@ use common/hashes.{ScriptHash}
 use hal_nft_mint/minting_data.{find_minting_data}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
-use validations/mint_v1/utils.{
-  check_mint_one_royalty_asset, check_royalty_output,
-}
+use validations/mint/utils.{check_mint_one_royalty_asset, check_royalty_output}
 
 // Validation:
 // Main validation logic for new handles' minting

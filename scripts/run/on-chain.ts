@@ -70,7 +70,7 @@ const doOnChainActions = async (commandImpl: CommandImpl) => {
             // check if staking address is registered or not
             const status = await checkAccountRegistrationStatus(
               blockfrostApi,
-              stakingAddresses.mintV1StakingAddress
+              stakingAddresses.mintStakingAddress
             );
             console.log("\n\n------- Staking Addresses To Register -------\n");
             console.log(stakingAddresses);
@@ -84,7 +84,7 @@ const doOnChainActions = async (commandImpl: CommandImpl) => {
                 NETWORK as NetworkName,
                 makeAddress(address),
                 await blockfrostV0Client.getUtxos(address),
-                stakingAddresses.mintV1StakingAddress
+                stakingAddresses.mintStakingAddress
               );
               await handleTxCbor(txCbor);
             } else {
@@ -128,7 +128,7 @@ const buildSettingsDataCbor = () => {
   });
   const {
     halPolicyHash,
-    mintV1: mintV1Config,
+    mint: mintConfig,
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
@@ -152,7 +152,7 @@ const buildSettingsDataCbor = () => {
     minting_start_time: MINTING_START_TIME,
   };
   const settings: Settings = {
-    mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),
+    mint_governor: mintConfig.mintValidatorHash.toHex(),
     mint_version: MINT_VERSION,
     data: buildSettingsV1Data(settingsV1),
   };
@@ -169,10 +169,10 @@ const getStakingAddresses = () => {
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
   });
-  const { mintV1: mintV1Config } = contractsConfig;
+  const { mint: mintConfig } = contractsConfig;
 
   return {
-    mintV1StakingAddress: mintV1Config.mintV1StakingAddress.toBech32(),
+    mintStakingAddress: mintConfig.mintStakingAddress.toBech32(),
   };
 };
 
@@ -213,9 +213,9 @@ const doDeployActions = async () => {
               );
               console.log("!!! THIS WILL CHANGE POLICY ID !!!");
               console.log("\n");
-            } else if (contract === "mint_v1.withdraw") {
+            } else if (contract === "mint.withdraw") {
               console.log(
-                "\n\n------- After Deploying Mint V1 Withdraw Script -------\n"
+                "\n\n------- After Deploying Mint Withdraw Script -------\n"
               );
               console.log("!!! UPDATE SETTINGS DATUM !!!");
               console.log("\n");

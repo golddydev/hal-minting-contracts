@@ -24,10 +24,11 @@ export const PREFIX_222 = "000de140";
 // Contract names
 export const CONTRACT_NAMES = [
   "mint_proxy.mint",
-  "mint_v1.withdraw",
+  "mint.withdraw",
   "minting_data.spend",
   "orders_spend.spend",
   "ref_spend.spend",
+  "royalty_spend.spend",
 ];
 
 export const LEGACY_POLICY_ID =

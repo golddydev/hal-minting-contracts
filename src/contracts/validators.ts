@@ -6,7 +6,7 @@ import unOptimizedBlueprint from "./unoptimized-blueprint.js";
 import {
   makeMintingDataUplcProgramParameter,
   makeMintProxyUplcProgramParameter,
-  makeMintV1UplcProgramParameter,
+  makeMintUplcProgramParameter,
   makeOrdersSpendUplcProgramParameter,
 } from "./utils.js";
 
@@ -30,24 +30,24 @@ const getMintProxyMintUplcProgram = (mint_version: bigint): UplcProgramV2 => {
     );
 };
 
-const getMintV1WithdrawUplcProgram = (
+const getMintWithdrawUplcProgram = (
   minting_data_script_hash: string
 ): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "mint_v1.withdraw"
+    (validator) => validator.title == "mint.withdraw"
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "mint_v1.withdraw"
+    (validator) => validator.title == "mint.withdraw"
   );
   invariant(
     !!optimizedFoundValidator && unOptimizedFoundValidator,
-    "Mint V1 Withdraw Validator not found"
+    "Mint Withdrawal Validator not found"
   );
   return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
-    .apply(makeMintV1UplcProgramParameter(minting_data_script_hash))
+    .apply(makeMintUplcProgramParameter(minting_data_script_hash))
     .withAlt(
       decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
-        makeMintV1UplcProgramParameter(minting_data_script_hash)
+        makeMintUplcProgramParameter(minting_data_script_hash)
       )
     );
 };
@@ -137,7 +137,7 @@ const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {
 export {
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
-  getMintV1WithdrawUplcProgram,
+  getMintWithdrawUplcProgram,
   getOrdersSpendUplcProgram,
   getRefSpendUplcProgram,
   getRoyaltySpendUplcProgram,

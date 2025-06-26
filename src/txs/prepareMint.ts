@@ -27,7 +27,7 @@ import {
   AssetNameProof,
   buildMintingData,
   buildMintingDataMintRedeemer,
-  buildMintV1MintNFTsRedeemer,
+  buildMintMintNFTsRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeMintingDataDatum,
   decodeOrderDatumData,
@@ -114,8 +114,8 @@ const prepareMintTransaction = async (
   const {
     mintProxyScriptTxInput,
     mintingDataScriptTxInput,
-    mintV1ScriptDetails,
-    mintV1ScriptTxInput,
+    mintScriptDetails,
+    mintScriptTxInput,
     ordersSpendScriptTxInput,
   } = deployedScripts;
 
@@ -371,7 +371,7 @@ const prepareMintTransaction = async (
   const mintingDataValue = makeValue(1n, mintingDataAssetTxInput.value.assets);
 
   // build redeemer for mint v1 `MintNFTs`
-  const mintV1MintNFTsRedeemer = buildMintV1MintNFTsRedeemer();
+  const mintMintNFTsRedeemer = buildMintMintNFTsRedeemer();
 
   // build redeemer for minting data `Mint(proofsList)`
   const mintingDataMintRedeemer = buildMintingDataMintRedeemer(proofsList);
@@ -394,19 +394,19 @@ const prepareMintTransaction = async (
   // <-- attach deployed scripts
   txBuilder.refer(
     mintProxyScriptTxInput,
-    mintV1ScriptTxInput,
+    mintScriptTxInput,
     mintingDataScriptTxInput,
     ordersSpendScriptTxInput
   );
 
-  // <-- withdraw from mint v1 withdrawal validator (script from reference input)
+  // <-- withdraw from mint withdrawal validator (script from reference input)
   txBuilder.withdrawUnsafe(
     makeStakingAddress(
       isMainnet,
-      makeStakingValidatorHash(mintV1ScriptDetails.validatorHash)
+      makeStakingValidatorHash(mintScriptDetails.validatorHash)
     ),
     0n,
-    mintV1MintNFTsRedeemer
+    mintMintNFTsRedeemer
   );
 
   // <-- start from minting time

@@ -1,6 +1,6 @@
 use aiken/transaction.{ScriptContext, WithdrawFrom}
 use common/hashes.{ScriptHash}
-use validations/mint_v1/validation.{can_mint_nfts, can_mint_royalty_nft}
+use validations/mint/validation.{can_mint_nfts, can_mint_royalty_nft}
 
 type MintRedeemer {
   MintNFTs

@@ -165,7 +165,7 @@ const setup = async () => {
   const {
     halPolicyHash,
     mintProxy: mintProxyConfig,
-    mintV1: mintV1Config,
+    mint: mintConfig,
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
     refSpend: refSpendConfig,
@@ -189,7 +189,7 @@ const setup = async () => {
     minting_start_time: mintingStartTime,
   };
   const settings: Settings = {
-    mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),
+    mint_governor: mintConfig.mintValidatorHash.toHex(),
     mint_version: mintVersion,
     data: buildSettingsV1Data(settingsV1),
   };
@@ -257,11 +257,11 @@ const setup = async () => {
       mintProxyConfig.mintProxyMintUplcProgram
     )
   );
-  const [mintV1ScriptDetails, mintV1ScriptTxInput] = await deployScript(
+  const [mintScriptDetails, mintScriptTxInput] = await deployScript(
     ScriptType.HAL_MINT,
     emulator,
     fundWallet,
-    ...extractScriptCborsFromUplcProgram(mintV1Config.mintV1WithdrawUplcProgram)
+    ...extractScriptCborsFromUplcProgram(mintConfig.mintWithdrawUplcProgram)
   );
   const [mintingDataScriptDetails, mintingDataScriptTxInput] =
     await deployScript(
@@ -303,8 +303,8 @@ const setup = async () => {
   const deployedScripts: DeployedScripts = {
     mintProxyScriptDetails,
     mintProxyScriptTxInput,
-    mintV1ScriptDetails,
-    mintV1ScriptTxInput,
+    mintScriptDetails,
+    mintScriptTxInput,
     mintingDataScriptDetails,
     mintingDataScriptTxInput,
     ordersSpendScriptDetails,
