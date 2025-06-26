@@ -2,7 +2,7 @@ use aiken/transaction.{ScriptContext, WithdrawFrom}
 use common/hashes.{ScriptHash}
 use validations/mint_v1/validation.{can_mint_nfts, can_mint_royalty_nft}
 
-type MintV1Redeemer {
+type MintRedeemer {
   MintNFTs
   BurnNFTs
   MintRoyaltyNFT
@@ -17,7 +17,7 @@ type MintV1Redeemer {
 // which is referred from SettingsV1
 //
 validator(minting_data_script_hash: ScriptHash) {
-  fn withdraw(redeemer: MintV1Redeemer, ctx: ScriptContext) -> Bool {
+  fn withdraw(redeemer: MintRedeemer, ctx: ScriptContext) -> Bool {
     let ScriptContext { purpose, transaction } = ctx
     expect WithdrawFrom(_) = purpose
 
