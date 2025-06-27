@@ -8,7 +8,7 @@ use validations/ref_spend/validation.{can_update}
 // This is referred to as `ref_spend_governor` in SettingsV1 datum
 //
 validator(ref_spend_admin: VerificationKeyHash) {
-  fn spend(asset_name: AssetName, ctx: ScriptContext) -> Bool {
+  fn withdraw(asset_name: AssetName, ctx: ScriptContext) -> Bool {
     let ScriptContext(transaction, purpose) = ctx
     expect WithdrawFrom(_) = purpose
 

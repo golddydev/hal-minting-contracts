@@ -19,11 +19,11 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     allowed_minter,
     hal_nft_price,
     payment_address,
-    ref_spend_script_address,
-    orders_spend_script_address,
-    royalty_spend_script_address,
+    ref_spend_proxy_script_hash,
+    ref_spend_governor,
+    orders_spend_script_hash,
+    royalty_spend_script_hash,
     minting_data_script_hash,
-    ref_spend_admin,
     max_order_amount,
     minting_start_time,
   } = settings;
@@ -33,11 +33,11 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     makeByteArrayData(allowed_minter),
     makeIntData(hal_nft_price),
     buildAddressData(payment_address as ShelleyAddress),
-    buildAddressData(ref_spend_script_address as ShelleyAddress),
-    buildAddressData(orders_spend_script_address as ShelleyAddress),
-    buildAddressData(royalty_spend_script_address as ShelleyAddress),
+    makeByteArrayData(ref_spend_proxy_script_hash),
+    makeByteArrayData(ref_spend_governor),
+    makeByteArrayData(orders_spend_script_hash),
+    makeByteArrayData(royalty_spend_script_hash),
     makeByteArrayData(minting_data_script_hash),
-    makeByteArrayData(ref_spend_admin),
     makeIntData(max_order_amount),
     makeIntData(minting_start_time),
   ]);
@@ -49,12 +49,13 @@ const decodeSettingsV1Data = (
 ): SettingsV1 => {
   const settingsV1ConstrData = expectConstrData(data, 0, 11);
 
+  // policy_id
   const policy_id = expectByteArrayData(
     settingsV1ConstrData.fields[0],
     "policy_id must be ByteArray"
   ).toHex();
 
-  // allowed_minters
+  // allowed_minter
   const allowed_minter = expectByteArrayData(
     settingsV1ConstrData.fields[1],
     "allowed_minter must be ByteArray"
@@ -72,34 +73,34 @@ const decodeSettingsV1Data = (
     network
   );
 
-  // ref_spend_script_address
-  const ref_spend_script_address = decodeAddressFromData(
+  // ref_spend_proxy_script_hash
+  const ref_spend_proxy_script_hash = expectByteArrayData(
     settingsV1ConstrData.fields[4],
-    network
-  );
+    "ref_spend_proxy_script_hash must be ByteArray"
+  ).toHex();
 
-  // orders_spend_script_address
-  const orders_spend_script_address = decodeAddressFromData(
+  // ref_spend_governor
+  const ref_spend_governor = expectByteArrayData(
     settingsV1ConstrData.fields[5],
-    network
-  );
+    "ref_spend_governor must be ByteArray"
+  ).toHex();
 
-  // royalty_spend_script_address
-  const royalty_spend_script_address = decodeAddressFromData(
+  // orders_spend_script_hash
+  const orders_spend_script_hash = expectByteArrayData(
     settingsV1ConstrData.fields[6],
-    network
-  );
+    "orders_spend_script_hash must be ByteArray"
+  ).toHex();
+
+  // royalty_spend_script_hash
+  const royalty_spend_script_hash = expectByteArrayData(
+    settingsV1ConstrData.fields[7],
+    "royalty_spend_script_hash must be ByteArray"
+  ).toHex();
 
   // minting_data_script_hash
   const minting_data_script_hash = expectByteArrayData(
-    settingsV1ConstrData.fields[7],
-    "minting_data_script_hash must be ByteArray"
-  ).toHex();
-
-  // ref_spend_admin
-  const ref_spend_admin = expectByteArrayData(
     settingsV1ConstrData.fields[8],
-    "ref_spend_admin must be ByteArray"
+    "minting_data_script_hash must be ByteArray"
   ).toHex();
 
   // max_order_amount
@@ -123,11 +124,11 @@ const decodeSettingsV1Data = (
     allowed_minter,
     hal_nft_price,
     payment_address,
-    ref_spend_script_address,
-    orders_spend_script_address,
-    royalty_spend_script_address,
+    ref_spend_proxy_script_hash,
+    ref_spend_governor,
+    orders_spend_script_hash,
+    royalty_spend_script_hash,
     minting_data_script_hash,
-    ref_spend_admin,
     max_order_amount,
     minting_start_time,
   };
