@@ -10,13 +10,17 @@ pub type SettingsV1 {
   hal_nft_price: Int,
   // address to collect HAL NFT's cost
   payment_address: Address,
-  // ref_spend Spending validator address
-  // ref asset is sent to this address
-  ref_spend_script_address: Address,
-  // user makes an order (as UTxO) to this address
-  orders_spend_script_address: Address,
-  // royalty spend script address
-  royalty_spend_script_address: Address,
+  // ref_spend_proxy Spending validator hash
+  // ref asset is sent to this script
+  ref_spend_proxy_script_hash: ScriptHash,
+  // ref_spend withdrawal validator hash
+  // this is ref_spend_proxy governor
+  ref_spend_governor: ScriptHash,
+  // user makes an order (as UTxO) to this script
+  orders_spend_script_hash: ScriptHash,
+  // royalty spend script hash
+  // Royalty NFT is sent to this script
+  royalty_spend_script_hash: ScriptHash,
   // minting data script is used to check
   // all minting handles logic (for both new and legacy)
   // minting_data_asset is locked inside that script

@@ -1,24 +1,16 @@
-use aiken/transaction.{ScriptContext, Spend}
+use aiken/transaction.{ScriptContext, WithdrawFrom}
 use aiken/transaction/value.{AssetName}
-use validations/ref_spend/validation.{can_migrate, can_update}
+use validations/ref_spend/validation.{can_update}
 
-type RefSpendRedeemer {
-  Update(AssetName)
-  Migrate
-}
-
-// This is Spending validator
-// Where H.A.L. reference assets are locked with datum
+// NOTE:
+// This is Withdrawal validator which holds all `ref_spend` logic
+// This is referred to as `ref_spend_governor` in SettingsV1 datum
 //
 validator {
-  fn spend(_d: Data, redeemer: RefSpendRedeemer, ctx: ScriptContext) -> Bool {
+  fn spend(_redeemer: Data, ctx: ScriptContext) -> Bool {
     let ScriptContext(transaction, purpose) = ctx
-    expect Spend(spending_output_reference) = purpose
+    expect WithdrawFrom(_) = purpose
 
-    when redeemer is {
-      Update(asset_name) ->
-        can_update(transaction, spending_output_reference, asset_name)
-      Migrate -> can_migrate(transaction, spending_output_reference)
-    }
+    can_update(transaction)
   }
 }

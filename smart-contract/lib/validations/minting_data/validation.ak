@@ -21,7 +21,7 @@ use validations/minting_data/utils.{
 // - must attach `Settings` NFT in reference inputs.
 // - must be signed by `allowed_minter` from `Settings`.
 // - spending_input must UTxO with `Minting Data NFT`.
-// - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_address`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
+// - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_hash`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
 // - for each item from `AggregatedOrders`; `destination_address` and `amount`
 //   there must be corresponding user output. (with aggregated amount of H.A.L. NFTs)
 //   must have corresponding `asset_name_proofs` (`List<AssetNameProof>`) to update `MPF` `root_hash`.
@@ -47,15 +47,15 @@ pub fn can_mint(
     ..
   } = transaction
 
-  // must attach Setting in reference inputs
+  // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
   let SettingsV1 {
     policy_id,
     allowed_minter,
     hal_nft_price,
-    ref_spend_script_address,
-    orders_spend_script_address,
+    ref_spend_proxy_script_hash,
+    orders_spend_script_hash,
     minting_start_time,
     ..
   } = settings_datum
@@ -78,7 +78,7 @@ pub fn can_mint(
     aggregate_orders_information(
       inputs,
       [],
-      orders_spend_script_address,
+      orders_spend_script_hash,
       hal_nft_price,
     )
   let aggregated_orders_count = list.length(aggregated_orders)
@@ -129,7 +129,7 @@ pub fn can_mint(
     check_ref_outputs(
       hal_asset_names,
       rest_outputs,
-      ref_spend_script_address,
+      ref_spend_proxy_script_hash,
       policy_id,
     )
   expect are_ref_outputs_valid

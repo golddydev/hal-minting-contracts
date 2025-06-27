@@ -1,6 +1,7 @@
 use aiken/transaction.{InlineDatum, Output}
-use aiken/transaction/credential.{Address}
+use aiken/transaction/credential
 use aiken/transaction/value.{PolicyId, Value}
+use common/hashes.{ScriptHash}
 use common/royalty.{RoyaltyDatum, royalty_asset_full_name}
 
 pub fn check_mint_one_royalty_asset(
@@ -23,7 +24,7 @@ pub fn check_mint_one_royalty_asset(
 pub fn check_royalty_output(
   royalty_output: Output,
   hal_policy_id: PolicyId,
-  royalty_spend_script_address: Address,
+  royalty_spend_script_hash: ScriptHash,
 ) -> Bool {
   let Output {
     address: royalty_output_address,
@@ -33,7 +34,9 @@ pub fn check_royalty_output(
   } = royalty_output
 
   // check address
-  expect royalty_output_address == royalty_spend_script_address
+  let is_royalty_output_address_valid =
+    royalty_output_address == credential.from_script(royalty_spend_script_hash)
+  expect is_royalty_output_address_valid
 
   // check value
   let expected_royalty_output_value =

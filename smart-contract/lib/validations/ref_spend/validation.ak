@@ -2,6 +2,7 @@ use aiken/bytearray
 use aiken/dict
 use aiken/list
 use aiken/transaction.{InlineDatum, Output, OutputReference, Transaction}
+use aiken/transaction/credential
 use aiken/transaction/value.{AssetName}
 use common/cip68.{CIP68Datum, prefix_100, prefix_222}
 use common/utils.{get_own_script_hash,
@@ -21,133 +22,6 @@ use validations/ref_spend/utils.{does_spend_user_asset}
 // - there must be only one UTxO in transaction inputs from this script.
 // - first output must be reference output.
 //
-pub fn can_update(
-  transaction: Transaction,
-  spending_output_reference: OutputReference,
-  asset_name: AssetName,
-) -> Bool {
-  let Transaction { inputs, outputs, reference_inputs, extra_signatories, .. } =
-    transaction
-
-  // must attach `Settings` NFT in reference inputs.
-  let Settings { data: settings_data, .. } = find_settings(reference_inputs)
-  expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 {
-    policy_id: hal_policy_id,
-    ref_spend_script_address,
-    ref_spend_admin,
-    ..
-  } = settings_datum
-
-  // must be signed by `ref_spend_admin` from `Settings`.
-  let is_signed_by_ref_spend_admin =
-    list.has(extra_signatories, ref_spend_admin)
-  expect is_signed_by_ref_spend_admin
-
-  // make ref asset name and user asset name from asset_name
-  let ref_asset_name = bytearray.concat(prefix_100, asset_name)
-  let user_asset_name = bytearray.concat(prefix_222, asset_name)
-
-  // spending UTxO must have only one reference asset with `asset_name` from redeemer.
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let Output { address: own_utxo_address, value: own_utxo_value, .. } = own_utxo
-  let hal_tokens =
-    own_utxo_value |> value.tokens(hal_policy_id) |> dict.to_pairs
-  let has_only_one_ref_asset = hal_tokens == [Pair(ref_asset_name, 1)]
-  expect has_only_one_ref_asset
-
-  // there must be H.A.L. user asset in transaction inputs.
-  let is_spending_user_asset =
-    does_spend_user_asset(inputs, hal_policy_id, user_asset_name)
-  expect is_spending_user_asset
-
-  // there must be only one UTxO in transaction inputs from this script.
-  let own_script_hash = get_own_script_hash(own_utxo)
-  let own_utxos_count = get_own_utxos_count(inputs, own_script_hash)
-  expect own_utxos_count == 1
-
-  // first output must be reference output.
-  expect [reference_output, ..] = outputs
-  let Output {
-    address: output_address,
-    datum: output_datum,
-    value: output_value,
-    reference_script: output_reference_script,
-  } = reference_output
-
-  // reference output address must stay same or be ref_spend_script_address
-  let is_output_address_valid = or {
-      output_address == own_utxo_address,
-      output_address == ref_spend_script_address,
-    }
-  expect is_output_address_valid
-
-  // datum must be CIP68Datum (as inline datum)
-  expect InlineDatum(output_datum) = output_datum
-  expect _output_datum: CIP68Datum = output_datum
-
-  // must not spend any asset
-  let value_stay_same =
-    value.without_lovelace(output_value) == value.without_lovelace(
-      own_utxo_value,
-    )
-  expect value_stay_same
-
-  // reference script must be none
-  expect output_reference_script == None
-
-  True
-}
-
-// Validation:
-// When user (or admin) migrates reference asset to latest `ref_spend` spending validator.
-//
-// Checks:
-// - must attach `Settings` NFT in reference inputs.
-// - first output must be reference_output.
-// - there must be only one UTxO in transaction inputs from this script.
-//
-pub fn can_migrate(
-  transaction: Transaction,
-  spending_output_reference: OutputReference,
-) -> Bool {
-  let Transaction { inputs, outputs, reference_inputs, .. } = transaction
-
-  // must attach `Settings` NFT in reference inputs.
-  let Settings { data: settings_data, .. } = find_settings(reference_inputs)
-  expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { ref_spend_script_address, .. } = settings_datum
-
-  // there must be only one UTxO in transaction inputs from this script.
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let own_script_hash = get_own_script_hash(own_utxo)
-  let own_utxos_count = get_own_utxos_count(inputs, own_script_hash)
-  expect own_utxos_count == 1
-
-  // first output must be reference_output.
-  expect [reference_output, ..] = outputs
-  let Output {
-    address: output_address,
-    value: output_value,
-    datum: output_datum,
-    reference_script: output_reference_script,
-  } = reference_output
-  let Output { value: own_utxo_value, datum: own_utxo_datum, .. } = own_utxo
-
-  // output address must be ref_spend_script_address
-  let is_output_address_valid = output_address == ref_spend_script_address
-  expect is_output_address_valid
-
-  // value must stay same
-  let value_stay_same = output_value == own_utxo_value
-  expect value_stay_same
-
-  // datum must stay same
-  let is_datum_stay_same = output_datum == own_utxo_datum
-  expect is_datum_stay_same
-
-  // reference script must be none
-  expect output_reference_script == None
-
-  True
+pub fn can_update(transaction: Transaction) -> Bool {
+  todo
 }

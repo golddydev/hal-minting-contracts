@@ -1,6 +1,7 @@
 use aiken/dict
 use aiken/list
 use aiken/transaction.{InlineDatum, Output, OutputReference, Transaction}
+use aiken/transaction/credential
 use aiken/transaction/value
 use common/royalty.{RoyaltyDatum, royalty_asset_full_name}
 use common/utils.{get_own_script_hash, get_own_utxo, get_own_utxos_count}
@@ -30,7 +31,7 @@ pub fn can_update(
   let SettingsV1 {
     policy_id: hal_policy_id,
     allowed_minter,
-    royalty_spend_script_address,
+    royalty_spend_script_hash,
     ..
   } = settings_datum
 
@@ -61,12 +62,12 @@ pub fn can_update(
     reference_script: output_reference_script,
   } = royalty_output
 
-  // royalty output address must stay same or be royalty_spend_script_address
-  let is_output_address_valid = or {
+  // royalty output address must stay same or be royalty_spend_script_hash
+  let is_royalty_output_address_valid = or {
       output_address == own_utxo_address,
-      output_address == royalty_spend_script_address,
+      output_address == credential.from_script(royalty_spend_script_hash),
     }
-  expect is_output_address_valid
+  expect is_royalty_output_address_valid
 
   // datum must be RoyaltyDatum (as inline datum)
   expect InlineDatum(output_datum) = output_datum
@@ -102,7 +103,7 @@ pub fn can_migrate(
   // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { royalty_spend_script_address, .. } = settings_datum
+  let SettingsV1 { royalty_spend_script_hash, .. } = settings_datum
 
   // there must be only one UTxO in transaction inputs from this script.
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
@@ -120,9 +121,10 @@ pub fn can_migrate(
   } = royalty_output
   let Output { value: own_utxo_value, datum: own_utxo_datum, .. } = own_utxo
 
-  // output address must be royalty_spend_script_address
-  let is_output_address_valid = output_address == royalty_spend_script_address
-  expect is_output_address_valid
+  // output address must be royalty_spend_script_hash
+  let is_royalty_output_address_valid =
+    output_address == credential.from_script(royalty_spend_script_hash)
+  expect is_royalty_output_address_valid
 
   // value must stay same
   let value_stay_same = output_value == own_utxo_value

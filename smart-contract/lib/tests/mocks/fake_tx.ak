@@ -15,8 +15,8 @@ use tests/mocks/fake_constants.{
   allowed_minter, hal_nft_policy_id, hal_nft_price, max_order_amount,
   min_order_lovelace, mint_governor, mint_version, minting_data_asset_name,
   minting_data_asset_policy_id, minting_data_script_hash, minting_start_time,
-  orders_spend_script_address, payment_address, ref_spend_admin,
-  ref_spend_script_address, royalty_spend_script_address, settings_asset_name,
+  orders_spend_script_hash, payment_address, ref_spend_admin, ref_spend_governor,
+  ref_spend_proxy_script_hash, royalty_spend_script_hash, settings_asset_name,
   settings_asset_policy_id,
 }
 
@@ -49,7 +49,7 @@ pub fn make_order_input(
       output_index: 0,
     },
     output: Output {
-      address: orders_spend_script_address(),
+      address: credential.from_script(orders_spend_script_hash),
       value: value.from_lovelace(min_order_lovelace),
       datum: InlineDatum(order),
       reference_script: None,
@@ -69,9 +69,10 @@ pub fn make_settings_reference_input() -> Input {
       allowed_minter,
       hal_nft_price,
       payment_address: payment_address(),
-      ref_spend_script_address: ref_spend_script_address(),
-      orders_spend_script_address: orders_spend_script_address(),
-      royalty_spend_script_address: royalty_spend_script_address(),
+      ref_spend_proxy_script_hash,
+      ref_spend_governor,
+      orders_spend_script_hash,
+      royalty_spend_script_hash,
       minting_data_script_hash,
       ref_spend_admin,
       max_order_amount,

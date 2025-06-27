@@ -56,7 +56,9 @@ H.A.L. minting engine works by the combination of several smart contracts.
 
 - `orders_spend` spending validator
 
-- `ref_spend` spending validator
+- `ref_spend_proxy` spending validator
+
+- `ref_spend` withdrawal validator
 
 - `royalty_spend` spending validator
 
@@ -195,7 +197,7 @@ pub type Proofs =
 
   - spending_input must UTxO with `Minting Data NFT`.
 
-  - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_address`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
+  - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_hash`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
 
     This will give us the list of `[ Address: Destination of NFTs, amount: amount of NFTs to mint ]`
 
@@ -231,7 +233,7 @@ pub type Proofs =
 
     > `hal_asset_names` can be reduced from `List<AssetNameProofs>` from redeemer. (We make sure that only those assets are minted.)
 
-    - each reference output address must be `ref_spend_script_address` from `Settings`.
+    - each reference output address must be `ref_spend_proxy_script_hash from `Settings`.
 
     - must have only one Reference H.A.L. Asset.
 
@@ -309,7 +311,9 @@ We accept `Data` as redeemer, because when users send money with invalid Datum, 
 
     - must be sent to `owner_key_hash` if datum is typeof `OrderDatum`.
 
-### 3.5 `ref_spend` spending validator
+### 3.5 `ref_spend_proxy` spending validator
+
+This validator manages H.A.L. Reference NFTs with their datums.
 
 #### 3.5.1 Parameter
 
@@ -321,31 +325,53 @@ Anything
 
 #### 3.5.3 Redeemer
 
-- `Update(AssetName)`
-
-- `Migrate`
+Anything
 
 #### 3.5.4 Validation
 
-- `Update(AssetName)`: called when user updates H.A.L. NFT's datum.
+- must attach `Settings` NFT in reference inputs.
 
-  - must attach `Settings` NFT in reference inputs.
+- validate that `ref_spend_governor` withdrawal validator (`ref_spend` withdrawal validator) is executed.
 
-  - must be signed by `ref_spend_admin` from `Settings`.
+### 3.6 `ref_spend` withdrawal validator
 
-  - spending UTxO must have only one reference asset with `asset_name` from redeemer.
+This is withdrawal validator which governs `ref_spend_proxy` spending validator. This is used not to change `ref_spend_proxy` script address whenever we update `ref_spend` logic.
 
-  - there must be H.A.L. user asset in transaction inputs.
+#### 3.6.1 Parameter
 
-  - there must be only one UTxO in transaction inputs from this script.
+None
 
-  - first output must be reference_output.
+#### 3.6.2 Datum
 
-    - must have same value as spending input. (except `lovelace` because that can change)
+None (withdrawal validator)
 
-    - must NOT have reference_script.
+#### 3.6.3 Redeemer
 
-    - output address must be same as spending input or `ref_spend_script_address` from `Settings`.
+Anything
+
+#### 3.6.4 Validation
+
+- must attach `Settings` NFT in reference inputs.
+
+- there must be only one transaction input which has only one H.A.L. Reference Asset.
+
+- there must be only one transaction output which has only one H.A.L. Reference Asset.
+
+- must be signed by `ref_spend_admin` from `Settings`.
+
+- spending UTxO must have only one reference asset with `asset_name` from redeemer.
+
+- there must be H.A.L. user asset in transaction inputs.
+
+- there must be only one UTxO in transaction inputs from this script.
+
+- first output must be reference_output.
+
+  - must have same value as spending input. (except `lovelace` because that can change)
+
+  - must NOT have reference_script.
+
+  - output address must be same as spending input or `ref_spend_proxy_script_hash` from `Settings`.
 
 - `Migrate`: called when user (or admin) migrates reference asset to latest `ref_spend` spending validator.
 
@@ -355,7 +381,7 @@ Anything
 
   - first output must be reference_output.
 
-    - output address must be same as `ref_spend_script_address` from `Settings`.
+    - output address must be same as `ref_spend_proxy_script_hash` from `Settings`.
 
     - output datum must be `CIP68Datum` format as `InlineDatum`. See [CIP 68](https://cips.cardano.org/cip/CIP-68)
 
@@ -419,7 +445,7 @@ We use `Data` because when `Royalty NFT` is sent with invalid datum, we can fix 
 
     - must NOT have reference_script.
 
-    - output address must be same as spending input or `royalty_spend_script_address` from `Settings`.
+    - output address must be same as spending input or `royalty_spend_script_hash` from `Settings`.
 
 - `Migrate`: called when admin migrates Royalty Token to latest `royalty_spend` spending validator.
 
@@ -429,7 +455,7 @@ We use `Data` because when `Royalty NFT` is sent with invalid datum, we can fix 
 
   - first output must be royalty output.
 
-    - output address must be same as `royalty_spend_script_address` from `Settings`.
+    - output address must be same as `royalty_spend_script_hash` from `Settings`.
 
     - must have same value as spending input.
 

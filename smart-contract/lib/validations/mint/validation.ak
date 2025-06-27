@@ -49,7 +49,7 @@ pub fn can_mint_royalty_nft(transaction: Transaction) -> Bool {
   // must attach `Settings` in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { policy_id, allowed_minter, royalty_spend_script_address, .. } =
+  let SettingsV1 { policy_id, allowed_minter, royalty_spend_script_hash, .. } =
     settings_datum
 
   // must be signed by `allowed_minter` from `Settings`.
@@ -63,11 +63,7 @@ pub fn can_mint_royalty_nft(transaction: Transaction) -> Bool {
   // Royalty NFT must be sent to `royalty_spend` spending validator.
   expect [royalty_output, ..] = outputs
   let is_royalty_output_valid =
-    check_royalty_output(
-      royalty_output,
-      policy_id,
-      royalty_spend_script_address,
-    )
+    check_royalty_output(royalty_output, policy_id, royalty_spend_script_hash)
   expect is_royalty_output_valid
 
   True
