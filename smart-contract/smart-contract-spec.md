@@ -339,7 +339,7 @@ This is withdrawal validator which governs `ref_spend_proxy` spending validator.
 
 #### 3.6.1 Parameter
 
-None
+- _ref_spend_admin_: This is wallet's public key hash. This is `Ref Spend` `Admin`'s wallet and is used to authorize updating CIP68 Datum.
 
 #### 3.6.2 Datum
 
@@ -347,57 +347,41 @@ None (withdrawal validator)
 
 #### 3.6.3 Redeemer
 
-Anything
+- `Update(AssetName)`
 
 #### 3.6.4 Validation
 
 - must attach `Settings` NFT in reference inputs.
 
-- there must be only one transaction input which has only one H.A.L. Reference Asset.
+- must be signed by `ref_spend_admin` from parameter.
 
-- there must be only one transaction output which has only one H.A.L. Reference Asset.
+- must spend H.A.L. User Asset whose name is `asset_name` from redeemer.
 
-- must be signed by `ref_spend_admin` from `Settings`.
+- there must be only one transaction input with H.A.L. Reference Asset.
 
-- spending UTxO must have only one reference asset with `asset_name` from redeemer.
+  - that transaction input must be from `ref_spend_proxy_script_hash` from `Settings`.
 
-- there must be H.A.L. user asset in transaction inputs.
+  - that transaction input must have only one H.A.L. Reference Asset whose name is `asset_name` from redeemer.
 
-- there must be only one UTxO in transaction inputs from this script.
+- the first output must be `ref_spend_proxy_output`.
 
-- first output must be reference_output.
+  - output address must be `ref_spend_proxy_script_hash` (same as transaction input).
 
-  - must have same value as spending input. (except `lovelace` because that can change)
+  - output value must be same as transaction input value. (except lovelace)
 
-  - must NOT have reference_script.
+  - output must have datum type of `CIP68Datum` (Inline Datum).
 
-  - output address must be same as spending input or `ref_spend_proxy_script_hash` from `Settings`.
+  - output must NOT have reference script.
 
-- `Migrate`: called when user (or admin) migrates reference asset to latest `ref_spend` spending validator.
+- `old_datum` and `new_datum` must be different.
 
-  - must attach `Settings` NFT in reference inputs.
+### 3.7 `royalty_spend` spending validator
 
-  - there must be only one UTxO in transaction inputs from this script.
-
-  - first output must be reference_output.
-
-    - output address must be same as `ref_spend_proxy_script_hash` from `Settings`.
-
-    - output datum must be `CIP68Datum` format as `InlineDatum`. See [CIP 68](https://cips.cardano.org/cip/CIP-68)
-
-    - must have same value as spending input.
-
-    - must have same datum as spending input.
-
-    - must NOT have reference_script.
-
-### 3.6 `royalty_spend` spending validator
-
-#### 3.5.1 Parameter
+#### 3.7.1 Parameter
 
 None
 
-#### 3.5.2 Datum
+#### 3.7.2 Datum
 
 See [CIP 102](https://cips.cardano.org/cip/CIP-0102)
 
@@ -421,13 +405,13 @@ pub type RoyaltyRecipient {
 
 We use `Data` because when `Royalty NFT` is sent with invalid datum, we can fix it.
 
-#### 3.5.3 Redeemer
+#### 3.7.3 Redeemer
 
 - `Update`
 
 - `Migrate`
 
-#### 3.5.4 Validation
+#### 3.7.4 Validation
 
 - `Update`: called when admin updates `RoyaltyDatum`.
 

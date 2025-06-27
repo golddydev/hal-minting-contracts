@@ -60,7 +60,7 @@ pub fn can_mint(
     ..
   } = settings_datum
 
-  // signed by allowed_minter
+  // must be signed by `allowed_minter` from `Settings`.
   expect list.has(extra_signatories, allowed_minter)
 
   // spending_input must UTxO with `Minting Data NFT`.
