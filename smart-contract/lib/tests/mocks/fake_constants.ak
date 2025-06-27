@@ -45,8 +45,6 @@ pub const royalty_spend_script_hash: ScriptHash = #"4444"
 
 pub const minting_data_script_hash: ScriptHash = #"5555"
 
-pub const ref_spend_admin: VerificationKeyHash = #"22223333"
-
 pub const max_order_amount: Int = 5
 
 pub const minting_start_time: Int = 1718102400
