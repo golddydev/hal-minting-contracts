@@ -96,9 +96,7 @@ This is withdrawal validator which must be executed in order to mint (or burn) H
 
 #### 3.2.1 Parameter
 
-- _minting_data_script_hash_: This is script hash of `minting_data` spending validator.
-
-  > NOTE: whenever `minting_data` spending validator is updated, we must update `mint` withdrawal validator also.
+None
 
 #### 3.2.2 Datum
 
@@ -116,9 +114,11 @@ None (withdrawal validator)
 
 - `MintNFTs`: called when minting engine to mints H.A.L. NFTs.
 
+  - must attach `Settings` in reference inputs.
+
   - must spend `minting_data` UTxO. (with `Minting Data NFT`)
 
-  - check that `minting_data` UTxO is from `minting_data_script_hash` from Parameter.
+  - check that `minting_data` UTxO is from `minting_data_script_hash` from `Settings`.
 
 - `BurnNFTs`: called when minting engine tries to burn H.A.L. NFTs.
 

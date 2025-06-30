@@ -2,7 +2,6 @@ use aiken/list
 use aiken/transaction.{Output, Transaction}
 use aiken/transaction/credential.{Address, ScriptCredential}
 use aiken/transaction/value
-use common/hashes.{ScriptHash}
 use hal_nft_mint/minting_data.{find_minting_data}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
@@ -12,18 +11,21 @@ use validations/mint/utils.{check_mint_one_royalty_asset, check_royalty_output}
 // Main validation logic for new handles' minting
 //
 // Checks
+// - must attach `Settings` in reference inputs.
 // - must spend `Minting Data` UTxO (with `Minting Data NFT`)
-// - check that `Minting Data` UTxO is from `minting_data_script_hash` from Parameter.
+// - check that `Minting Data` UTxO is from `minting_data_script_hash` from `Settings`.
 //
-pub fn can_mint_nfts(
-  transaction: Transaction,
-  minting_data_script_hash: ScriptHash,
-) -> Bool {
+pub fn can_mint_nfts(transaction: Transaction) -> Bool {
   trace @"can_mint_nfts"
-  let Transaction { inputs, .. } = transaction
+  let Transaction { reference_inputs, .. } = transaction
+
+  // must attach `Settings` in reference inputs.
+  let Settings { data: settings_data, .. } = find_settings(reference_inputs)
+  expect settings_datum: SettingsV1 = settings_data
+  let SettingsV1 { minting_data_script_hash, .. } = settings_datum
 
   // minting_data asset is spent from minting_data_script from parameter
-  let (minting_data_input, _) = find_minting_data(inputs)
+  let (minting_data_input, _) = find_minting_data(reference_inputs)
   expect
     minting_data_input.address.payment_credential == ScriptCredential(
       minting_data_script_hash,
