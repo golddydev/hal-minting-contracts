@@ -30,24 +30,26 @@ pub const allowed_minter: VerificationKeyHash = #"11112222"
 
 pub const hal_nft_price: Int = 180_000_000
 
-pub fn payment_address() -> Address {
-  credential.from_verification_key(#"8888")
-    |> credential.with_delegation_key(#"8989")
-}
+pub const minting_data_script_hash: ScriptHash = #"1111"
 
-pub const ref_spend_proxy_script_hash: ScriptHash = #"1111"
+pub const orders_spend_script_hash: ScriptHash = #"2222"
 
-pub const ref_spend_governor: ScriptHash = #"2222"
+pub const ref_spend_proxy_script_hash: ScriptHash = #"3333"
 
-pub const orders_spend_script_hash: ScriptHash = #"3333"
+pub const ref_spend_governor: ScriptHash = #"4444"
 
-pub const royalty_spend_script_hash: ScriptHash = #"4444"
+pub const ref_spend_admin: VerificationKeyHash = #"5555"
 
-pub const minting_data_script_hash: ScriptHash = #"5555"
+pub const royalty_spend_script_hash: ScriptHash = #"6666"
 
 pub const max_order_amount: Int = 5
 
 pub const minting_start_time: Int = 1718102400
+
+pub fn payment_address() -> Address {
+  credential.from_verification_key(#"7777")
+    |> credential.with_delegation_key(#"8888")
+}
 
 // other constants
 pub const min_order_lovelace = 3_000_000
