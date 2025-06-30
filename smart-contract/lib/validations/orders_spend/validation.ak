@@ -11,7 +11,7 @@ use validations/orders_spend/utils.{
 }
 
 // Validation:
-// When minting engine spends Orders UTxO
+// When minting engine mints H.A.L. NFTs spending `Order UTxOs` from this script.
 //
 // Checks:
 // - must mint H.A.L. NFT(s)
@@ -32,11 +32,12 @@ pub fn can_execute_orders(
 }
 
 // Validation:
-// When user tries to cancel Order
+// When an user cancels his Order.
 //
 // Checks:
-// - must be signed by owner of Order
-// - there must be only one UTxO in transaction inputs from this script
+// - `datum` must be type of `OrderDatum`.
+// - transaction must be signed by `owner_key_hash` from `OrderDatum`.
+// - there must be only one UTxO in transaction inputs from this script.
 //
 pub fn can_cancel_order(
   transaction: Transaction,
@@ -45,14 +46,14 @@ pub fn can_cancel_order(
 ) -> Bool {
   let Transaction { inputs, extra_signatories, .. } = transaction
 
-  // expect OrderDatum
+  // `datum` must be type of `OrderDatum`.
   expect datum: OrderDatum = datum
 
-  // must be signed by owner of Order
+  // transaction must be signed by `owner_key_hash` from `OrderDatum`.
   let is_owner_signed = list.has(extra_signatories, datum.owner_key_hash)
   expect is_owner_signed
 
-  // there must be only one UTxO in transaction inputs from this script
+  // there must be only one UTxO in transaction inputs from this script.
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
   let own_script_hash = get_own_script_hash(own_utxo)
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
@@ -62,15 +63,15 @@ pub fn can_cancel_order(
 }
 
 // Validation:
-// When admin tries to refund Order
+// When admin refunds Order UTxO to user.
 //
 // Checks:
-// - must attach Setting in reference inputs
-// - must be signed by allowed_minter
-// - there must be only one UTxO in transaction inputs from this script
-// - output in output_index must be Refunded Output with enough lovelace (Own UTxO - Fee)
-//   must be sent to owner_key_hash if datum is valid
-// 
+// - must attach `Settings` NFT in reference inputs.
+// - must be signed by `allowed_minter` from `Settings`.
+// - there must be only one UTxO in transaction inputs from this script.
+// - first output must be refunded output.
+//   output value must be greater than or equal to spending UTxO.
+//   must be sent to `owner_key_hash` if datum is typeof `OrderDatum`.
 //
 pub fn can_refund_order(
   transaction: Transaction,
@@ -86,18 +87,13 @@ pub fn can_refund_order(
     ..
   } = transaction
 
-  // must attach Setting in reference inputs
+  // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
   let SettingsV1 { allowed_minter, .. } = settings_datum
 
-  // must be signed by allowed_minter
+  // must be signed by `allowed_minter` from `Settings`.
   expect list.has(extra_signatories, allowed_minter)
-
-  // first output must be Refunded Output
-  expect [refunded_output, ..] = outputs
-  let Output { address: refunded_address, value: refunded_value, .. } =
-    refunded_output
 
   // there must be only one UTxO in transaction inputs from this script
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
@@ -105,7 +101,12 @@ pub fn can_refund_order(
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxo_count == 1
 
-  // check value
+  // first output must be refunded output.
+  expect [refunded_output, ..] = outputs
+  let Output { address: refunded_address, value: refunded_value, .. } =
+    refunded_output
+
+  // output value must be greater than or equal to spending UTxO.
   let Output { value: own_utxo_value, .. } = own_utxo
   let expected_lovelace =
     value.lovelace_of(own_utxo_value) - value.lovelace_of(fee)
@@ -113,7 +114,7 @@ pub fn can_refund_order(
     value.lovelace_of(refunded_value) >= expected_lovelace
   expect is_refunded_value_enough
 
-  // must be sent to owner_key_hash if datum is valid
+  // must be sent to `owner_key_hash` if datum is typeof `OrderDatum`.
   let owner_key_hash_opt = get_owner_key_hash_from_datum(datum)
   when owner_key_hash_opt is {
     Some(owner_key_hash) -> {

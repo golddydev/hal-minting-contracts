@@ -1,21 +1,22 @@
 import { decodeUplcProgramV2FromCbor, UplcProgramV2 } from "@helios-lang/uplc";
 
+import { CONTRACT_NAME } from "../constants/index.js";
 import { invariant } from "../helpers/index.js";
 import optimizedBlueprint from "./optimized-blueprint.js";
 import unOptimizedBlueprint from "./unoptimized-blueprint.js";
 import {
   makeMintingDataUplcProgramParameter,
   makeMintProxyUplcProgramParameter,
-  makeMintV1UplcProgramParameter,
   makeOrdersSpendUplcProgramParameter,
+  makeRefSpendUplcProgramParameter,
 } from "./utils.js";
 
 const getMintProxyMintUplcProgram = (mint_version: bigint): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "mint_proxy.mint"
+    (validator) => validator.title == CONTRACT_NAME.MINT_PROXY_MINT
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "mint_proxy.mint"
+    (validator) => validator.title == CONTRACT_NAME.MINT_PROXY_MINT
   );
   invariant(
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
@@ -30,26 +31,22 @@ const getMintProxyMintUplcProgram = (mint_version: bigint): UplcProgramV2 => {
     );
 };
 
-const getMintV1WithdrawUplcProgram = (
-  minting_data_script_hash: string
-): UplcProgramV2 => {
+const getMintWithdrawUplcProgram = (): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "mint_v1.withdraw"
+    (validator) => validator.title == CONTRACT_NAME.MINT_WITHDRAW
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "mint_v1.withdraw"
+    (validator) => validator.title == CONTRACT_NAME.MINT_WITHDRAW
   );
   invariant(
     !!optimizedFoundValidator && unOptimizedFoundValidator,
-    "Mint V1 Withdraw Validator not found"
+    "Mint Withdrawal Validator not found"
   );
-  return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
-    .apply(makeMintV1UplcProgramParameter(minting_data_script_hash))
-    .withAlt(
-      decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
-        makeMintV1UplcProgramParameter(minting_data_script_hash)
-      )
-    );
+  return decodeUplcProgramV2FromCbor(
+    optimizedFoundValidator.compiledCode
+  ).withAlt(
+    decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode)
+  );
 };
 
 // this is `minting_data_script_hash`
@@ -57,10 +54,10 @@ const getMintingDataSpendUplcProgram = (
   admin_verification_key_hash: string
 ): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "minting_data.spend"
+    (validator) => validator.title == CONTRACT_NAME.MINTING_DATA_SPEND
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "minting_data.spend"
+    (validator) => validator.title == CONTRACT_NAME.MINTING_DATA_SPEND
   );
   invariant(
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
@@ -80,10 +77,10 @@ const getOrdersSpendUplcProgram = (
   randomizer: string
 ): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "orders_spend.spend"
+    (validator) => validator.title == CONTRACT_NAME.ORDERS_SPEND_SPEND
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "orders_spend.spend"
+    (validator) => validator.title == CONTRACT_NAME.ORDERS_SPEND_SPEND
   );
   invariant(
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
@@ -98,16 +95,16 @@ const getOrdersSpendUplcProgram = (
     );
 };
 
-const getRefSpendUplcProgram = (): UplcProgramV2 => {
+const getRefSpendProxyUplcProgram = (): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "ref_spend.spend"
+    (validator) => validator.title == CONTRACT_NAME.REF_SPEND_PROXY_SPEND
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "ref_spend.spend"
+    (validator) => validator.title == CONTRACT_NAME.REF_SPEND_PROXY_SPEND
   );
   invariant(
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
-    "Ref Spend Validator not found"
+    "Ref Spend Proxy Validator not found"
   );
   return decodeUplcProgramV2FromCbor(
     optimizedFoundValidator.compiledCode
@@ -116,12 +113,32 @@ const getRefSpendUplcProgram = (): UplcProgramV2 => {
   );
 };
 
-const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {
+const getRefSpendUplcProgram = (ref_spend_admin: string): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
-    (validator) => validator.title == "royalty_spend.spend"
+    (validator) => validator.title == CONTRACT_NAME.REF_SPEND_WITHDRAW
   );
   const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
-    (validator) => validator.title == "royalty_spend.spend"
+    (validator) => validator.title == CONTRACT_NAME.REF_SPEND_WITHDRAW
+  );
+  invariant(
+    !!optimizedFoundValidator && !!unOptimizedFoundValidator,
+    "Ref Spend Validator not found"
+  );
+  return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
+    .apply(makeRefSpendUplcProgramParameter(ref_spend_admin))
+    .withAlt(
+      decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
+        makeRefSpendUplcProgramParameter(ref_spend_admin)
+      )
+    );
+};
+
+const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {
+  const optimizedFoundValidator = optimizedBlueprint.validators.find(
+    (validator) => validator.title == CONTRACT_NAME.ROYALTY_SPEND_SPEND
+  );
+  const unOptimizedFoundValidator = unOptimizedBlueprint.validators.find(
+    (validator) => validator.title == CONTRACT_NAME.ROYALTY_SPEND_SPEND
   );
   invariant(
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
@@ -137,8 +154,9 @@ const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {
 export {
   getMintingDataSpendUplcProgram,
   getMintProxyMintUplcProgram,
-  getMintV1WithdrawUplcProgram,
+  getMintWithdrawUplcProgram,
   getOrdersSpendUplcProgram,
+  getRefSpendProxyUplcProgram,
   getRefSpendUplcProgram,
   getRoyaltySpendUplcProgram,
 };

@@ -8,24 +8,28 @@ pub type SettingsV1 {
   allowed_minter: VerificationKeyHash,
   // hal nft's price
   hal_nft_price: Int,
-  // address to collect HAL NFT's cost
-  payment_address: Address,
-  // ref_spend Spending validator address
-  // ref asset is sent to this address
-  ref_spend_script_address: Address,
-  // user makes an order (as UTxO) to this address
-  orders_spend_script_address: Address,
-  // royalty spend script address
-  royalty_spend_script_address: Address,
   // minting data script is used to check
   // all minting handles logic (for both new and legacy)
   // minting_data_asset is locked inside that script
   minting_data_script_hash: ScriptHash,
-  // required when spending H.A.L. reference asset
-  // from Ref Spend Spending validator
+  // user makes an order (as UTxO) to this script
+  orders_spend_script_hash: ScriptHash,
+  // ref_spend_proxy Spending validator hash
+  // ref asset is sent to this script
+  ref_spend_proxy_script_hash: ScriptHash,
+  // ref_spend withdrawal validator hash
+  // this is ref_spend_proxy governor
+  ref_spend_governor: ScriptHash,
+  // ref_spend admin is used to authorize updating CIP68 Datum
+  // this is referred to as `ref_spend_admin` in `ref_spend` withdrawal validator
   ref_spend_admin: VerificationKeyHash,
+  // royalty spend script hash
+  // Royalty NFT is sent to this script
+  royalty_spend_script_hash: ScriptHash,
   // Maximum Amount of H.A.L. NFTs that can be ordered at once
   max_order_amount: Int,
   // when the minting (for everyone) starts
   minting_start_time: Int,
+  // address to collect HAL NFT's cost
+  payment_address: Address,
 }

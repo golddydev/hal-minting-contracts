@@ -7,7 +7,7 @@ import prompts from "prompts";
 
 import {
   BLOCKFROST_API_KEY,
-  CONTRACT_NAMES,
+  CONTRACT_NAME,
   NETWORK,
 } from "../../src/constants/index.js";
 import {
@@ -17,7 +17,7 @@ import {
   checkAccountRegistrationStatus,
   deploy,
   getBlockfrostV0Client,
-  registerStakingAddress,
+  registerStakingAddresses,
   Settings,
   SettingsV1,
 } from "../../src/index.js";
@@ -68,27 +68,40 @@ const doOnChainActions = async (commandImpl: CommandImpl) => {
               getBlockfrostV0Client(BLOCKFROST_API_KEY);
 
             // check if staking address is registered or not
-            const status = await checkAccountRegistrationStatus(
+            const statuses = await checkAccountRegistrationStatus(
               blockfrostApi,
-              stakingAddresses.mintV1StakingAddress
+              stakingAddresses.mintStakingAddress,
+              stakingAddresses.refSpendStakingAddress
             );
             console.log("\n\n------- Staking Addresses To Register -------\n");
             console.log(stakingAddresses);
             console.log("\n");
-            if (status != "registered") {
-              console.log("Staking address is not registered");
-              console.log(
-                "Please register the staking address using Script CBOR, just a sec..."
+            const stakingAddressesToRegister: string[] = [];
+            if (statuses.mintStakingAddress !== "registered") {
+              console.log("Mint Staking Address is not registered");
+              stakingAddressesToRegister.push(
+                stakingAddresses.mintStakingAddress
               );
-              const txCbor = await registerStakingAddress(
+            }
+            if (statuses.refSpendStakingAddress !== "registered") {
+              console.log("Ref Spend Staking Address is not registered");
+              stakingAddressesToRegister.push(
+                stakingAddresses.refSpendStakingAddress
+              );
+            }
+            if (stakingAddressesToRegister.length > 0) {
+              console.log(
+                "Please register the staking address(es) using Script CBOR, just a sec..."
+              );
+              const txCbor = await registerStakingAddresses(
                 NETWORK as NetworkName,
                 makeAddress(address),
                 await blockfrostV0Client.getUtxos(address),
-                stakingAddresses.mintV1StakingAddress
+                stakingAddressesToRegister
               );
               await handleTxCbor(txCbor);
             } else {
-              console.log("\nStaking Address is already registered\n");
+              console.log("\nStaking Addresses are already registered\n");
             }
           },
           disabled: !commandImpl.mpt,
@@ -112,10 +125,10 @@ const buildSettingsDataCbor = () => {
     MINT_VERSION,
     ADMIN_VERIFICATION_KEY_HASH,
     ORDERS_SPEND_RANDOMIZER,
+    REF_SPEND_ADMIN,
     ALLOWED_MINTER,
     HAL_NFT_PRICE,
     PAYMENT_ADDRESS,
-    REF_SPEND_ADMIN,
     MAX_ORDER_AMOUNT,
     MINTING_START_TIME,
   } = configs;
@@ -125,12 +138,14 @@ const buildSettingsDataCbor = () => {
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
+    ref_spend_admin: REF_SPEND_ADMIN,
   });
   const {
     halPolicyHash,
-    mintV1: mintV1Config,
+    mint: mintConfig,
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
+    refSpendProxy: refSpendProxyConfig,
     refSpend: refSpendConfig,
     royaltySpend: royaltySpendConfig,
   } = contractsConfig;
@@ -140,19 +155,22 @@ const buildSettingsDataCbor = () => {
     policy_id: halPolicyHash.toHex(),
     allowed_minter: ALLOWED_MINTER,
     hal_nft_price: HAL_NFT_PRICE,
-    payment_address: PAYMENT_ADDRESS,
-    ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
-    orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
-    royalty_spend_script_address:
-      royaltySpendConfig.royaltySpendValidatorAddress,
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
+    orders_spend_script_hash:
+      ordersSpendConfig.ordersSpendValidatorHash.toHex(),
+    ref_spend_proxy_script_hash:
+      refSpendProxyConfig.refSpendProxyValidatorHash.toHex(),
+    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
     ref_spend_admin: REF_SPEND_ADMIN,
+    royalty_spend_script_hash:
+      royaltySpendConfig.royaltySpendValidatorHash.toHex(),
     max_order_amount: MAX_ORDER_AMOUNT,
     minting_start_time: MINTING_START_TIME,
+    payment_address: PAYMENT_ADDRESS,
   };
   const settings: Settings = {
-    mint_governor: mintV1Config.mintV1ValidatorHash.toHex(),
+    mint_governor: mintConfig.mintValidatorHash.toHex(),
     mint_version: MINT_VERSION,
     data: buildSettingsV1Data(settingsV1),
   };
@@ -162,24 +180,36 @@ const buildSettingsDataCbor = () => {
 
 const getStakingAddresses = () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH } = configs;
+  const {
+    MINT_VERSION,
+    ADMIN_VERIFICATION_KEY_HASH,
+    ORDERS_SPEND_RANDOMIZER,
+    REF_SPEND_ADMIN,
+  } = configs;
 
   const contractsConfig = buildContracts({
     network: NETWORK as NetworkName,
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
+    orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
+    ref_spend_admin: REF_SPEND_ADMIN,
   });
-  const { mintV1: mintV1Config } = contractsConfig;
+  const { mint: mintConfig, refSpend: refSpendConfig } = contractsConfig;
 
   return {
-    mintV1StakingAddress: mintV1Config.mintV1StakingAddress.toBech32(),
+    mintStakingAddress: mintConfig.mintStakingAddress.toBech32(),
+    refSpendStakingAddress: refSpendConfig.refSpendStakingAddress.toBech32(),
   };
 };
 
 const doDeployActions = async () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
-    configs;
+  const {
+    MINT_VERSION,
+    ADMIN_VERIFICATION_KEY_HASH,
+    ORDERS_SPEND_RANDOMIZER,
+    REF_SPEND_ADMIN,
+  } = configs;
 
   let finished: boolean = false;
   while (!finished) {
@@ -188,7 +218,7 @@ const doDeployActions = async () => {
       type: "select",
       name: "action",
       choices: [
-        ...CONTRACT_NAMES.map((contract) => ({
+        ...Object.values(CONTRACT_NAME).map((contract) => ({
           title: contract,
           description: contract,
           value: async () => {
@@ -196,8 +226,9 @@ const doDeployActions = async () => {
               network: NETWORK as NetworkName,
               mintVersion: MINT_VERSION,
               adminVerificationKeyHash: ADMIN_VERIFICATION_KEY_HASH,
-              contractName: contract,
               ordersSpendRandomizer: ORDERS_SPEND_RANDOMIZER,
+              refSpendAdmin: REF_SPEND_ADMIN,
+              contractName: contract,
             });
 
             const { filepath } = await prompts({
@@ -213,9 +244,9 @@ const doDeployActions = async () => {
               );
               console.log("!!! THIS WILL CHANGE POLICY ID !!!");
               console.log("\n");
-            } else if (contract === "mint_v1.withdraw") {
+            } else if (contract === "mint.withdraw") {
               console.log(
-                "\n\n------- After Deploying Mint V1 Withdraw Script -------\n"
+                "\n\n------- After Deploying Mint Withdraw Script -------\n"
               );
               console.log("!!! UPDATE SETTINGS DATUM !!!");
               console.log("\n");

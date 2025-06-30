@@ -7,19 +7,21 @@ import {
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName } from "@helios-lang/tx-utils";
 
-const registerStakingAddress = async (
+const registerStakingAddresses = async (
   network: NetworkName,
   changeAddress: Address,
   spareUtxos: TxInput[],
-  bech32StakingAddress: string
+  bech32StakingAddresses: string[]
 ) => {
   const txBuilder = makeTxBuilder({ isMainnet: network == "mainnet" });
 
-  txBuilder.addDCert(
-    makeRegistrationDCert(
-      parseStakingAddress(bech32StakingAddress).stakingCredential
-    )
-  );
+  bech32StakingAddresses.forEach((stakingAddress) => {
+    txBuilder.addDCert(
+      makeRegistrationDCert(
+        parseStakingAddress(stakingAddress).stakingCredential
+      )
+    );
+  });
   const tx = await txBuilder.build({
     changeAddress,
     spareUtxos,
@@ -27,4 +29,4 @@ const registerStakingAddress = async (
   return bytesToHex(tx.toCbor());
 };
 
-export { registerStakingAddress };
+export { registerStakingAddresses };

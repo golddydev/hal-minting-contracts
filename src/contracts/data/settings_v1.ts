@@ -18,28 +18,30 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     policy_id,
     allowed_minter,
     hal_nft_price,
-    payment_address,
-    ref_spend_script_address,
-    orders_spend_script_address,
-    royalty_spend_script_address,
     minting_data_script_hash,
+    orders_spend_script_hash,
+    ref_spend_proxy_script_hash,
+    ref_spend_governor,
     ref_spend_admin,
+    royalty_spend_script_hash,
     max_order_amount,
     minting_start_time,
+    payment_address,
   } = settings;
 
   return makeConstrData(0, [
     makeByteArrayData(policy_id),
     makeByteArrayData(allowed_minter),
     makeIntData(hal_nft_price),
-    buildAddressData(payment_address as ShelleyAddress),
-    buildAddressData(ref_spend_script_address as ShelleyAddress),
-    buildAddressData(orders_spend_script_address as ShelleyAddress),
-    buildAddressData(royalty_spend_script_address as ShelleyAddress),
     makeByteArrayData(minting_data_script_hash),
+    makeByteArrayData(orders_spend_script_hash),
+    makeByteArrayData(ref_spend_proxy_script_hash),
+    makeByteArrayData(ref_spend_governor),
     makeByteArrayData(ref_spend_admin),
+    makeByteArrayData(royalty_spend_script_hash),
     makeIntData(max_order_amount),
     makeIntData(minting_start_time),
+    buildAddressData(payment_address as ShelleyAddress),
   ]);
 };
 
@@ -47,14 +49,15 @@ const decodeSettingsV1Data = (
   data: UplcData,
   network: NetworkName
 ): SettingsV1 => {
-  const settingsV1ConstrData = expectConstrData(data, 0, 11);
+  const settingsV1ConstrData = expectConstrData(data, 0, 12);
 
+  // policy_id
   const policy_id = expectByteArrayData(
     settingsV1ConstrData.fields[0],
     "policy_id must be ByteArray"
   ).toHex();
 
-  // allowed_minters
+  // allowed_minter
   const allowed_minter = expectByteArrayData(
     settingsV1ConstrData.fields[1],
     "allowed_minter must be ByteArray"
@@ -66,40 +69,40 @@ const decodeSettingsV1Data = (
     "hal_nft_price must be Int"
   ).value;
 
-  // payment_address
-  const payment_address = decodeAddressFromData(
-    settingsV1ConstrData.fields[3],
-    network
-  );
-
-  // ref_spend_script_address
-  const ref_spend_script_address = decodeAddressFromData(
-    settingsV1ConstrData.fields[4],
-    network
-  );
-
-  // orders_spend_script_address
-  const orders_spend_script_address = decodeAddressFromData(
-    settingsV1ConstrData.fields[5],
-    network
-  );
-
-  // royalty_spend_script_address
-  const royalty_spend_script_address = decodeAddressFromData(
-    settingsV1ConstrData.fields[6],
-    network
-  );
-
   // minting_data_script_hash
   const minting_data_script_hash = expectByteArrayData(
-    settingsV1ConstrData.fields[7],
+    settingsV1ConstrData.fields[3],
     "minting_data_script_hash must be ByteArray"
+  ).toHex();
+
+  // orders_spend_script_hash
+  const orders_spend_script_hash = expectByteArrayData(
+    settingsV1ConstrData.fields[4],
+    "orders_spend_script_hash must be ByteArray"
+  ).toHex();
+
+  // ref_spend_proxy_script_hash
+  const ref_spend_proxy_script_hash = expectByteArrayData(
+    settingsV1ConstrData.fields[5],
+    "ref_spend_proxy_script_hash must be ByteArray"
+  ).toHex();
+
+  // ref_spend_governor
+  const ref_spend_governor = expectByteArrayData(
+    settingsV1ConstrData.fields[6],
+    "ref_spend_governor must be ByteArray"
   ).toHex();
 
   // ref_spend_admin
   const ref_spend_admin = expectByteArrayData(
-    settingsV1ConstrData.fields[8],
+    settingsV1ConstrData.fields[7],
     "ref_spend_admin must be ByteArray"
+  ).toHex();
+
+  // royalty_spend_script_hash
+  const royalty_spend_script_hash = expectByteArrayData(
+    settingsV1ConstrData.fields[8],
+    "royalty_spend_script_hash must be ByteArray"
   ).toHex();
 
   // max_order_amount
@@ -118,18 +121,25 @@ const decodeSettingsV1Data = (
     ).value
   );
 
+  // payment_address
+  const payment_address = decodeAddressFromData(
+    settingsV1ConstrData.fields[11],
+    network
+  );
+
   return {
     policy_id,
     allowed_minter,
     hal_nft_price,
-    payment_address,
-    ref_spend_script_address,
-    orders_spend_script_address,
-    royalty_spend_script_address,
     minting_data_script_hash,
+    orders_spend_script_hash,
+    ref_spend_proxy_script_hash,
+    ref_spend_governor,
     ref_spend_admin,
+    royalty_spend_script_hash,
     max_order_amount,
     minting_start_time,
+    payment_address,
   };
 };
 

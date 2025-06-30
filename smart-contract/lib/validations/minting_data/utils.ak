@@ -6,9 +6,10 @@ use aiken/list
 use aiken/merkle_patricia_forestry as mpt
 use aiken/pairs
 use aiken/transaction.{InlineDatum, Input, Output, ValidityRange}
-use aiken/transaction/credential.{Address}
+use aiken/transaction/credential.{Address, ScriptCredential}
 use aiken/transaction/value.{AssetName, PolicyId, Value}
 use common/cip68.{prefix_100, prefix_222}
+use common/hashes.{ScriptHash}
 use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{Order, OrderDatum}
 use hal_nft_mint/whitelist.{WhitelistedItem}
@@ -196,7 +197,7 @@ fn check_user_output(
 pub fn check_ref_outputs(
   hal_asset_names: List<AssetName>,
   outputs: List<Output>,
-  ref_spend_script_address: Address,
+  ref_spend_proxy_script_hash: ScriptHash,
   policy_id: PolicyId,
 ) -> Bool {
   when hal_asset_names is {
@@ -212,7 +213,9 @@ pub fn check_ref_outputs(
       } = output
 
       // check address
-      expect output_address == ref_spend_script_address
+      let is_ref_output_address_valid =
+        output_address == credential.from_script(ref_spend_proxy_script_hash)
+      expect is_ref_output_address_valid
 
       // check value
       let expected_value =
@@ -226,7 +229,7 @@ pub fn check_ref_outputs(
       check_ref_outputs(
         rest_hal_asset_names,
         rest_outputs,
-        ref_spend_script_address,
+        ref_spend_proxy_script_hash,
         policy_id,
       )
     }
@@ -271,17 +274,22 @@ pub fn check_hal_tokens_minted(
 pub fn aggregate_orders_information(
   inputs: List<Input>,
   aggregated_orders: List<Order>,
-  orders_spend_script_address: Address,
+  orders_spend_script_hash: ScriptHash,
   hal_nft_price: Int,
   continuation: fn(List<Order>) -> result,
 ) -> result {
   when inputs is {
     [] -> continuation(aggregated_orders)
     [order_input, ..rest_inputs] -> {
-      let Output { address, datum, value: order_input_value, .. } =
-        order_input.output
+      let Output {
+        address: Address { payment_credential, .. },
+        datum,
+        value: order_input_value,
+        ..
+      } = order_input.output
 
-      let is_order = address == orders_spend_script_address
+      let is_order =
+        payment_credential == ScriptCredential(orders_spend_script_hash)
       when is_order is {
         True -> {
           // parse order datum
@@ -304,7 +312,7 @@ pub fn aggregate_orders_information(
               destination_address,
               amount,
             ),
-            orders_spend_script_address,
+            orders_spend_script_hash,
             hal_nft_price,
             continuation,
           )
@@ -313,7 +321,7 @@ pub fn aggregate_orders_information(
           aggregate_orders_information(
             rest_inputs,
             aggregated_orders,
-            orders_spend_script_address,
+            orders_spend_script_hash,
             hal_nft_price,
             continuation,
           )

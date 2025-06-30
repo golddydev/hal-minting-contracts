@@ -2,6 +2,7 @@ import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import { ByteArrayLike, IntLike } from "@helios-lang/codec-utils";
 import {
   Address,
+  makeAddress,
   makeAssetClass,
   makeAssets,
   makeInlineTxOutputDatum,
@@ -10,6 +11,7 @@ import {
   makeStakingAddress,
   makeStakingValidatorHash,
   makeTxOutput,
+  makeValidatorHash,
   makeValue,
   ShelleyAddress,
   TxInput,
@@ -27,7 +29,7 @@ import {
   AssetNameProof,
   buildMintingData,
   buildMintingDataMintRedeemer,
-  buildMintV1MintNFTsRedeemer,
+  buildMintMintNFTsRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeMintingDataDatum,
   decodeOrderDatumData,
@@ -57,8 +59,8 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @property {Trie} db Trie DB
  * @property {Trie} whitelistDB Whitelist DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
+ * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {number | undefined} mintingTime After when this transaction is valid from
  */
 interface PrepareMintParams {
@@ -114,8 +116,8 @@ const prepareMintTransaction = async (
   const {
     mintProxyScriptTxInput,
     mintingDataScriptTxInput,
-    mintV1ScriptDetails,
-    mintV1ScriptTxInput,
+    mintScriptDetails,
+    mintScriptTxInput,
     ordersSpendScriptTxInput,
   } = deployedScripts;
 
@@ -139,9 +141,14 @@ const prepareMintTransaction = async (
     policy_id,
     allowed_minter,
     hal_nft_price,
-    ref_spend_script_address,
+    ref_spend_proxy_script_hash,
     minting_start_time,
   } = settingsV1Result.data;
+
+  const refSpendProxyScriptAddress = makeAddress(
+    isMainnet,
+    makeValidatorHash(ref_spend_proxy_script_hash)
+  );
 
   // aggregate orders information
   const aggregatedOrdersResult = aggregateOrdersInformation({
@@ -254,7 +261,7 @@ const prepareMintTransaction = async (
 
       // push reference output
       referenceOutputs.push(
-        makeTxOutput(ref_spend_script_address, refValue, assetDatum)
+        makeTxOutput(refSpendProxyScriptAddress, refValue, assetDatum)
       );
 
       // add hal token value to mint
@@ -371,7 +378,7 @@ const prepareMintTransaction = async (
   const mintingDataValue = makeValue(1n, mintingDataAssetTxInput.value.assets);
 
   // build redeemer for mint v1 `MintNFTs`
-  const mintV1MintNFTsRedeemer = buildMintV1MintNFTsRedeemer();
+  const mintMintNFTsRedeemer = buildMintMintNFTsRedeemer();
 
   // build redeemer for minting data `Mint(proofsList)`
   const mintingDataMintRedeemer = buildMintingDataMintRedeemer(proofsList);
@@ -394,19 +401,19 @@ const prepareMintTransaction = async (
   // <-- attach deployed scripts
   txBuilder.refer(
     mintProxyScriptTxInput,
-    mintV1ScriptTxInput,
+    mintScriptTxInput,
     mintingDataScriptTxInput,
     ordersSpendScriptTxInput
   );
 
-  // <-- withdraw from mint v1 withdrawal validator (script from reference input)
+  // <-- withdraw from mint withdrawal validator (script from reference input)
   txBuilder.withdrawUnsafe(
     makeStakingAddress(
       isMainnet,
-      makeStakingValidatorHash(mintV1ScriptDetails.validatorHash)
+      makeStakingValidatorHash(mintScriptDetails.validatorHash)
     ),
     0n,
-    mintV1MintNFTsRedeemer
+    mintMintNFTsRedeemer
   );
 
   // <-- start from minting time

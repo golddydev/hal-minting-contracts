@@ -1,11 +1,11 @@
 use aiken/transaction/credential.{Address}
 
 pub type OrderDatum {
-  // the key hash of the wallet that placed the order that is used for cancelling the order
+  // the key hash of the wallet that placed the order that is used for cancelling the order.
   owner_key_hash: ByteArray,
-  // address that the asset should be sent to
+  // address that the asset should be sent to.
   destination_address: Address,
-  // amount of HAL NFTs to mint
+  // amount of H.A.L. NFTs to mint
   amount: Int,
 }
 

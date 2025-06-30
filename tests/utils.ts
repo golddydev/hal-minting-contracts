@@ -2,9 +2,11 @@ import { bytesToHex } from "@helios-lang/codec-utils";
 import {
   Address,
   addValues,
+  makeAddress,
   makeAssetClass,
   makeAssets,
   makeInlineTxOutputDatum,
+  makeValidatorHash,
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
@@ -13,6 +15,8 @@ import {
   decodeUplcProgramV2FromCbor,
   makeByteArrayData,
   makeConstrData,
+  makeIntData,
+  makeMapData,
   UplcProgramV2,
 } from "@helios-lang/uplc";
 import colors from "ansi-colors";
@@ -25,6 +29,7 @@ import {
   decodeOrderDatumData,
   HalUserOutputData,
   invariant,
+  makeVoidData,
   SettingsV1,
   TxSuccessResult,
 } from "../src/index.js";
@@ -164,7 +169,13 @@ const logMemAndCpu = async (
 const makeHalAssetDatum = (assetName: string) => {
   const hexName = Buffer.from(assetName).toString("hex");
   return makeInlineTxOutputDatum(
-    makeConstrData(0, [makeByteArrayData(hexName)])
+    makeConstrData(0, [
+      makeMapData([
+        [makeByteArrayData(Buffer.from("name")), makeByteArrayData(hexName)],
+      ]),
+      makeIntData(0),
+      makeVoidData(),
+    ])
   );
 };
 
@@ -175,10 +186,14 @@ const checkMintedAssets = async (
   orderTxInputs: TxInput[],
   userOutputsData: HalUserOutputData[]
 ) => {
-  const { policy_id, ref_spend_script_address } = settingsV1;
+  const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
+  const refSpendProxyScriptAddress = makeAddress(
+    network === "mainnet",
+    makeValidatorHash(ref_spend_proxy_script_hash)
+  );
   const refSpendBalance = await balanceOfAddress(
     emulator,
-    ref_spend_script_address
+    refSpendProxyScriptAddress
   );
 
   for (let i = 0; i < userOutputsData.length; i++) {

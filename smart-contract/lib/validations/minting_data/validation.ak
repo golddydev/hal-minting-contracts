@@ -18,15 +18,17 @@ use validations/minting_data/utils.{
 // All H.A.L. Minting logic is here
 //
 // Checks
-// - must attach Setting in reference inputs
-// - signed by allowed_minter
-// - first output must be minting_data output 
-//   with updated root hash and whitelist root hash
-// - all orders (Order UTxOs) are fulfilled correctly
-//   we aggregate orders for same destination address
-//   for each aggregated order
-//   must have corresponding user output (with aggregated amount of H.A.L. NFTs)
-// - must have reference outputs for each H.A.L. NFTs
+// - must attach `Settings` NFT in reference inputs.
+// - must be signed by `allowed_minter` from `Settings`.
+// - spending_input must UTxO with `Minting Data NFT`.
+// - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_hash`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
+// - for each item from `AggregatedOrders`; `destination_address` and `amount`
+//   there must be corresponding user output. (with aggregated amount of H.A.L. NFTs)
+//   must have corresponding `asset_name_proofs` (`List<AssetNameProof>`) to update `MPF` `root_hash`.
+//   if `whitelist_proof_opt` is `None`, transaction must start after `minting_start_time` from `Settings`.
+//   if not, we update `Whitelist MPF` `root_hash` with given proof. 
+// - first output must be `minting_data_output`; Output with `Minting Data NFT`.
+// - must have reference outputs for all `hal_asset_names` (minted in this transaction)
 // - must mint amount of H.A.L. NFTs
 //
 pub fn can_mint(
@@ -45,23 +47,23 @@ pub fn can_mint(
     ..
   } = transaction
 
-  // must attach Setting in reference inputs
+  // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
   let SettingsV1 {
     policy_id,
     allowed_minter,
     hal_nft_price,
-    ref_spend_script_address,
-    orders_spend_script_address,
+    ref_spend_proxy_script_hash,
+    orders_spend_script_hash,
     minting_start_time,
     ..
   } = settings_datum
 
-  // signed by allowed_minter
+  // must be signed by `allowed_minter` from `Settings`.
   expect list.has(extra_signatories, allowed_minter)
 
-  // find minting data input which is own input
+  // spending_input must UTxO with `Minting Data NFT`.
   expect Some(spending_input) = find_input(inputs, spending_output_reference)
   let Input { output: minting_data_input, .. } = spending_input
   let MintingData { mpt_root_hash, whitelist_mpt_root_hash } =
@@ -76,7 +78,7 @@ pub fn can_mint(
     aggregate_orders_information(
       inputs,
       [],
-      orders_spend_script_address,
+      orders_spend_script_hash,
       hal_nft_price,
     )
   let aggregated_orders_count = list.length(aggregated_orders)
@@ -86,9 +88,8 @@ pub fn can_mint(
   let user_outputs = list.take(rest_outputs, aggregated_orders_count)
   let rest_outputs = list.drop(rest_outputs, aggregated_orders_count)
 
-  // all orders are satisfied correctly
-  // mpt root and whitelist mpt root are updated correctly
-  // and user output is valid
+  // for each item from `AggregatedOrders`; `destination_address` and `amount`
+  // we update `MPF` `root_hash` and `Whitelist MPF` `root_hash` correctly
   let
     new_root,
     new_whitelist_root,
@@ -106,24 +107,11 @@ pub fn can_mint(
       proofs_list,
     )
 
-  // check reference outputs
-  let hal_assets_count = list.length(hal_asset_names)
-  let rest_outputs = list.take(rest_outputs, hal_assets_count)
-  let are_ref_outputs_valid =
-    check_ref_outputs(
-      hal_asset_names,
-      rest_outputs,
-      ref_spend_script_address,
-      policy_id,
-    )
-  expect are_ref_outputs_valid
-
   // calculate new roots
   let new_mpt_root_hash = new_root |> mpt.root
   let new_whitelist_mpt_root_hash = new_whitelist_root |> mpt.root
 
-  // first output must be minting_data output with updated root hash
-  // and whitelist root hash
+  // first output must be `minting_data_output`; Output with `Minting Data NFT`.
   expect minting_data_output.address == minting_data_input.address
   expect
     minting_data_output.datum == InlineDatum(
@@ -133,6 +121,18 @@ pub fn can_mint(
       },
     )
   expect minting_data_output.reference_script == None
+
+  // must have reference outputs for all `hal_asset_names` (minted in this transaction)
+  let hal_assets_count = list.length(hal_asset_names)
+  let rest_outputs = list.take(rest_outputs, hal_assets_count)
+  let are_ref_outputs_valid =
+    check_ref_outputs(
+      hal_asset_names,
+      rest_outputs,
+      ref_spend_proxy_script_hash,
+      policy_id,
+    )
+  expect are_ref_outputs_valid
 
   // must mint H.A.L. NFTs correctly for hal asset names
   let are_hal_tokens_minted_correctly =
@@ -147,11 +147,11 @@ pub fn can_mint(
 }
 
 // Validation:
-// When admin tries to update MPT root hash
+// When admin updates `MPF` `root_hash` or `Whitelist MPF` `root_hash`.
 //
 // Checks:
-// - must not mint anything
-// - must be signed by admin
+// - transaction must be signed by `admin_verification_key_hash` from Parameter
+// - must not mint any assets
 //
 pub fn can_update_mpt(
   transaction: Transaction,

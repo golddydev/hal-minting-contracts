@@ -1,139 +1,70 @@
-use aiken/bytearray
-use aiken/dict
 use aiken/list
-use aiken/transaction.{Output, OutputReference, Transaction}
+use aiken/transaction.{Transaction}
 use aiken/transaction/value.{AssetName}
-use common/cip68.{prefix_100, prefix_222}
-use common/utils.{get_own_script_hash,
-  get_own_utxo, get_own_utxos_count} as common_utils
+use common/hashes.{VerificationKeyHash}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
-use validations/ref_spend/utils.{does_spend_user_asset}
-
-// Validation:
-// When user tries to update H.A.L. NFT datum
-//
-// Checks:
-// - must attach Settings in reference inputs
-// - must be signed by ref_spend_admin
-// - spending UTxO must have only one reference asset with asset_name from redeemer
-// - there must be H.A.L. user asset in transaction inputs
-// - there must be only one UTxO spending in inputs from this script
-// - first output must be UTxO with reference asset with same value
-//
-pub fn can_update(
-  transaction: Transaction,
-  spending_output_reference: OutputReference,
-  asset_name: AssetName,
-) -> Bool {
-  let Transaction { inputs, outputs, reference_inputs, extra_signatories, .. } =
-    transaction
-
-  // must attach Setting in reference inputs
-  let Settings { data: settings_data, .. } = find_settings(reference_inputs)
-  expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 {
-    policy_id: hal_policy_id,
-    ref_spend_script_address,
-    ref_spend_admin,
-    ..
-  } = settings_datum
-
-  // must be signed by ref_spend_admin
-  let is_signed_by_ref_spend_admin =
-    list.has(extra_signatories, ref_spend_admin)
-  expect is_signed_by_ref_spend_admin
-
-  // make ref asset name and user asset name from asset_name
-  let ref_asset_name = bytearray.concat(prefix_100, asset_name)
-  let user_asset_name = bytearray.concat(prefix_222, asset_name)
-
-  // spending UTxO must have only one reference asset with asset_name from redeemer
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let Output { address: own_utxo_address, value: own_utxo_value, .. } = own_utxo
-  let hal_tokens =
-    own_utxo_value |> value.tokens(hal_policy_id) |> dict.to_pairs
-  let has_only_one_ref_asset = hal_tokens == [Pair(ref_asset_name, 1)]
-  expect has_only_one_ref_asset
-
-  // there must be H.A.L. user asset in transaction inputs
-  let is_spending_user_asset =
-    does_spend_user_asset(inputs, hal_policy_id, user_asset_name)
-  expect is_spending_user_asset
-
-  // there must be only one UTxO spending in inputs from this script
-  let own_script_hash = get_own_script_hash(own_utxo)
-  let own_utxos_count = get_own_utxos_count(inputs, own_script_hash)
-  expect own_utxos_count == 1
-
-  // first output must be UTxO with reference asset with same value
-  expect [output, ..] = outputs
-  let Output {
-    address: output_address,
-    value: output_value,
-    reference_script: output_reference_script,
-    ..
-  } = output
-  // output address must stay same or be ref_spend_script_address
-  let is_output_address_valid = or {
-      output_address == own_utxo_address,
-      output_address == ref_spend_script_address,
-    }
-  expect is_output_address_valid
-  // must not spend any asset
-  let value_stay_same =
-    value.without_lovelace(output_value) == value.without_lovelace(
-      own_utxo_value,
-    )
-  expect value_stay_same
-  // reference script must be none
-  expect output_reference_script == None
-
-  True
+use validations/ref_spend/utils.{
+  does_spend_user_asset, has_only_one_utxo_with_ref_asset,
+  resolve_ref_spend_proxy_output_datum,
 }
 
 // Validation:
-// When user tries to migrate H.A.L. NFT to
-// latest ref_spend_script_address
+// When user updates H.A.L. NFT's datum.
 //
 // Checks:
-// - must attach Setting in reference inputs
-// - first output must be UTxO with reference asset to ref_spend_script_address
-//   with same value and datum as spending UTxO
+// - must attach `Settings` NFT in reference inputs.
+// - must be signed by `ref_spend_admin` from parameter.
+// - must spend H.A.L. User Asset whose name is `asset_name` from redeemer.
+// - there must be only one transaction input with H.A.L. Reference Asset.
+// - the first output must be `reference_output`.
 //
-pub fn can_migrate(
+pub fn can_update(
   transaction: Transaction,
-  spending_output_reference: OutputReference,
+  ref_spend_admin: VerificationKeyHash,
+  asset_name: AssetName,
 ) -> Bool {
-  let Transaction { inputs, outputs, reference_inputs, .. } = transaction
+  trace @"can_update"
+  let Transaction { inputs, reference_inputs, outputs, extra_signatories, .. } =
+    transaction
 
-  // must attach Setting in reference inputs
+  // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { ref_spend_script_address, .. } = settings_datum
+  let SettingsV1 { policy_id: hal_policy_id, ref_spend_proxy_script_hash, .. } =
+    settings_datum
 
-  // first output must be UTxO with reference asset to ref_spend_script_address
-  // with same value and datum as spending UTxO
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let Output { value: own_utxo_value, datum: own_utxo_datum, .. } = own_utxo
-  expect [output, ..] = outputs
-  let Output {
-    address: output_address,
-    value: output_value,
-    datum: output_datum,
-    reference_script: output_reference_script,
-  } = output
-  // output address must be ref_spend_script_address
-  let is_output_address_valid = output_address == ref_spend_script_address
-  expect is_output_address_valid
-  // value must stay same
-  let value_stay_same = output_value == own_utxo_value
-  expect value_stay_same
-  // datum must stay same
-  let is_datum_stay_same = output_datum == own_utxo_datum
-  expect is_datum_stay_same
-  // reference script must be none
-  expect output_reference_script == None
+  // must be signed by `ref_spend_admin` from parameter.
+  expect list.has(extra_signatories, ref_spend_admin)
+
+  // must spend H.A.L. User Asset whose name is `asset_name` from redeemer.
+  let spend_user_asset =
+    does_spend_user_asset(inputs, hal_policy_id, asset_name)
+  expect spend_user_asset
+
+  // there must be only one transaction input with H.A.L. Reference Asset.
+  let ref_spend_proxy_utxo =
+    has_only_one_utxo_with_ref_asset(inputs, hal_policy_id)
+  let old_datum =
+    resolve_ref_spend_proxy_output_datum(
+      ref_spend_proxy_utxo,
+      ref_spend_proxy_script_hash,
+      hal_policy_id,
+      asset_name,
+    )
+
+  // the first output must be `reference_output`.
+  expect [ref_spend_proxy_output, ..] = outputs
+  let new_datum =
+    resolve_ref_spend_proxy_output_datum(
+      ref_spend_proxy_output,
+      ref_spend_proxy_script_hash,
+      hal_policy_id,
+      asset_name,
+    )
+
+  let datum_changed = old_datum != new_datum
+  expect datum_changed
 
   True
 }

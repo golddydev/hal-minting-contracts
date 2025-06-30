@@ -22,20 +22,6 @@ const makeMintProxyUplcProgramParameterDatum = (
   return makeInlineTxOutputDatum(makeListData([makeIntData(mint_version)]));
 };
 
-const makeMintV1UplcProgramParameter = (
-  minting_data_script_hash: string
-): UplcValue[] => {
-  return [makeUplcDataValue(makeByteArrayData(minting_data_script_hash))];
-};
-
-const makeMintV1UplcProgramParameterDatum = (
-  minting_data_script_hash: string
-): InlineTxOutputDatum => {
-  return makeInlineTxOutputDatum(
-    makeListData([makeByteArrayData(minting_data_script_hash)])
-  );
-};
-
 const makeMintingDataUplcProgramParameter = (
   admin_verification_key_hash: string
 ): UplcValue[] => {
@@ -72,13 +58,27 @@ const makeOrdersSpendUplcProgramParameterDatum = (
   );
 };
 
+const makeRefSpendUplcProgramParameter = (
+  ref_spend_admin: string
+): UplcValue[] => {
+  return [makeUplcDataValue(makeByteArrayData(ref_spend_admin))];
+};
+
+const makeRefSpendUplcProgramParameterDatum = (
+  ref_spend_admin: string
+): InlineTxOutputDatum => {
+  return makeInlineTxOutputDatum(
+    makeListData([makeByteArrayData(ref_spend_admin)])
+  );
+};
+
 export {
   makeMintingDataUplcProgramParameter,
   makeMintingDataUplcProgramParameterDatum,
   makeMintProxyUplcProgramParameter,
   makeMintProxyUplcProgramParameterDatum,
-  makeMintV1UplcProgramParameter,
-  makeMintV1UplcProgramParameterDatum,
   makeOrdersSpendUplcProgramParameter,
   makeOrdersSpendUplcProgramParameterDatum,
+  makeRefSpendUplcProgramParameter,
+  makeRefSpendUplcProgramParameterDatum,
 };

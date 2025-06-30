@@ -1,4 +1,5 @@
 use aiken/builtin.{serialise_data}
+use aiken/bytearray
 use aiken/hash.{Blake2b_256, Hash}
 use aiken/list
 use aiken/pairs
@@ -59,4 +60,9 @@ pub fn get_datum_hash(datum: Datum) -> Hash<Blake2b_256, Data> {
     InlineDatum(data) -> hash.blake2b_256(serialise_data(data))
     _ -> fail @"no datum"
   }
+}
+
+pub fn bytearray_starts_with(self: ByteArray, target: ByteArray) -> Bool {
+  let target_length = bytearray.length(target)
+  ( self |> bytearray.take(target_length) ) == target
 }

@@ -22,17 +22,31 @@ const fetchNetworkParameters = async (
 
 const checkAccountRegistrationStatus = async (
   blockfrostApi: BlockFrostAPI,
-  bech32StakingAddress: string
-): Promise<"registered" | "deregistered" | "none"> => {
+  mintStakingAddress: string,
+  refSpendStakingAddress: string
+): Promise<{
+  mintStakingAddress: "registered" | "deregistered" | "none";
+  refSpendStakingAddress: "registered" | "deregistered" | "none";
+}> => {
   try {
-    const data = (
-      await blockfrostApi.accountsRegistrations(bech32StakingAddress, {
+    const datas = await Promise.all([
+      blockfrostApi.accountsRegistrations(mintStakingAddress, {
         order: "desc",
-      })
-    )[0];
-    return data.action;
+      }),
+      blockfrostApi.accountsRegistrations(refSpendStakingAddress, {
+        order: "desc",
+      }),
+    ]);
+    const statuses = datas.map((data) => data[0].action);
+    return {
+      mintStakingAddress: statuses[0],
+      refSpendStakingAddress: statuses[1],
+    };
   } catch {
-    return "none";
+    return {
+      mintStakingAddress: "none",
+      refSpendStakingAddress: "none",
+    };
   }
 };
 
