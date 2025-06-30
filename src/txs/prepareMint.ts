@@ -2,6 +2,7 @@ import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import { ByteArrayLike, IntLike } from "@helios-lang/codec-utils";
 import {
   Address,
+  makeAddress,
   makeAssetClass,
   makeAssets,
   makeInlineTxOutputDatum,
@@ -10,6 +11,7 @@ import {
   makeStakingAddress,
   makeStakingValidatorHash,
   makeTxOutput,
+  makeValidatorHash,
   makeValue,
   ShelleyAddress,
   TxInput,
@@ -57,8 +59,8 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @property {Trie} db Trie DB
  * @property {Trie} whitelistDB Whitelist DB
  * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
+ * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
  * @property {number | undefined} mintingTime After when this transaction is valid from
  */
 interface PrepareMintParams {
@@ -139,9 +141,14 @@ const prepareMintTransaction = async (
     policy_id,
     allowed_minter,
     hal_nft_price,
-    ref_spend_script_address,
+    ref_spend_proxy_script_hash,
     minting_start_time,
   } = settingsV1Result.data;
+
+  const refSpendProxyScriptAddress = makeAddress(
+    isMainnet,
+    makeValidatorHash(ref_spend_proxy_script_hash)
+  );
 
   // aggregate orders information
   const aggregatedOrdersResult = aggregateOrdersInformation({
@@ -254,7 +261,7 @@ const prepareMintTransaction = async (
 
       // push reference output
       referenceOutputs.push(
-        makeTxOutput(ref_spend_script_address, refValue, assetDatum)
+        makeTxOutput(refSpendProxyScriptAddress, refValue, assetDatum)
       );
 
       // add hal token value to mint

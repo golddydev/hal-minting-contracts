@@ -24,6 +24,7 @@ pub fn can_update(
   ref_spend_admin: VerificationKeyHash,
   asset_name: AssetName,
 ) -> Bool {
+  trace @"can_update"
   let Transaction { inputs, reference_inputs, outputs, extra_signatories, .. } =
     transaction
 

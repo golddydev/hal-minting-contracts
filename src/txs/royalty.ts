@@ -1,5 +1,6 @@
 import { ByteArrayLike, IntLike } from "@helios-lang/codec-utils";
 import {
+  makeAddress,
   makeAssetClass,
   makeAssets,
   makeInlineTxOutputDatum,
@@ -7,6 +8,7 @@ import {
   makePubKeyHash,
   makeStakingAddress,
   makeStakingValidatorHash,
+  makeValidatorHash,
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
@@ -71,8 +73,13 @@ const mintRoyalty = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const { policy_id, allowed_minter, royalty_spend_script_address } =
+  const { policy_id, allowed_minter, royalty_spend_script_hash } =
     settingsV1Result.data;
+
+  const royaltySpendScriptAddress = makeAddress(
+    isMainnet,
+    makeValidatorHash(royalty_spend_script_hash)
+  );
 
   // hal policy id
   const halPolicyHash = makeMintingPolicyHash(policy_id);
@@ -126,7 +133,7 @@ const mintRoyalty = async (
 
   // <-- pay royalty NFT to royalty spend script address
   txBuilder.payUnsafe(
-    royalty_spend_script_address,
+    royaltySpendScriptAddress,
     royaltyNFTValue,
     makeInlineTxOutputDatum(buildRoyaltyDatumData(royaltyDatum))
   );

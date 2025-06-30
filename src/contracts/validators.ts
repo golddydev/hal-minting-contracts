@@ -127,9 +127,10 @@ const getRefSpendUplcProgram = (ref_spend_admin: string): UplcProgramV2 => {
   return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
     .apply(makeRefSpendUplcProgramParameter(ref_spend_admin))
     .withAlt(
-      decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode)
-    )
-    .apply(makeRefSpendUplcProgramParameter(ref_spend_admin));
+      decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
+        makeRefSpendUplcProgramParameter(ref_spend_admin)
+      )
+    );
 };
 
 const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {

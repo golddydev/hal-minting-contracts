@@ -2,9 +2,11 @@ import { bytesToHex } from "@helios-lang/codec-utils";
 import {
   Address,
   addValues,
+  makeAddress,
   makeAssetClass,
   makeAssets,
   makeInlineTxOutputDatum,
+  makeValidatorHash,
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
@@ -184,10 +186,14 @@ const checkMintedAssets = async (
   orderTxInputs: TxInput[],
   userOutputsData: HalUserOutputData[]
 ) => {
-  const { policy_id, ref_spend_script_address } = settingsV1;
+  const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
+  const refSpendProxyScriptAddress = makeAddress(
+    network === "mainnet",
+    makeValidatorHash(ref_spend_proxy_script_hash)
+  );
   const refSpendBalance = await balanceOfAddress(
     emulator,
-    ref_spend_script_address
+    refSpendProxyScriptAddress
   );
 
   for (let i = 0; i < userOutputsData.length; i++) {

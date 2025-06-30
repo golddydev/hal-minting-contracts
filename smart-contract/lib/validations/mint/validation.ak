@@ -17,7 +17,7 @@ use validations/mint/utils.{check_mint_one_royalty_asset, check_royalty_output}
 //
 pub fn can_mint_nfts(transaction: Transaction) -> Bool {
   trace @"can_mint_nfts"
-  let Transaction { reference_inputs, .. } = transaction
+  let Transaction { inputs, reference_inputs, .. } = transaction
 
   // must attach `Settings` in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
@@ -25,7 +25,7 @@ pub fn can_mint_nfts(transaction: Transaction) -> Bool {
   let SettingsV1 { minting_data_script_hash, .. } = settings_datum
 
   // minting_data asset is spent from minting_data_script from parameter
-  let (minting_data_input, _) = find_minting_data(reference_inputs)
+  let (minting_data_input, _) = find_minting_data(inputs)
   expect
     minting_data_input.address.payment_credential == ScriptCredential(
       minting_data_script_hash,

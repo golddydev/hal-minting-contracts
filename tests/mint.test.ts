@@ -1,7 +1,9 @@
 import {
+  makeAddress,
   makeAssetClass,
   makeInlineTxOutputDatum,
   makeTxOutputId,
+  makeValidatorHash,
 } from "@helios-lang/ledger";
 import { Ok } from "ts-res";
 import { assert, describe } from "vitest";
@@ -388,15 +390,19 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_1 can update <hal-1> datum
   myTest(
     "user_1 can update <hal-1> datum",
-    async ({ network, emulator, wallets, deployedScripts }) => {
+    async ({ isMainnet, network, emulator, wallets, deployedScripts }) => {
       const { usersWallets, refSpendAdminWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsV1 } = settingsResult.data;
-      const { policy_id, ref_spend_script_address } = settingsV1;
-      const refUtxos = await emulator.getUtxos(ref_spend_script_address);
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
+      const refSpendProxyScriptAddress = makeAddress(
+        isMainnet,
+        makeValidatorHash(ref_spend_proxy_script_hash)
+      );
+      const refUtxos = await emulator.getUtxos(refSpendProxyScriptAddress);
 
       const assetUtf8Name = "hal-1";
       const assetHexName = Buffer.from(assetUtf8Name).toString("hex");
@@ -424,6 +430,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         newDatum,
         refTxInput: foundRefUtxo,
         userTxInput: foundUserUtxo,
+        settingsAssetTxInput,
         deployedScripts,
       });
       invariant(txBuilderResult.ok, "Update Tx Building failed");
@@ -633,9 +640,6 @@ describe.sequential("Koralab H.A.L Tests", () => {
         await user2Wallet.utxos
       ).complete();
       invariant(!txResult.ok, "Refund Tx Complete should fail");
-      console.log({
-        error: txResult.error.message,
-      });
       assert(txResult.error.message.includes("expect own_utxo_count == 1"));
     }
   );

@@ -181,8 +181,12 @@ interface DeployedScripts {
   mintScriptTxInput: TxInput;
   ordersSpendScriptDetails: ScriptDetails;
   ordersSpendScriptTxInput: TxInput;
+  refSpendProxyScriptDetails: ScriptDetails;
+  refSpendProxyScriptTxInput: TxInput;
   refSpendScriptDetails: ScriptDetails;
   refSpendScriptTxInput: TxInput;
+  royaltySpendScriptDetails: ScriptDetails;
+  royaltySpendScriptTxInput: TxInput;
 }
 
 const fetchAllDeployedScripts = async (
@@ -207,6 +211,19 @@ const fetchAllDeployedScripts = async (
         decodeUplcProgramV2FromCbor(mintProxyScriptDetails.unoptimizedCbor)
       );
 
+    // "mint.withdraw"
+    const mintScriptDetails = await fetchDeployedScript(ScriptType.HAL_MINT);
+    invariant(mintScriptDetails.refScriptUtxo, "Mint has no Ref script UTxO");
+    const mintScriptTxInput = await blockfrostV0Client.getUtxo(
+      makeTxOutputId(mintScriptDetails.refScriptUtxo)
+    );
+    if (mintScriptDetails.unoptimizedCbor)
+      mintScriptTxInput.output.refScript = (
+        mintScriptTxInput.output.refScript as UplcProgramV2
+      )?.withAlt(
+        decodeUplcProgramV2FromCbor(mintScriptDetails.unoptimizedCbor)
+      );
+
     // "minting_data.spend"
     const mintingDataScriptDetails = await fetchDeployedScript(
       ScriptType.HAL_MINTING_DATA
@@ -223,19 +240,6 @@ const fetchAllDeployedScripts = async (
         mintingDataScriptTxInput.output.refScript as UplcProgramV2
       )?.withAlt(
         decodeUplcProgramV2FromCbor(mintingDataScriptDetails.unoptimizedCbor)
-      );
-
-    // "mint.withdraw"
-    const mintScriptDetails = await fetchDeployedScript(ScriptType.HAL_MINT);
-    invariant(mintScriptDetails.refScriptUtxo, "Mint has no Ref script UTxO");
-    const mintScriptTxInput = await blockfrostV0Client.getUtxo(
-      makeTxOutputId(mintScriptDetails.refScriptUtxo)
-    );
-    if (mintScriptDetails.unoptimizedCbor)
-      mintScriptTxInput.output.refScript = (
-        mintScriptTxInput.output.refScript as UplcProgramV2
-      )?.withAlt(
-        decodeUplcProgramV2FromCbor(mintScriptDetails.unoptimizedCbor)
       );
 
     // "orders_spend.spend"
@@ -256,7 +260,25 @@ const fetchAllDeployedScripts = async (
         decodeUplcProgramV2FromCbor(ordersSpendScriptDetails.unoptimizedCbor)
       );
 
-    // "ref_spend.spend"
+    // "ref_spend_proxy.spend"
+    const refSpendProxyScriptDetails = await fetchDeployedScript(
+      ScriptType.HAL_REF_SPEND_PROXY
+    );
+    invariant(
+      refSpendProxyScriptDetails.refScriptUtxo,
+      "Ref Spend Proxy has no Ref script UTxO"
+    );
+    const refSpendProxyScriptTxInput = await blockfrostV0Client.getUtxo(
+      makeTxOutputId(refSpendProxyScriptDetails.refScriptUtxo)
+    );
+    if (refSpendProxyScriptDetails.unoptimizedCbor)
+      refSpendProxyScriptTxInput.output.refScript = (
+        refSpendProxyScriptTxInput.output.refScript as UplcProgramV2
+      )?.withAlt(
+        decodeUplcProgramV2FromCbor(refSpendProxyScriptDetails.unoptimizedCbor)
+      );
+
+    // "ref_spend.withdraw"
     const refSpendScriptDetails = await fetchDeployedScript(
       ScriptType.HAL_REF_SPEND
     );
@@ -274,6 +296,24 @@ const fetchAllDeployedScripts = async (
         decodeUplcProgramV2FromCbor(refSpendScriptDetails.unoptimizedCbor)
       );
 
+    // "royalty_spend.spend"
+    const royaltySpendScriptDetails = await fetchDeployedScript(
+      ScriptType.HAL_ROYALTY_SPEND
+    );
+    invariant(
+      royaltySpendScriptDetails.refScriptUtxo,
+      "Royalty Spend has no Ref script UTxO"
+    );
+    const royaltySpendScriptTxInput = await blockfrostV0Client.getUtxo(
+      makeTxOutputId(royaltySpendScriptDetails.refScriptUtxo)
+    );
+    if (royaltySpendScriptDetails.unoptimizedCbor)
+      royaltySpendScriptTxInput.output.refScript = (
+        royaltySpendScriptTxInput.output.refScript as UplcProgramV2
+      )?.withAlt(
+        decodeUplcProgramV2FromCbor(royaltySpendScriptDetails.unoptimizedCbor)
+      );
+
     return Ok({
       mintProxyScriptDetails,
       mintProxyScriptTxInput,
@@ -283,8 +323,12 @@ const fetchAllDeployedScripts = async (
       mintScriptTxInput,
       ordersSpendScriptDetails,
       ordersSpendScriptTxInput,
+      refSpendProxyScriptDetails,
+      refSpendProxyScriptTxInput,
       refSpendScriptDetails,
       refSpendScriptTxInput,
+      royaltySpendScriptDetails,
+      royaltySpendScriptTxInput,
     });
   } catch (err) {
     return Err(convertError(err));

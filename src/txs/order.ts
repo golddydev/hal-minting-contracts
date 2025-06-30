@@ -76,7 +76,7 @@ const request = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const { max_order_amount, hal_nft_price, orders_spend_script_address } =
+  const { max_order_amount, hal_nft_price, orders_spend_script_hash } =
     settingsV1Result.data;
 
   // check amount is not greater than max_order_amount
@@ -89,6 +89,11 @@ const request = async (
       );
     }
   }
+
+  const ordersSpendScriptAddress = makeAddress(
+    isMainnet,
+    makeValidatorHash(orders_spend_script_hash)
+  );
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -106,7 +111,7 @@ const request = async (
     const orderValue = makeValue(hal_nft_price * BigInt(amount));
 
     txBuilder.payUnsafe(
-      orders_spend_script_address,
+      ordersSpendScriptAddress,
       orderValue,
       makeInlineTxOutputDatum(buildOrderDatumData(orderDatum))
     );
@@ -371,6 +376,7 @@ const isValidOrderTxInput = async (
     whitelistDB,
     mintingTime = Date.now(),
   } = params;
+  const isMainnet = network == "mainnet";
   const { data: settingsV1Data } = settings;
   const settingsV1Result = mayFail(() =>
     decodeSettingsV1Data(settingsV1Data, network)
@@ -383,12 +389,17 @@ const isValidOrderTxInput = async (
   const {
     max_order_amount,
     hal_nft_price,
-    orders_spend_script_address,
+    orders_spend_script_hash,
     minting_start_time,
   } = settingsV1Result.data;
 
+  const ordersSpendScriptAddress = makeAddress(
+    isMainnet,
+    makeValidatorHash(orders_spend_script_hash)
+  );
+
   // check if address matches
-  if (!orderTxInput.address.isEqual(orders_spend_script_address)) {
+  if (!orderTxInput.address.isEqual(ordersSpendScriptAddress)) {
     return Err(
       new Error("Order TxInput must be from Orders Spend Script Address")
     );

@@ -161,6 +161,8 @@ const setup = async () => {
     network,
     mint_version: mintVersion,
     admin_verification_key_hash: adminPubKeyHash,
+    orders_spend_randomizer: "",
+    ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
   });
   const {
     halPolicyHash,
@@ -168,6 +170,7 @@ const setup = async () => {
     mint: mintConfig,
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
+    refSpendProxy: refSpendProxyConfig,
     refSpend: refSpendConfig,
     royaltySpend: royaltySpendConfig,
   } = contractsConfig;
@@ -177,16 +180,19 @@ const setup = async () => {
     policy_id: halPolicyHash.toHex(),
     allowed_minter: allowedMinterPubKeyHash,
     hal_nft_price: HAL_NFT_PRICE,
-    payment_address: paymentWallet.address,
-    ref_spend_script_address: refSpendConfig.refSpendValidatorAddress,
-    orders_spend_script_address: ordersSpendConfig.ordersSpendValidatorAddress,
-    royalty_spend_script_address:
-      royaltySpendConfig.royaltySpendValidatorAddress,
     minting_data_script_hash:
       mintingDataConfig.mintingDataValidatorHash.toHex(),
+    orders_spend_script_hash:
+      ordersSpendConfig.ordersSpendValidatorHash.toHex(),
+    ref_spend_proxy_script_hash:
+      refSpendProxyConfig.refSpendProxyValidatorHash.toHex(),
+    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
+    royalty_spend_script_hash:
+      royaltySpendConfig.royaltySpendValidatorHash.toHex(),
     max_order_amount: 5,
     minting_start_time: mintingStartTime,
+    payment_address: paymentWallet.address,
   };
   const settings: Settings = {
     mint_governor: mintConfig.mintValidatorHash.toHex(),
@@ -281,12 +287,30 @@ const setup = async () => {
         ordersSpendConfig.ordersSpendUplcProgram
       )
     );
+  const [refSpendProxyScriptDetails, refSpendProxyScriptTxInput] =
+    await deployScript(
+      ScriptType.HAL_REF_SPEND_PROXY,
+      emulator,
+      fundWallet,
+      ...extractScriptCborsFromUplcProgram(
+        refSpendProxyConfig.refSpendProxyUplcProgram
+      )
+    );
   const [refSpendScriptDetails, refSpendScriptTxInput] = await deployScript(
     ScriptType.HAL_REF_SPEND,
     emulator,
     fundWallet,
     ...extractScriptCborsFromUplcProgram(refSpendConfig.refSpendUplcProgram)
   );
+  const [royaltySpendScriptDetails, royaltySpendScriptTxInput] =
+    await deployScript(
+      ScriptType.HAL_ROYALTY_SPEND,
+      emulator,
+      fundWallet,
+      ...extractScriptCborsFromUplcProgram(
+        royaltySpendConfig.royaltySpendUplcProgram
+      )
+    );
 
   // ============ mock modules ============
   // mock constants
@@ -309,8 +333,12 @@ const setup = async () => {
     mintingDataScriptTxInput,
     ordersSpendScriptDetails,
     ordersSpendScriptTxInput,
+    refSpendProxyScriptDetails,
+    refSpendProxyScriptTxInput,
     refSpendScriptDetails,
     refSpendScriptTxInput,
+    royaltySpendScriptDetails,
+    royaltySpendScriptTxInput,
   };
 
   // hoist mocked functions
@@ -380,6 +408,7 @@ const setup = async () => {
   const orderTxInputs: TxInput[] = [];
 
   return {
+    isMainnet,
     network,
     emulator,
     db,
