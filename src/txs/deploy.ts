@@ -5,13 +5,13 @@ import { decodeUplcProgramV2FromCbor, UplcProgramV2 } from "@helios-lang/uplc";
 import { ScriptDetails, ScriptType } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
 
-import { CONTRACT_NAMES } from "../constants/index.js";
+import { CONTRACT_NAME } from "../constants/index.js";
 import {
   buildContracts,
   makeMintingDataUplcProgramParameterDatum,
   makeMintProxyUplcProgramParameterDatum,
-  makeMintUplcProgramParameterDatum,
   makeOrdersSpendUplcProgramParameterDatum,
+  makeRefSpendUplcProgramParameterDatum,
 } from "../contracts/index.js";
 import { convertError, invariant } from "../helpers/index.js";
 import { fetchDeployedScript } from "../utils/contract.js";
@@ -28,8 +28,9 @@ interface DeployParams {
   network: NetworkName;
   mintVersion: bigint;
   adminVerificationKeyHash: string;
-  contractName: string;
   ordersSpendRandomizer?: string | undefined;
+  refSpendAdmin: string;
+  contractName: string;
 }
 
 interface DeployData {
@@ -52,8 +53,9 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
     network,
     mintVersion,
     adminVerificationKeyHash,
-    contractName,
     ordersSpendRandomizer = "",
+    refSpendAdmin,
+    contractName,
   } = params;
 
   const contractsConfig = buildContracts({
@@ -61,6 +63,7 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
     mint_version: mintVersion,
     admin_verification_key_hash: adminVerificationKeyHash,
     orders_spend_randomizer: ordersSpendRandomizer,
+    ref_spend_admin: refSpendAdmin,
   });
   const {
     halPolicyHash,
@@ -68,11 +71,13 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
     mint: mintConfig,
     mintingData: mintingDataConfig,
     ordersSpend: ordersSpendConfig,
+    refSpendProxy: refSpendProxyConfig,
     refSpend: refSpendConfig,
+    royaltySpend: royaltySpendConfig,
   } = contractsConfig;
 
   switch (contractName) {
-    case "mint_proxy.mint":
+    case CONTRACT_NAME.MINT_PROXY_MINT:
       return {
         ...extractScriptCborsFromUplcProgram(
           mintProxyConfig.mintProxyMintUplcProgram
@@ -83,7 +88,15 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
         validatorHash: mintProxyConfig.mintProxyPolicyHash.toHex(),
         policyId: mintProxyConfig.mintProxyPolicyHash.toHex(),
       };
-    case "minting_data.spend":
+    case CONTRACT_NAME.MINT_WITHDRAW:
+      return {
+        ...extractScriptCborsFromUplcProgram(
+          mintConfig.mintWithdrawUplcProgram
+        ),
+        validatorHash: mintConfig.mintValidatorHash.toHex(),
+        scriptStakingAddress: mintConfig.mintStakingAddress.toBech32(),
+      };
+    case CONTRACT_NAME.MINTING_DATA_SPEND:
       return {
         ...extractScriptCborsFromUplcProgram(
           mintingDataConfig.mintingDataSpendUplcProgram
@@ -96,20 +109,7 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
         validatorHash: mintingDataConfig.mintingDataValidatorHash.toHex(),
         scriptAddress: mintingDataConfig.mintingDataValidatorAddress.toBech32(),
       };
-    case "mint.withdraw":
-      return {
-        ...extractScriptCborsFromUplcProgram(
-          mintConfig.mintWithdrawUplcProgram
-        ),
-        datumCbor: bytesToHex(
-          makeMintUplcProgramParameterDatum(
-            mintingDataConfig.mintingDataValidatorHash.toHex()
-          ).data.toCbor()
-        ),
-        validatorHash: mintConfig.mintValidatorHash.toHex(),
-        scriptStakingAddress: mintConfig.mintStakingAddress.toBech32(),
-      };
-    case "orders_spend.spend":
+    case CONTRACT_NAME.ORDERS_SPEND_SPEND:
       return {
         ...extractScriptCborsFromUplcProgram(
           ordersSpendConfig.ordersSpendUplcProgram
@@ -120,20 +120,43 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
             ordersSpendRandomizer
           ).data.toCbor()
         ),
-        validatorHash: ordersSpendConfig.ordersValidatorHash.toHex(),
+        validatorHash: ordersSpendConfig.ordersSpendValidatorHash.toHex(),
         scriptAddress: ordersSpendConfig.ordersSpendValidatorAddress.toBech32(),
       };
-    case "ref_spend.spend":
+    case CONTRACT_NAME.REF_SPEND_PROXY_SPEND:
+      return {
+        ...extractScriptCborsFromUplcProgram(
+          refSpendProxyConfig.refSpendProxyUplcProgram
+        ),
+        validatorHash: refSpendProxyConfig.refSpendProxyValidatorHash.toHex(),
+        scriptAddress:
+          refSpendProxyConfig.refSpendProxyValidatorAddress.toBech32(),
+      };
+    case CONTRACT_NAME.REF_SPEND_WITHDRAW:
       return {
         ...extractScriptCborsFromUplcProgram(
           refSpendConfig.refSpendUplcProgram
         ),
+        datumCbor: bytesToHex(
+          makeRefSpendUplcProgramParameterDatum(refSpendAdmin).data.toCbor()
+        ),
         validatorHash: refSpendConfig.refSpendValidatorHash.toHex(),
-        scriptAddress: refSpendConfig.refSpendValidatorAddress.toBech32(),
+        scriptStakingAddress: refSpendConfig.refSpendStakingAddress.toBech32(),
+      };
+    case CONTRACT_NAME.ROYALTY_SPEND_SPEND:
+      return {
+        ...extractScriptCborsFromUplcProgram(
+          royaltySpendConfig.royaltySpendUplcProgram
+        ),
+        validatorHash: royaltySpendConfig.royaltySpendValidatorHash.toHex(),
+        scriptAddress:
+          royaltySpendConfig.royaltySpendValidatorAddress.toBech32(),
       };
     default:
       throw new Error(
-        `Contract name must be one of ${CONTRACT_NAMES.join(", ")}`
+        `Contract name must be one of ${Object.values(CONTRACT_NAME).join(
+          ", "
+        )}`
       );
   }
 };
