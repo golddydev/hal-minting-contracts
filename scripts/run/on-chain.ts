@@ -7,7 +7,7 @@ import prompts from "prompts";
 
 import {
   BLOCKFROST_API_KEY,
-  CONTRACT_NAMES,
+  CONTRACT_NAME,
   NETWORK,
 } from "../../src/constants/index.js";
 import {
@@ -155,18 +155,19 @@ const buildSettingsDataCbor = () => {
     policy_id: halPolicyHash.toHex(),
     allowed_minter: ALLOWED_MINTER,
     hal_nft_price: HAL_NFT_PRICE,
-    payment_address: PAYMENT_ADDRESS,
+    minting_data_script_hash:
+      mintingDataConfig.mintingDataValidatorHash.toHex(),
+    orders_spend_script_hash:
+      ordersSpendConfig.ordersSpendValidatorHash.toHex(),
     ref_spend_proxy_script_hash:
       refSpendProxyConfig.refSpendProxyValidatorHash.toHex(),
     ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
-    orders_spend_script_hash:
-      ordersSpendConfig.ordersSpendValidatorHash.toHex(),
+    ref_spend_admin: REF_SPEND_ADMIN,
     royalty_spend_script_hash:
       royaltySpendConfig.royaltySpendValidatorHash.toHex(),
-    minting_data_script_hash:
-      mintingDataConfig.mintingDataValidatorHash.toHex(),
     max_order_amount: MAX_ORDER_AMOUNT,
     minting_start_time: MINTING_START_TIME,
+    payment_address: PAYMENT_ADDRESS,
   };
   const settings: Settings = {
     mint_governor: mintConfig.mintValidatorHash.toHex(),
@@ -203,8 +204,12 @@ const getStakingAddresses = () => {
 
 const doDeployActions = async () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
-    configs;
+  const {
+    MINT_VERSION,
+    ADMIN_VERIFICATION_KEY_HASH,
+    ORDERS_SPEND_RANDOMIZER,
+    REF_SPEND_ADMIN,
+  } = configs;
 
   let finished: boolean = false;
   while (!finished) {
@@ -213,7 +218,7 @@ const doDeployActions = async () => {
       type: "select",
       name: "action",
       choices: [
-        ...CONTRACT_NAMES.map((contract) => ({
+        ...Object.values(CONTRACT_NAME).map((contract) => ({
           title: contract,
           description: contract,
           value: async () => {
@@ -221,8 +226,9 @@ const doDeployActions = async () => {
               network: NETWORK as NetworkName,
               mintVersion: MINT_VERSION,
               adminVerificationKeyHash: ADMIN_VERIFICATION_KEY_HASH,
-              contractName: contract,
               ordersSpendRandomizer: ORDERS_SPEND_RANDOMIZER,
+              refSpendAdmin: REF_SPEND_ADMIN,
+              contractName: contract,
             });
 
             const { filepath } = await prompts({
