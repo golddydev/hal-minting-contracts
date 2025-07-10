@@ -32,6 +32,14 @@ test cannot_mint_hal_2_with_wrong_minted_value() fail {
   new_root == trie_with_hal_2()
 }
 
+test cannot_mint_different_hal_2() fail {
+  let root = initial_trie()
+  let new_root =
+    root |> mpt.update("different-hal-2", proof_hal_2(), #"", mpt_minted_value)
+
+  new_root == trie_with_hal_2()
+}
+
 test can_mint_hal_3() {
   let root = trie_with_hal_2()
   let new_root =
@@ -56,6 +64,14 @@ test cannot_mint_hal_3_with_wrong_minted_value() fail {
   new_root == trie_with_hal_2_3()
 }
 
+test cannot_mint_different_hal_3() fail {
+  let root = trie_with_hal_2()
+  let new_root =
+    root |> mpt.update("different-hal-3", proof_hal_3(), #"", mpt_minted_value)
+
+  new_root == trie_with_hal_2_3()
+}
+
 test can_mint_hal_5() {
   let root = trie_with_hal_2_3()
   let new_root =
@@ -76,6 +92,14 @@ test cannot_mint_hal_5_with_wrong_minted_value() fail {
   let root = trie_with_hal_2_3()
   let new_root =
     root |> mpt.update("hal-5", proof_hal_5(), #"", wrong_mpt_minted_value)
+
+  new_root == trie_with_hal_2_3_5()
+}
+
+test cannot_mint_different_hal_5() fail {
+  let root = trie_with_hal_2_3()
+  let new_root =
+    root |> mpt.update("different-hal-5", proof_hal_5(), #"", mpt_minted_value)
 
   new_root == trie_with_hal_2_3_5()
 }
