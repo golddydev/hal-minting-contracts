@@ -110,7 +110,7 @@ pub fn are_all_orders_fulfilled(
   }
 }
 
-fn update_mpt_root(
+pub fn update_mpt_root(
   root: mpt.MerklePatriciaForestry,
   proofs: List<AssetNameProof>,
 ) -> mpt.MerklePatriciaForestry {
@@ -129,7 +129,7 @@ fn update_mpt_root(
 // the destination address is whitelisted
 // to mint early
 // and check minting start time, if not whitelisted
-fn update_whitelist_mpt_root(
+pub fn update_whitelist_mpt_root(
   root: mpt.MerklePatriciaForestry,
   whitelist_proof: WhitelistProof,
   validity_range: ValidityRange,

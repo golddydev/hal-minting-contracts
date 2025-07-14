@@ -3,6 +3,7 @@ use aiken/list
 use aiken/merkle_patricia_forestry.{
   Branch, Fork, Leaf, MerklePatriciaForestry, Proof, ProofStep,
 } as mpt
+use validations/minting_data/utils.{update_mpt_root}
 
 const mpt_minted_value = "minted"
 
@@ -104,6 +105,21 @@ test cannot_mint_different_hal_5() fail {
   new_root == trie_with_hal_2_3_5()
 }
 
+test can_mint_hal_2_3_5() {
+  let root = initial_trie()
+  let new_root =
+    update_mpt_root(
+      root,
+      [
+        ("hal-2", proof_hal_2()),
+        ("hal-3", proof_hal_3()),
+        ("hal-5", proof_hal_5()),
+      ],
+    )
+
+  new_root == trie_with_hal_2_3_5()
+}
+
 /// -------------------- Tries
 ///
 /// An example trie made from a list of HALs
@@ -113,7 +129,7 @@ test cannot_mint_different_hal_5() fail {
 ///   ║ #264814436b0b358963bd767435419d4f5def53eb2db23708b4f831e6aaba6ba0 ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
-fn initial_trie() -> MerklePatriciaForestry {
+pub fn initial_trie() -> MerklePatriciaForestry {
   mpt.from_root(
     #"264814436b0b358963bd767435419d4f5def53eb2db23708b4f831e6aaba6ba0",
   )
@@ -126,7 +142,7 @@ fn initial_trie() -> MerklePatriciaForestry {
 ///   ║ #0e79e0d805200085e0bc4859e11a7507aa64dc382ba13b69268dff6884b536cf ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
-fn trie_with_hal_2() -> MerklePatriciaForestry {
+pub fn trie_with_hal_2() -> MerklePatriciaForestry {
   mpt.from_root(
     #"0e79e0d805200085e0bc4859e11a7507aa64dc382ba13b69268dff6884b536cf",
   )
@@ -139,7 +155,7 @@ fn trie_with_hal_2() -> MerklePatriciaForestry {
 ///   ║ #95216218c8f1e8d80a65165f7bcda94cd2dfbb73fff5f3efb4b916cbb7f7e5ad ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
-fn trie_with_hal_2_3() -> MerklePatriciaForestry {
+pub fn trie_with_hal_2_3() -> MerklePatriciaForestry {
   mpt.from_root(
     #"95216218c8f1e8d80a65165f7bcda94cd2dfbb73fff5f3efb4b916cbb7f7e5ad",
   )
@@ -152,14 +168,15 @@ fn trie_with_hal_2_3() -> MerklePatriciaForestry {
 ///   ║ #2de0b0ad5346df469e08e403ae13dc9bf5606464564f03d5aa769049cce2257e ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
-fn trie_with_hal_2_3_5() -> MerklePatriciaForestry {
+pub fn trie_with_hal_2_3_5() -> MerklePatriciaForestry {
   mpt.from_root(
     #"2de0b0ad5346df469e08e403ae13dc9bf5606464564f03d5aa769049cce2257e",
   )
 }
 
 /// -------------------- Proofs
-fn proof_hal_2() {
+///
+pub fn proof_hal_2() {
   [
     Branch {
       skip: 0,
@@ -182,7 +199,7 @@ fn proof_hal_2() {
   ]
 }
 
-fn proof_hal_3() {
+pub fn proof_hal_3() {
   [
     Branch {
       skip: 0,
@@ -200,7 +217,7 @@ fn proof_hal_3() {
   ]
 }
 
-fn proof_hal_5() {
+pub fn proof_hal_5() {
   [
     Branch {
       skip: 0,
