@@ -1,12 +1,14 @@
 use aiken/dict
 use aiken/interval
 use aiken/transaction.{
-  Datum, InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
-  TransactionId,
+  Datum, InlineDatum, Input, Output, OutputReference, Transaction, TransactionId,
 }
-use aiken/transaction/credential.{Address, StakeCredential}
+use aiken/transaction/credential.{
+  Address, Inline, ScriptCredential, StakeCredential,
+}
 use aiken/transaction/value.{Value}
 use common/hashes.{ScriptHash, VerificationKeyHash}
+use common/royalty.{RoyaltyDatum}
 use hal_nft_mint/minting_data.{MintingData}
 use hal_nft_mint/orders.{OrderDatum}
 use hal_nft_mint/settings.{Settings}
@@ -18,18 +20,6 @@ use tests/mocks/fake_constants.{
   orders_spend_script_hash, payment_address, ref_spend_admin, ref_spend_governor,
   ref_spend_proxy_script_hash, royalty_spend_script_hash, settings_asset_name,
   settings_asset_policy_id,
-}
-
-pub fn make_output(address: Address, v: Value) -> Output {
-  Output { address, value: v, datum: NoDatum, reference_script: None }
-}
-
-pub fn make_output_with_datum(
-  address: Address,
-  v: Value,
-  datum: Datum,
-) -> Output {
-  Output { address, value: v, datum, reference_script: None }
 }
 
 pub fn make_order_input(
@@ -55,11 +45,6 @@ pub fn make_order_input(
       reference_script: None,
     },
   }
-}
-
-pub fn make_test_address() -> Address {
-  credential.from_verification_key(#"00")
-    |> credential.with_delegation_key(#"00")
 }
 
 pub fn make_settings_reference_input() -> Input {
@@ -142,6 +127,10 @@ pub fn make_fee_output(fee_address: Address, fee: Int) {
   }
 }
 
+pub fn make_withdrawals(script_hash: ScriptHash) -> Pairs<StakeCredential, Int> {
+  [Pair(Inline(ScriptCredential(script_hash)), 0)]
+}
+
 pub fn make_transaction(
   inputs: List<Input>,
   reference_inputs: List<Input>,
@@ -164,4 +153,8 @@ pub fn make_transaction(
     datums: dict.new(),
     id: TransactionId { hash: #"" },
   }
+}
+
+pub fn make_royalty_datum() -> Datum {
+  InlineDatum(RoyaltyDatum { recipients: [], version: 1, extra: Void })
 }
