@@ -7,9 +7,10 @@ use aiken/transaction/value
 use common/cip68.{prefix_100}
 use hal_nft_mint/whitelist.{WhitelistedItem}
 use tests/mocks/fake_constants.{
-  allowed_minter, hal_nft_price, hal_policy_id, mint_governor,
-  minting_data_script_hash, minting_start_time, one_hour_in_milliseconds,
-  two_hours_in_milliseconds, user_1_address, user_2_address,
+  admin_verification_key_hash, allowed_minter, hal_nft_price, hal_policy_id,
+  mint_governor, minting_data_script_hash, minting_start_time,
+  one_hour_in_milliseconds, two_hours_in_milliseconds, user_1_address,
+  user_2_address,
 }
 use tests/mocks/fake_tx.{
   make_cip68_datum, make_hal_minted_value, make_minting_data_input,
@@ -27,7 +28,7 @@ use tests/mpt/hal_whitelist_mpt.{
   whitelist_trie_with_user_1_minted_5_user_2_minted_3,
 }
 use validations/minting_data/types.{Proofs}
-use validations/minting_data/validation.{can_mint}
+use validations/minting_data/validation.{can_mint, can_update_mpt}
 
 test can_mint_3_as_one_order() {
   let settings_reference_input = make_settings_reference_input()
@@ -807,4 +808,99 @@ test cannot_mint_more_than_whitelisted_amount() fail {
     },
     proofs_list,
   )
+}
+
+test can_update_mpt_0() {
+  let settings_reference_input = make_settings_reference_input()
+  let spending_tx_hash = #"0000"
+
+  let minting_data_input =
+    make_minting_data_input(
+      initial_trie() |> mpt.root,
+      mpt.empty() |> mpt.root,
+      minting_data_script_hash,
+      spending_tx_hash,
+    )
+  let minting_data_output =
+    make_minting_data_output(
+      trie_with_hal_2_3_5() |> mpt.root,
+      mpt.empty() |> mpt.root,
+      minting_data_script_hash,
+    )
+
+  let transaction =
+    make_transaction(
+      [minting_data_input],
+      [settings_reference_input],
+      [minting_data_output],
+      value.zero(),
+      [],
+      [admin_verification_key_hash],
+      interval.everything(),
+    )
+  can_update_mpt(transaction, admin_verification_key_hash)
+}
+
+test cannot_update_mpt_if_not_signed_by_admin() fail {
+  let settings_reference_input = make_settings_reference_input()
+  let spending_tx_hash = #"0000"
+
+  let minting_data_input =
+    make_minting_data_input(
+      initial_trie() |> mpt.root,
+      mpt.empty() |> mpt.root,
+      minting_data_script_hash,
+      spending_tx_hash,
+    )
+  let minting_data_output =
+    make_minting_data_output(
+      trie_with_hal_2_3_5() |> mpt.root,
+      mpt.empty() |> mpt.root,
+      minting_data_script_hash,
+    )
+
+  let transaction =
+    make_transaction(
+      [minting_data_input],
+      [settings_reference_input],
+      [minting_data_output],
+      value.zero(),
+      [],
+      [],
+      interval.everything(),
+    )
+  can_update_mpt(transaction, admin_verification_key_hash)
+}
+
+test cannot_update_with_minting_assets() fail {
+  let settings_reference_input = make_settings_reference_input()
+  let spending_tx_hash = #"0000"
+
+  let minting_data_input =
+    make_minting_data_input(
+      initial_trie() |> mpt.root,
+      mpt.empty() |> mpt.root,
+      minting_data_script_hash,
+      spending_tx_hash,
+    )
+  let minting_data_output =
+    make_minting_data_output(
+      trie_with_hal_2_3_5() |> mpt.root,
+      mpt.empty() |> mpt.root,
+      minting_data_script_hash,
+    )
+
+  let minted_value = make_hal_minted_value(["hal-2", "hal-3", "hal-5"])
+
+  let transaction =
+    make_transaction(
+      [minting_data_input],
+      [settings_reference_input],
+      [minting_data_output],
+      minted_value,
+      [],
+      [admin_verification_key_hash],
+      interval.everything(),
+    )
+  can_update_mpt(transaction, admin_verification_key_hash)
 }

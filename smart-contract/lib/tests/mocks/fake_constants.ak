@@ -23,6 +23,9 @@ pub const mint_governor: ScriptHash = #"0000"
 
 pub const mint_version: Int = 0
 
+pub const admin_verification_key_hash: VerificationKeyHash =
+  #"1b3d235a54e52b00e9152df2481c5c569f03eb47977f13e2f6ea897e"
+
 // settings v1
 
 pub const hal_policy_id: PolicyId =
