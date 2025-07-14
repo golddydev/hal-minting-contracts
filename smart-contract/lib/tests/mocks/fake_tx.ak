@@ -26,22 +26,26 @@ use tests/mocks/fake_constants.{
   settings_asset_policy_id,
 }
 
+pub fn make_order_datum(user_address: Address, amount: Int) -> OrderDatum {
+  expect Address {
+    payment_credential: VerificationKeyCredential(owner_verification_key_hash),
+    ..
+  } = user_address
+
+  OrderDatum {
+    owner_key_hash: owner_verification_key_hash,
+    destination_address: user_address,
+    amount,
+  }
+}
+
 pub fn make_order_input(
   user_address: Address,
   amount: Int,
   lovelace_value: Int,
   tx_hash: ByteArray,
 ) -> Input {
-  expect Address {
-    payment_credential: VerificationKeyCredential(owner_verification_key_hash),
-    ..
-  } = user_address
-  let order_datum: OrderDatum =
-    OrderDatum {
-      owner_key_hash: owner_verification_key_hash,
-      destination_address: user_address,
-      amount,
-    }
+  let order_datum: OrderDatum = make_order_datum(user_address, amount)
 
   Input {
     output_reference: OutputReference {
