@@ -66,13 +66,17 @@ jobs:
           sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
 
       - name: Install Aiken
-        run: |
-          curl --proto '=https' --tlsv1.2 -LsSf https://install.aiken-lang.org | sh
-          ~/.aiken/bin/aikup install v1.0.29-alpha
-          sudo ln -s ~/.aiken/bin/aiken /usr/local/bin/aiken
+        uses: aiken-lang/setup-aiken@v1
+        with:
+          version: v1.0.29-alpha
+
+      - name: Run fmt
+        working-directory: smart-contract
+        run: aiken fmt --check
 
       - name: Run tests
-        run: npm run test:aiken
+        working-directory: smart-contract
+        run: aiken check
 
   test:
     runs-on: ubuntu-latest
@@ -92,6 +96,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run lint
+        run: npm run lint
 
       - name: Run tests
         run: npm run test
