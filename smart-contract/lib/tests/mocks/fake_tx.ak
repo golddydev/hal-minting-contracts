@@ -12,8 +12,8 @@ use hal_nft_mint/orders.{OrderDatum}
 use hal_nft_mint/settings.{Settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 use tests/mocks/fake_constants.{
-  allowed_minter, hal_nft_price, hal_policy_id, max_order_amount,
-  min_order_lovelace, mint_governor, mint_version, minting_data_asset_name,
+  allowed_minter, hal_nft_price, hal_policy_id, min_order_lovelace,
+  mint_governor, mint_version, minting_data_asset_name,
   minting_data_asset_policy_id, minting_data_script_hash, minting_start_time,
   orders_spend_script_hash, payment_address, ref_spend_admin, ref_spend_governor,
   ref_spend_proxy_script_hash, royalty_spend_script_hash, settings_asset_name,
@@ -74,7 +74,6 @@ pub fn make_settings_reference_input() -> Input {
       ref_spend_governor,
       ref_spend_admin,
       royalty_spend_script_hash,
-      max_order_amount,
       minting_start_time,
       payment_address: payment_address(),
     }

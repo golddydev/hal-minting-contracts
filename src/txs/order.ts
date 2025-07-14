@@ -76,19 +76,7 @@ const request = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const { max_order_amount, hal_nft_price, orders_spend_script_hash } =
-    settingsV1Result.data;
-
-  // check amount is not greater than max_order_amount
-  for (const [_, amount] of orders) {
-    if (amount > max_order_amount) {
-      return Err(
-        new Error(
-          `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
-        )
-      );
-    }
-  }
+  const { hal_nft_price, orders_spend_script_hash } = settingsV1Result.data;
 
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -386,12 +374,8 @@ const isValidOrderTxInput = async (
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const {
-    max_order_amount,
-    hal_nft_price,
-    orders_spend_script_hash,
-    minting_start_time,
-  } = settingsV1Result.data;
+  const { hal_nft_price, orders_spend_script_hash, minting_start_time } =
+    settingsV1Result.data;
 
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -413,15 +397,6 @@ const isValidOrderTxInput = async (
     return Err(new Error("Invalid Order Datum"));
   }
   const { destination_address, amount: ordered_amount } = decodedResult.data;
-
-  // check amount
-  if (ordered_amount > max_order_amount) {
-    return Err(
-      new Error(
-        `Amount must be less than or equal to ${max_order_amount} (max_order_amount)`
-      )
-    );
-  }
 
   // check lovelace is enough
   const expectedLovelace = BigInt(ordered_amount) * hal_nft_price;

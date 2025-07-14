@@ -51,8 +51,6 @@ pub const ref_spend_admin: VerificationKeyHash =
 pub const royalty_spend_script_hash: ScriptHash =
   #"362755f51869d07968af9f0230f9a6f55edbf3b71931e8aeb2752f1c"
 
-pub const max_order_amount: Int = 5
-
 pub const minting_start_time: Int = 1751328000000
 
 pub fn payment_address() -> Address {

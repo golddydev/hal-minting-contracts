@@ -190,7 +190,6 @@ const setup = async () => {
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
     royalty_spend_script_hash:
       royaltySpendConfig.royaltySpendValidatorHash.toHex(),
-    max_order_amount: 5,
     minting_start_time: mintingStartTime,
     payment_address: paymentWallet.address,
   };

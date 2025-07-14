@@ -26,8 +26,6 @@ pub type SettingsV1 {
   // royalty spend script hash
   // Royalty NFT is sent to this script
   royalty_spend_script_hash: ScriptHash,
-  // Maximum Amount of H.A.L. NFTs that can be ordered at once
-  max_order_amount: Int,
   // when the minting (for everyone) starts
   minting_start_time: Int,
   // address to collect HAL NFT's cost

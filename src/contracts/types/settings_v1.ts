@@ -24,8 +24,6 @@ interface SettingsV1 {
   // royalty spend script hash
   // Royalty NFT is sent to this script
   royalty_spend_script_hash: string;
-  // Maximum Amount of H.A.L. NFTs that can be ordered at once
-  max_order_amount: number;
   // when the minting (for everyone) starts
   minting_start_time: number;
   // address to collect HAL NFT's cost

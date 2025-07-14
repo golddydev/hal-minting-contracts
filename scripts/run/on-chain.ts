@@ -129,7 +129,6 @@ const buildSettingsDataCbor = () => {
     ALLOWED_MINTER,
     HAL_NFT_PRICE,
     PAYMENT_ADDRESS,
-    MAX_ORDER_AMOUNT,
     MINTING_START_TIME,
   } = configs;
 
@@ -165,7 +164,6 @@ const buildSettingsDataCbor = () => {
     ref_spend_admin: REF_SPEND_ADMIN,
     royalty_spend_script_hash:
       royaltySpendConfig.royaltySpendValidatorHash.toHex(),
-    max_order_amount: MAX_ORDER_AMOUNT,
     minting_start_time: MINTING_START_TIME,
     payment_address: PAYMENT_ADDRESS,
   };
