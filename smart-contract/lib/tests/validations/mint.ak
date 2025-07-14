@@ -1,3 +1,4 @@
+use aiken/interval
 use aiken/merkle_patricia_forestry as mpt
 use aiken/transaction.{InlineDatum, Output, Transaction}
 use aiken/transaction/credential
@@ -22,6 +23,7 @@ test can_mint_nfts_0() {
       initial_trie() |> mpt.root,
       mpt.empty() |> mpt.root,
       minting_data_script_hash,
+      #"0000",
     )
   let minting_data_output =
     make_minting_data_output(
@@ -39,6 +41,7 @@ test can_mint_nfts_0() {
       value.zero(),
       make_withdrawals(mint_governor),
       [],
+      interval.everything(),
     )
 
   can_mint_nfts(transaction)
@@ -50,6 +53,7 @@ test cannot_mint_nfts_without_settings_reference_input() fail {
       initial_trie() |> mpt.root,
       mpt.empty() |> mpt.root,
       minting_data_script_hash,
+      #"0000",
     )
   let minting_data_output =
     make_minting_data_output(
@@ -67,6 +71,7 @@ test cannot_mint_nfts_without_settings_reference_input() fail {
       value.zero(),
       make_withdrawals(mint_governor),
       [],
+      interval.everything(),
     )
 
   can_mint_nfts(transaction)
@@ -84,6 +89,7 @@ test cannot_mint_nfts_without_spending_minting_data_input() fail {
       value.zero(),
       make_withdrawals(mint_governor),
       [],
+      interval.everything(),
     )
 
   can_mint_nfts(transaction)
@@ -98,6 +104,7 @@ test cannot_mint_nfts_without_spending_from_correct_script() fail {
       initial_trie() |> mpt.root,
       mpt.empty() |> mpt.root,
       invalid_minting_data_script_hash,
+      #"0000",
     )
   let minting_data_output =
     make_minting_data_output(
@@ -115,6 +122,7 @@ test cannot_mint_nfts_without_spending_from_correct_script() fail {
       value.zero(),
       make_withdrawals(mint_governor),
       [],
+      interval.everything(),
     )
 
   can_mint_nfts(transaction)
@@ -143,6 +151,7 @@ test can_mint_royalty_nft_0() {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -169,6 +178,7 @@ test cannot_mint_royalty_nft_without_settings_reference_input() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -197,6 +207,7 @@ test cannot_mint_royalty_nft_if_not_signed_by_allowed_minter() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -225,6 +236,7 @@ test cannot_mint_royalty_nft_if_mint_more_than_one_royalty_assets() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -254,6 +266,7 @@ test cannot_mint_royalty_nft_if_mint_with_wrong_asset_name() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -283,6 +296,7 @@ test cannot_mint_royalty_nft_if_royalty_output_has_wrong_address() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -311,6 +325,7 @@ test cannot_mint_royalty_nft_if_royalty_output_datum_is_invalid() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)
@@ -339,6 +354,7 @@ test cannot_mint_royalty_nft_if_reference_script_is_not_none() fail {
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],
+      interval.everything(),
     )
 
   can_mint_royalty_nft(transaction)

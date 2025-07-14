@@ -62,9 +62,6 @@ pub fn payment_address() -> Address {
       )
 }
 
-// other constants
-pub const min_order_lovelace = 3_000_000
-
 // User wallets
 pub fn user_1_address() -> Address {
   credential.from_verification_key(
