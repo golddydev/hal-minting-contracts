@@ -5,7 +5,7 @@ use aiken/transaction.{Output, OutputReference, TransactionId}
 use aiken/transaction/credential
 use aiken/transaction/value
 use common/cip68.{prefix_100}
-use hal_nft_mint/whitelist.{WhitelistedItem}
+use hal_nft_mint/whitelist.{WhitelistedItem, WhitelistedValue}
 use tests/mocks/fake_constants.{
   admin_verification_key_hash, allowed_minter, hal_nft_price, hal_policy_id,
   mint_governor, minting_data_script_hash, minting_start_time,
@@ -22,10 +22,11 @@ use tests/mpt/hal_mpt.{
   initial_trie, proof_hal_2, proof_hal_3, proof_hal_5, trie_with_hal_2_3_5,
 }
 use tests/mpt/hal_whitelist_mpt.{
-  whitelist_initial_trie, whitelist_proof_user_1_1, whitelist_proof_user_2_1,
-  whitelist_trie_with_user_1_minted_3,
+  whitelist_initial_trie, whitelist_proof_user_1_1, whitelist_proof_user_1_3,
+  whitelist_proof_user_2_1, whitelist_trie_with_user_1_minted_3,
   whitelist_trie_with_user_1_minted_3_user_2_minted_3,
-  whitelist_trie_with_user_1_minted_5_user_2_minted_3,
+  whitelist_trie_with_user_1_minted_6_user_2_minted_6,
+  whitelist_trie_with_user_1_minted_8_user_2_minted_6,
 }
 use validations/minting_data/types.{Proofs}
 use validations/minting_data/validation.{can_mint, can_update_mpt}
@@ -235,7 +236,11 @@ test can_mint_3_as_one_order_and_whitelisted() {
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
-  let user_1_whitelisted_item: WhitelistedItem = (two_hours_in_milliseconds, 5)
+  let user_1_whitelisted_value: WhitelistedValue =
+    [
+      WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 5 },
+      WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 3 },
+    ]
   let proofs_list: List<Proofs> =
     [
       (
@@ -244,7 +249,7 @@ test can_mint_3_as_one_order_and_whitelisted() {
           ("hal-3", proof_hal_3()),
           ("hal-5", proof_hal_5()),
         ],
-        Some((user_1_whitelisted_item, whitelist_proof_user_1_1())),
+        Some((user_1_whitelisted_value, whitelist_proof_user_1_1())),
       ),
     ]
 
@@ -298,7 +303,11 @@ test can_mint_3_as_two_orders_and_whitelisted() {
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
-  let user_1_whitelisted_item: WhitelistedItem = (two_hours_in_milliseconds, 5)
+  let user_1_whitelisted_value: WhitelistedValue =
+    [
+      WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 5 },
+      WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 3 },
+    ]
   let proofs_list: List<Proofs> =
     [
       (
@@ -307,7 +316,7 @@ test can_mint_3_as_two_orders_and_whitelisted() {
           ("hal-3", proof_hal_3()),
           ("hal-5", proof_hal_5()),
         ],
-        Some((user_1_whitelisted_item, whitelist_proof_user_1_1())),
+        Some((user_1_whitelisted_value, whitelist_proof_user_1_1())),
       ),
     ]
 
@@ -658,6 +667,11 @@ test cannot_mint_as_whitelisted_if_not_whitelisted() fail {
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
+  let user_1_whitelisted_value: WhitelistedValue =
+    [
+      WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 5 },
+      WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 3 },
+    ]
   let proofs_list: List<Proofs> =
     [
       (
@@ -666,7 +680,7 @@ test cannot_mint_as_whitelisted_if_not_whitelisted() fail {
           ("hal-3", proof_hal_3()),
           ("hal-5", proof_hal_5()),
         ],
-        None,
+        Some((user_1_whitelisted_value, whitelist_proof_user_1_1())),
       ),
     ]
 
@@ -717,7 +731,8 @@ test cannot_mint_before_whitelisted_item() fail {
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
-  let user_2_whitelisted_item: WhitelistedItem = (one_hour_in_milliseconds, 10)
+  let user_2_whitelisted_value: WhitelistedValue =
+    [WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 10 }]
   let proofs_list: List<Proofs> =
     [
       (
@@ -726,7 +741,7 @@ test cannot_mint_before_whitelisted_item() fail {
           ("hal-3", proof_hal_3()),
           ("hal-5", proof_hal_5()),
         ],
-        Some((user_2_whitelisted_item, whitelist_proof_user_2_1())),
+        Some((user_2_whitelisted_value, whitelist_proof_user_2_1())),
       ),
     ]
 
@@ -757,14 +772,14 @@ test cannot_mint_more_than_whitelisted_amount() fail {
   let minting_data_input =
     make_minting_data_input(
       initial_trie() |> mpt.root,
-      whitelist_trie_with_user_1_minted_3_user_2_minted_3() |> mpt.root,
+      whitelist_trie_with_user_1_minted_6_user_2_minted_6() |> mpt.root,
       minting_data_script_hash,
       spending_tx_hash,
     )
   let minting_data_output =
     make_minting_data_output(
       trie_with_hal_2_3_5() |> mpt.root,
-      whitelist_trie_with_user_1_minted_5_user_2_minted_3() |> mpt.root,
+      whitelist_trie_with_user_1_minted_8_user_2_minted_6() |> mpt.root,
       minting_data_script_hash,
     )
 
@@ -777,7 +792,8 @@ test cannot_mint_more_than_whitelisted_amount() fail {
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
-  let user_1_whitelisted_item: WhitelistedItem = (two_hours_in_milliseconds, 2)
+  let user_1_whitelisted_value: WhitelistedValue =
+    [WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 2 }]
   let proofs_list: List<Proofs> =
     [
       (
@@ -786,7 +802,7 @@ test cannot_mint_more_than_whitelisted_amount() fail {
           ("hal-3", proof_hal_3()),
           ("hal-5", proof_hal_5()),
         ],
-        Some((user_1_whitelisted_item, whitelist_proof_user_1_1())),
+        Some((user_1_whitelisted_value, whitelist_proof_user_1_3())),
       ),
     ]
 
