@@ -80,7 +80,7 @@ test cannot_update_if_not_signed_by_allowed_minter() fail {
   )
 }
 
-test cannot_update_if_not_spend_royalty_asset() fail {
+test cannot_update_if_value_changes() fail {
   let settings_reference_input = make_settings_reference_input()
   let spending_tx_hash = #"0000"
 
@@ -138,7 +138,7 @@ test cannot_update_if_spend_two_royalty_assets() fail {
     Output {
       address: credential.from_script(royalty_spend_script_hash),
       value: value.zero()
-        |> value.add(hal_policy_id, royalty_asset_full_name, 1),
+        |> value.add(hal_policy_id, royalty_asset_full_name, 2),
       datum: make_royalty_datum(),
       reference_script: None,
     }

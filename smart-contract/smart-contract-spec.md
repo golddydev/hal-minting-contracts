@@ -460,13 +460,13 @@ We use `Data` because when `Royalty NFT` is sent with invalid datum, we can fix 
 
   - must be signed by `allowed_minter` from `Settings`.
 
-  - spending UTxO must have only one Royalty Token.
-
   - there must be only one UTxO in transaction inputs from this script.
 
   - first output must be royalty output.
 
     - must have same value as spending input. (except `lovelace` because that can change)
+
+    - must have `RoyaltyDatum` Inline Datum.
 
     - must NOT have reference_script.
 
