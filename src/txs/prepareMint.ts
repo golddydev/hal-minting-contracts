@@ -35,9 +35,10 @@ import {
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
-  decodeWhitelistedItem,
+  decodeWhitelistedValueFromCBOR,
   makeVoidData,
   makeWhitelistedItemData,
+  makeWhitelistedValueData,
   MintingData,
   Order,
   parseMPTProofJSON,
@@ -48,6 +49,7 @@ import {
 import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
 import { HalAssetInfo, HalUserOutputData } from "./types.js";
+import { updateWhitelistedValue } from "./whitelist.js";
 
 /**
  * @interface
@@ -61,7 +63,8 @@ import { HalAssetInfo, HalUserOutputData } from "./types.js";
  * @property {DeployedScripts} deployedScripts Deployed Scripts
  * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
  * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- * @property {number | undefined} mintingTime After when this transaction is valid from
+ * @property {number | undefined} mintingTime Transaction Start Time
+ * @property {number} maxOrderAmountInOneTx Maximum order amount in one transaction
  */
 interface PrepareMintParams {
   network: NetworkName;
@@ -74,6 +77,7 @@ interface PrepareMintParams {
   settingsAssetTxInput: TxInput;
   mintingDataAssetTxInput: TxInput;
   mintingTime?: number | undefined;
+  maxOrderAmountInOneTx?: number | undefined;
 }
 
 /**
@@ -105,6 +109,7 @@ const prepareMintTransaction = async (
     settingsAssetTxInput,
     mintingDataAssetTxInput,
     mintingTime = Date.now(),
+    maxOrderAmountInOneTx = 8,
   } = params;
   const assetsInfo = [...assetsInfoFromParam];
   const isMainnet = network == "mainnet";
@@ -163,6 +168,19 @@ const prepareMintTransaction = async (
   }
   const aggregatedOrders = aggregatedOrdersResult.data;
 
+  // check aggregated orders (agains maxOrderAmount, maxOrderAmountInOneTx)
+  const totalOrderAmount = aggregatedOrders.reduce(
+    (acc, cur) => acc + cur[1],
+    0
+  );
+  if (totalOrderAmount > maxOrderAmountInOneTx) {
+    return Err(
+      new Error(
+        `Total order amount is too many: ${totalOrderAmount} > ${maxOrderAmountInOneTx}`
+      )
+    );
+  }
+
   // hal policy id
   const halPolicyHash = makeMintingPolicyHash(policy_id);
 
@@ -206,6 +224,8 @@ const prepareMintTransaction = async (
   const userOutputsData: HalUserOutputData[] = [];
   const halTokensValue: [ByteArrayLike, IntLike][] = [];
   const referenceOutputs: TxOutput[] = [];
+
+  const transactionTimeGap = minting_start_time - mintingTime;
 
   for (const aggregatedOrder of aggregatedOrders) {
     const assetNameProofs: AssetNameProof[] = [];
@@ -271,17 +291,17 @@ const prepareMintTransaction = async (
       );
     }
 
-    // chekc minting time
+    // check minting time
     if (mintingTime < minting_start_time) {
       // have to be whitelisted
       const destinationAddressKey = Buffer.from(
         destinationAddress.toUplcData().toCbor()
       );
       try {
-        const whitelistedItemValue = await whitelistDB.get(
+        const whitelistedValueCbor = await whitelistDB.get(
           destinationAddressKey
         );
-        if (!whitelistedItemValue) {
+        if (!whitelistedValueCbor) {
           return Err(
             new Error(
               `Address ${destinationAddress.toBech32()} is not whitelisted. Wait until ${new Date(
@@ -291,57 +311,46 @@ const prepareMintTransaction = async (
           );
         }
 
-        const whitelistedItemResult =
-          decodeWhitelistedItem(whitelistedItemValue);
-        if (!whitelistedItemResult.ok) {
+        const whitelistedValueResult =
+          decodeWhitelistedValueFromCBOR(whitelistedValueCbor);
+        if (!whitelistedValueResult.ok) {
           return Err(
             new Error(
               `Address ${destinationAddress.toBech32()} has invalid whitelisted item data in Trie: ${
-                whitelistedItemResult.error
+                whitelistedValueResult.error
               }`
             )
           );
         }
-        const [time_gap, whitelisted_amount] = whitelistedItemResult.data;
-        const whitelistedTime = minting_start_time - time_gap;
-        if (mintingTime < whitelistedTime) {
+        const whitelistedValue = whitelistedValueResult.data;
+        const updatedWhitelistedValueResult = updateWhitelistedValue(
+          whitelistedValue,
+          amount,
+          transactionTimeGap
+        );
+        if (!updatedWhitelistedValueResult.ok) {
           return Err(
             new Error(
-              `Address ${destinationAddress.toBech32()} is whitelisted but couldn't mint yet. Wait until ${new Date(
-                whitelistedTime
-              ).toLocaleString()}`
+              `Address ${destinationAddress.toBech32()} has insufficient whitelisted value: ${
+                updatedWhitelistedValueResult.error
+              }`
             )
           );
         }
-        if (amount > whitelisted_amount) {
-          return Err(
-            new Error(
-              `Address ${destinationAddress.toBech32()} has ${whitelisted_amount} whitelisted amount but order amount is ${amount}`
-            )
-          );
-        }
+        const updatedWhitelistedValue = updatedWhitelistedValueResult.data;
 
         // then make proof
         const proof = await whitelistDB.prove(destinationAddressKey);
-        whitelistProof = [
-          whitelistedItemResult.data,
-          parseMPTProofJSON(proof.toJSON()),
-        ];
-
-        // update whitelisted item
-        const newWhitelistedItem: WhitelistedItem = [
-          time_gap,
-          whitelisted_amount - amount,
-        ];
-        const newWhitelistedItemValue = Buffer.from(
-          makeWhitelistedItemData(newWhitelistedItem).toCbor()
+        whitelistProof = [whitelistedValue, parseMPTProofJSON(proof.toJSON())];
+        const updatedWhitelistedValueCbor = Buffer.from(
+          makeWhitelistedValueData(updatedWhitelistedValue).toCbor()
         );
 
         // update whitelist DB
         await whitelistDB.delete(destinationAddressKey);
         await whitelistDB.insert(
           destinationAddressKey,
-          newWhitelistedItemValue
+          updatedWhitelistedValueCbor
         );
       } catch (error) {
         return Err(
@@ -362,8 +371,7 @@ const prepareMintTransaction = async (
     });
   }
 
-  // update all handles in minting data
-  // update whitelist data
+  // update minting data
   const newMintingData: MintingData = {
     ...mintingData,
     mpt_root_hash: (

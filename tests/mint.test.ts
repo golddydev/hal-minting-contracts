@@ -88,7 +88,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       wallets,
       orderTxInputs,
       deployedScripts,
-      whitelistMintingTime,
+      whitelistMintingTimeOneHourEarly,
     }) => {
       invariant(
         Array.isArray(orderTxInputs),
@@ -120,7 +120,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: whitelistMintingTime,
+        mintingTime: whitelistMintingTimeOneHourEarly,
       });
       invariant(!txBuilderResult.ok, "Mint Tx Building should fail");
       assert(txBuilderResult.error.message.includes("not whitelisted"));
@@ -239,9 +239,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
     }
   );
 
-  // user_5 orders 5 new assets who is whitelisted
+  // user_4 orders 5 new assets who is whitelisted
   myTest(
-    "user_5 orders 5 new assets who is whitelisted",
+    "user_4 orders 5 new assets who is whitelisted",
     async ({ network, emulator, wallets, orderTxInputs }) => {
       invariant(
         Array.isArray(orderTxInputs),
@@ -249,8 +249,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
       );
 
       const { usersWallets } = wallets;
-      const user5Wallet = usersWallets[4];
-      const orders: Order[] = [[user5Wallet.address, 5]];
+      const user4Wallet = usersWallets[3];
+      const orders: Order[] = [[user4Wallet.address, 5]];
 
       const settingsResult = await fetchSettings(network);
       invariant(settingsResult.ok, "Settings Fetch Failed");
@@ -266,14 +266,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const txBuilder = txBuilderResult.data;
       const txResult = await mayFailTransaction(
         txBuilder,
-        user5Wallet.address,
-        await user5Wallet.utxos
+        user4Wallet.address,
+        await user4Wallet.utxos
       ).complete();
       invariant(txResult.ok, "Order Tx Complete failed");
 
       const { tx } = txResult.data;
-      tx.addSignatures(await user5Wallet.signTx(tx));
-      const txId = await user5Wallet.submitTx(tx);
+      tx.addSignatures(await user4Wallet.signTx(tx));
+      const txId = await user4Wallet.submitTx(tx);
       emulator.tick(200);
 
       const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
@@ -293,7 +293,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       wallets,
       orderTxInputs,
       deployedScripts,
-      whitelistMintingTime,
+      whitelistMintingTimeTwoHoursEarly,
     }) => {
       invariant(
         Array.isArray(orderTxInputs),
@@ -327,7 +327,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: whitelistMintingTime,
+        mintingTime: whitelistMintingTimeTwoHoursEarly,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -348,7 +348,9 @@ describe.sequential("Koralab H.A.L Tests", () => {
       logMemAndCpu(txResult);
 
       // set emulator time
-      emulator.currentSlot = Math.ceil(whitelistMintingTime / 1000);
+      emulator.currentSlot = Math.ceil(
+        whitelistMintingTimeTwoHoursEarly / 1000
+      );
 
       const { tx } = txResult.data;
       tx.addSignatures(await allowedMinterWallet.signTx(tx));
@@ -1086,6 +1088,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         settingsAssetTxInput,
         mintingDataAssetTxInput,
         mintingTime: normalMintingTime,
+        maxOrderAmountInOneTx: 15,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -1244,6 +1247,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         settingsAssetTxInput,
         mintingDataAssetTxInput,
         mintingTime: normalMintingTime,
+        maxOrderAmountInOneTx: 15,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 

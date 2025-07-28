@@ -32,11 +32,11 @@ import {
   DeployedScripts,
   fillAssets,
   init,
-  makeWhitelistedItemData,
+  makeWhitelistedValueData,
   MintingData,
   Settings,
   SettingsV1,
-  WhitelistedItem,
+  WhitelistedValue,
 } from "../src/index.js";
 import { extractScriptCborsFromUplcProgram } from "./utils.js";
 
@@ -142,10 +142,11 @@ const setup = async () => {
     emulator.tick(200);
   }
 
-  // whitelisted user is user 5
+  // whitelisted users are user_4 and user_5
   const mintingStartTime = new Date("2025-07-01").valueOf();
-  const whitelistedTimeGap = 1000 * 60 * 60 * 2; // 2 hours early
-  const whitelistedTime = mintingStartTime - whitelistedTimeGap;
+  const twoHoursInMilliseconds = 1000 * 60 * 60 * 2; // 2 hours early
+  const oneHourInMilliseconds = 1000 * 60 * 60; // 1 hour early
+  const user4Wallet = usersWallets[3];
   const user5Wallet = usersWallets[4];
 
   // ============ build merkle trie db ============
@@ -211,10 +212,20 @@ const setup = async () => {
 
   // prepare whitelist db
   console.log("======= Starting Prepareing Whitelist DB =======\n");
-  const whitelistedItem: WhitelistedItem = [whitelistedTimeGap, 10];
+  const whitelistedValue1: WhitelistedValue = [
+    { time_gap: twoHoursInMilliseconds, amount: 10 },
+    { time_gap: oneHourInMilliseconds, amount: 5 },
+  ];
+  const whitelistedValue2: WhitelistedValue = [
+    { time_gap: oneHourInMilliseconds, amount: 10 },
+  ];
+  await whitelistDB.insert(
+    Buffer.from(user4Wallet.address.toUplcData().toCbor()),
+    Buffer.from(makeWhitelistedValueData(whitelistedValue1).toCbor())
+  );
   await whitelistDB.insert(
     Buffer.from(user5Wallet.address.toUplcData().toCbor()),
-    Buffer.from(makeWhitelistedItemData(whitelistedItem).toCbor())
+    Buffer.from(makeWhitelistedValueData(whitelistedValue2).toCbor())
   );
   console.log("======= Whitelist DB Pre Filled =======\n");
   console.log("Whitelist DB Root Hash:\n", whitelistDB.hash?.toString("hex"));
@@ -433,7 +444,10 @@ const setup = async () => {
     },
     orderTxInputs,
     normalMintingTime: mintingStartTime + GRACE_PERIOD,
-    whitelistMintingTime: whitelistedTime + GRACE_PERIOD,
+    whitelistMintingTimeTwoHoursEarly:
+      mintingStartTime - twoHoursInMilliseconds + GRACE_PERIOD,
+    whitelistMintingTimeOneHourEarly:
+      mintingStartTime - oneHourInMilliseconds + GRACE_PERIOD,
   };
 };
 

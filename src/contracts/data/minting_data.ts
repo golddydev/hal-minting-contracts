@@ -4,7 +4,6 @@ import {
   expectConstrData,
   makeByteArrayData,
   makeConstrData,
-  makeIntData,
   makeListData,
   UplcData,
 } from "@helios-lang/uplc";
@@ -14,11 +13,11 @@ import {
   AssetNameProof,
   MintingData,
   Proofs,
-  WhitelistedItem,
   WhitelistProof,
 } from "../types/index.js";
 import { makeOptionData } from "./common.js";
 import { buildMPTProofData } from "./mpt.js";
+import { makeWhitelistedValueData } from "./whitelist.js";
 
 const buildMintingData = (mintingData: MintingData): UplcData => {
   const { mpt_root_hash, whitelist_mpt_root_hash } = mintingData;
@@ -66,18 +65,11 @@ const buildAssetNameProofsData = (
   return makeListData(assetNameProofs.map(buildAssetNameProofData));
 };
 
-const buildWhitelistedItemData = (
-  whitelistedItem: WhitelistedItem
-): UplcData => {
-  const [time, amount] = whitelistedItem;
-  return makeListData([makeIntData(time), makeIntData(amount)]);
-};
-
 const buildWhitelistProofData = (whitelistProof: WhitelistProof): UplcData => {
   // whitelistProof is Some
-  const [whitelist_item, mpt_proof] = whitelistProof;
+  const [whitelisted_value, mpt_proof] = whitelistProof;
   return makeListData([
-    buildWhitelistedItemData(whitelist_item),
+    makeWhitelistedValueData(whitelisted_value),
     buildMPTProofData(mpt_proof),
   ]);
 };

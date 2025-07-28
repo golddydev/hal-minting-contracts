@@ -11,6 +11,7 @@ import {
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { ScriptDetails } from "@koralabs/kora-labs-common";
+import { MAX_ORDER_UTXOS_IN_ONE_TX } from "constants/index.js";
 import { Err, Ok, Result } from "ts-res";
 
 import {
@@ -20,7 +21,7 @@ import {
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
-  decodeWhitelistedItem,
+  decodeWhitelistedValueFromCBOR,
   OrderDatum,
   Settings,
 } from "../contracts/index.js";
@@ -32,6 +33,7 @@ import {
   mayFailAsync,
 } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
+import { updateWhitelistedValue } from "./whitelist.js";
 
 /**
  * @interface
@@ -39,11 +41,13 @@ import { DeployedScripts } from "./deploy.js";
  * @property {NetworkName} network Network
  * @property {Order[]} orders Orders to request
  * @property {Settings} settings Settings
+ * @property {number} maxOrderAmount Maximum order amount in one UTxO
  */
 interface RequestParams {
   network: NetworkName;
   orders: Order[];
   settings: Settings;
+  maxOrderAmount?: number | undefined;
 }
 
 /**
@@ -54,7 +58,7 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, orders, settings } = params;
+  const { network, orders, settings, maxOrderAmount = 5 } = params;
   const isMainnet = network == "mainnet";
 
   for (const [address, amount] of orders) {
@@ -64,6 +68,22 @@ const request = async (
     if (amount <= 0n) {
       return Err(new Error("Amount must be greater than 0"));
     }
+
+    if (amount > maxOrderAmount) {
+      return Err(
+        new Error(
+          `Amount must be less than or equal to maxOrderAmount: ${maxOrderAmount}`
+        )
+      );
+    }
+  }
+
+  if (orders.length > MAX_ORDER_UTXOS_IN_ONE_TX) {
+    return Err(
+      new Error(
+        `Can request Orders less than or equal to ${MAX_ORDER_UTXOS_IN_ONE_TX} in one transaction`
+      )
+    );
   }
 
   // decode settings
@@ -95,7 +115,6 @@ const request = async (
       destination_address: address,
       amount,
     };
-
     const orderValue = makeValue(hal_nft_price * BigInt(amount));
 
     txBuilder.payUnsafe(
@@ -339,7 +358,7 @@ const fetchOrderTxInputs = async (
  * @property {TxInput} orderTxInput Order TxInput
  * @property {Settings} settings Settings
  * @property {Trie} whitelistDB Whitelist DB
- * @property {number | undefined} mintingTime Minting Time
+ * @property {number | undefined} mintingTime Transaction Start Time
  */
 interface IsValidOrderTxInputParams {
   network: NetworkName;
@@ -420,37 +439,33 @@ const isValidOrderTxInput = async (
     }
 
     // check whitelisted time gap and amount
-    const decodedWhitelistedItemResult = decodeWhitelistedItem(value);
-    if (!decodedWhitelistedItemResult.ok) {
+    const decodedWhitelistedValueResult = decodeWhitelistedValueFromCBOR(value);
+    if (!decodedWhitelistedValueResult.ok) {
       return Err(
         new Error(
           `${destination_address.toBech32()} has invalid whitelisted item data in Trie: ${
-            decodedWhitelistedItemResult.error
+            decodedWhitelistedValueResult.error
           }`
         )
       );
     }
-    const [time_gap, amount] = decodedWhitelistedItemResult.data;
-    const whitelistedTime = minting_start_time - time_gap;
-    if (mintingTime < whitelistedTime) {
+    const whitelistedValue = decodedWhitelistedValueResult.data;
+    const transactionTimeGap = minting_start_time - mintingTime;
+    const updatedWhitelistedValueResult = updateWhitelistedValue(
+      whitelistedValue,
+      ordered_amount,
+      transactionTimeGap
+    );
+    if (!updatedWhitelistedValueResult.ok) {
       return Err(
         new Error(
-          `${destination_address.toBech32()} is whitelisted but couldn't mint yet. Wait until ${new Date(
-            whitelistedTime
-          ).toLocaleString()}`
-        )
-      );
-    }
-
-    if (ordered_amount > amount) {
-      return Err(
-        new Error(
-          `${destination_address.toBech32()} has ${amount} whitelisted amount but order amount is ${ordered_amount}`
+          `${destination_address.toBech32()} has insufficient whitelisted value: ${
+            updatedWhitelistedValueResult.error
+          }`
         )
       );
     }
   }
-
   return Ok(true);
 };
 
