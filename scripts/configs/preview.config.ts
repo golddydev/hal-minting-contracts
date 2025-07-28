@@ -23,9 +23,6 @@ export const PAYMENT_ADDRESS = makeAddress(
   "addr_test1qz96txepzdhj7ryyse0mq9a97eey2es07dydshr9cgapgyv06l2rv7x0p0vtg5kufwj3avaa909ex8uswsnxnad9ccqsyaga0j"
 );
 
-// max_order_amount
-export const MAX_ORDER_AMOUNT = 5;
-
 // minting start time (POSIX time)
 // after when anyone can mint HAL NFTs
 export const MINTING_START_TIME = 1752537600000;

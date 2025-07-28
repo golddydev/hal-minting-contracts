@@ -1,10 +1,12 @@
 use aiken/builtin.{serialise_data}
 use aiken/bytearray
 use aiken/hash.{Blake2b_256, Hash}
+use aiken/interval.{Finite}
 use aiken/list
 use aiken/pairs
 use aiken/transaction.{
-  Datum, DatumHash, InlineDatum, Input, Output, OutputReference, find_input,
+  Datum, DatumHash, InlineDatum, Input, Output, OutputReference, ValidityRange,
+  find_input,
 }
 use aiken/transaction/credential.{
   Address, Inline, ScriptCredential, StakeCredential,
@@ -52,6 +54,21 @@ pub fn get_own_utxos_count(
           },
         )
   own_utxo_count
+}
+
+// get the start time of the transaction
+// if the lower bound is inclusive, return the lower bound
+// if the lower bound is exclusive, return the lower bound + 1
+pub fn get_tx_start_time(self: ValidityRange) -> Int {
+  when self.lower_bound.bound_type is {
+    Finite(low) ->
+      if self.lower_bound.is_inclusive {
+        low
+      } else {
+        low + 1
+      }
+    _ -> fail @"transaction must have finite lower bound"
+  }
 }
 
 pub fn get_datum_hash(datum: Datum) -> Hash<Blake2b_256, Data> {

@@ -24,7 +24,6 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     ref_spend_governor,
     ref_spend_admin,
     royalty_spend_script_hash,
-    max_order_amount,
     minting_start_time,
     payment_address,
   } = settings;
@@ -39,7 +38,6 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     makeByteArrayData(ref_spend_governor),
     makeByteArrayData(ref_spend_admin),
     makeByteArrayData(royalty_spend_script_hash),
-    makeIntData(max_order_amount),
     makeIntData(minting_start_time),
     buildAddressData(payment_address as ShelleyAddress),
   ]);
@@ -49,7 +47,7 @@ const decodeSettingsV1Data = (
   data: UplcData,
   network: NetworkName
 ): SettingsV1 => {
-  const settingsV1ConstrData = expectConstrData(data, 0, 12);
+  const settingsV1ConstrData = expectConstrData(data, 0, 11);
 
   // policy_id
   const policy_id = expectByteArrayData(
@@ -105,25 +103,17 @@ const decodeSettingsV1Data = (
     "royalty_spend_script_hash must be ByteArray"
   ).toHex();
 
-  // max_order_amount
-  const max_order_amount = Number(
-    expectIntData(
-      settingsV1ConstrData.fields[9],
-      "max_order_amount must be Int"
-    ).value
-  );
-
   // minting_start_time
   const minting_start_time = Number(
     expectIntData(
-      settingsV1ConstrData.fields[10],
+      settingsV1ConstrData.fields[9],
       "minting_start_time must be Int"
     ).value
   );
 
   // payment_address
   const payment_address = decodeAddressFromData(
-    settingsV1ConstrData.fields[11],
+    settingsV1ConstrData.fields[10],
     network
   );
 
@@ -137,7 +127,6 @@ const decodeSettingsV1Data = (
     ref_spend_governor,
     ref_spend_admin,
     royalty_spend_script_hash,
-    max_order_amount,
     minting_start_time,
     payment_address,
   };

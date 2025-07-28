@@ -1,5 +1,5 @@
 import { MPTProof } from "./mpt.js";
-import { WhitelistedItem } from "./whitelist.js";
+import { WhitelistedValue } from "./whitelist.js";
 
 interface MintingData {
   mpt_root_hash: string;
@@ -9,7 +9,7 @@ interface MintingData {
 // asset hex name without asset name label
 type AssetNameProof = [string, MPTProof];
 
-type WhitelistProof = [WhitelistedItem, MPTProof];
+type WhitelistProof = [WhitelistedValue, MPTProof];
 
 type Proofs = [Array<AssetNameProof>, WhitelistProof | undefined];
 

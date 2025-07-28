@@ -1,9 +1,8 @@
-use aiken/dict
 use aiken/list
 use aiken/transaction.{InlineDatum, Output, OutputReference, Transaction}
 use aiken/transaction/credential
 use aiken/transaction/value
-use common/royalty.{RoyaltyDatum, royalty_asset_full_name}
+use common/royalty.{RoyaltyDatum}
 use common/utils.{get_own_script_hash, get_own_utxo, get_own_utxos_count}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
@@ -14,7 +13,6 @@ use hal_nft_mint/settings_v1.{SettingsV1}
 // Checks:
 // - must attach `Settings` NFT in reference inputs.
 // - must be signed by `allowed_minter` from `Settings`.
-// - spending UTxO must have only one Royalty Token.
 // - there must be only one UTxO in transaction inputs from this script.
 // - first output must be royalty output.
 //
@@ -28,25 +26,15 @@ pub fn can_update(
   // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 {
-    policy_id: hal_policy_id,
-    allowed_minter,
-    royalty_spend_script_hash,
-    ..
-  } = settings_datum
+  let SettingsV1 { allowed_minter, royalty_spend_script_hash, .. } =
+    settings_datum
 
   // must be signed by `allowed_minter` from `Settings`.
   let is_signed_by_allowed_minter = list.has(extra_signatories, allowed_minter)
   expect is_signed_by_allowed_minter
 
-  // spending UTxO must have only one Royalty Token.
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
   let Output { address: own_utxo_address, value: own_utxo_value, .. } = own_utxo
-  let hal_tokens =
-    own_utxo_value |> value.tokens(hal_policy_id) |> dict.to_pairs
-  let has_only_one_royalty_token =
-    hal_tokens == [Pair(royalty_asset_full_name, 1)]
-  expect has_only_one_royalty_token
 
   // there must be only one UTxO in transaction inputs from this script.
   let own_script_hash = get_own_script_hash(own_utxo)

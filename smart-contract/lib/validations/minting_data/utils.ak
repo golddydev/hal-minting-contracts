@@ -3,6 +3,7 @@ use aiken/cbor.{serialise}
 use aiken/dict
 use aiken/interval.{is_entirely_after}
 use aiken/list
+use aiken/math
 use aiken/merkle_patricia_forestry as mpt
 use aiken/pairs
 use aiken/transaction.{InlineDatum, Input, Output, ValidityRange}
@@ -10,9 +11,10 @@ use aiken/transaction/credential.{Address, ScriptCredential}
 use aiken/transaction/value.{AssetName, PolicyId, Value}
 use common/cip68.{prefix_100, prefix_222}
 use common/hashes.{ScriptHash}
+use common/utils.{get_tx_start_time}
 use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{Order, OrderDatum}
-use hal_nft_mint/whitelist.{WhitelistedItem}
+use hal_nft_mint/whitelist.{WhitelistedItem, WhitelistedValue}
 use validations/minting_data/types.{AssetNameProof, Proofs, WhitelistProof}
 
 // - all orders (all UTxOs in transaction inputs) are fulfilled correctly
@@ -110,7 +112,7 @@ pub fn are_all_orders_fulfilled(
   }
 }
 
-fn update_mpt_root(
+pub fn update_mpt_root(
   root: mpt.MerklePatriciaForestry,
   proofs: List<AssetNameProof>,
 ) -> mpt.MerklePatriciaForestry {
@@ -126,10 +128,11 @@ fn update_mpt_root(
 }
 
 // this function also checks
-// the destination address is whitelisted
+// the destination_address is whitelisted with time_gap
 // to mint early
-// and check minting start time, if not whitelisted
-fn update_whitelist_mpt_root(
+// and check minting start time and whitelisted amount
+//
+pub fn update_whitelist_mpt_root(
   root: mpt.MerklePatriciaForestry,
   whitelist_proof: WhitelistProof,
   validity_range: ValidityRange,
@@ -138,29 +141,100 @@ fn update_whitelist_mpt_root(
   ordered_amount: Int,
 ) -> mpt.MerklePatriciaForestry {
   trace @"update_whitelist_mpt_root"
-  let (whitelisted_item, mpt_proof) = whitelist_proof
-  let old_cbor = serialise(whitelisted_item)
-  let (time_gap, whitelisted_amount) = whitelisted_item
+  let (old_whitelisted_value, mpt_proof) = whitelist_proof
 
-  // tx must starts after minting_start_time - time_gap
-  let is_after_whitelisted_time =
-    is_entirely_after(validity_range, minting_start_time - time_gap)
-  expect is_after_whitelisted_time
+  let tx_start_time = get_tx_start_time(validity_range)
+  let tx_time_gap = minting_start_time - tx_start_time
 
-  // whitelisted amount must be bigger than or equal to ordered amount
-  expect whitelisted_amount >= ordered_amount
+  // update whitelisted value
+  let (new_whitelisted_value, new_ordered_amount) =
+    update_whitelisted_value(
+      old_whitelisted_value,
+      [],
+      ordered_amount,
+      tx_time_gap,
+    )
 
-  // make new whitelisted item
-  let new_whitelisted_item: WhitelistedItem =
-    (time_gap, whitelisted_amount - ordered_amount)
-  let new_cbor = serialise(new_whitelisted_item)
+  // check new ordered amount
+  let is_whitelisted_amount_sufficient = new_ordered_amount <= 0
+  expect is_whitelisted_amount_sufficient
 
   // update root
-  let destination_address_cbor = serialise(destination_address)
+  let whitelisted_key_cbor = serialise(destination_address)
+  let old_value_cbor = serialise(old_whitelisted_value)
+  let new_value_cbor = serialise(new_whitelisted_value)
+
   let new_root =
     root
-      |> mpt.update(destination_address_cbor, mpt_proof, old_cbor, new_cbor)
+      |> mpt.update(
+          whitelisted_key_cbor,
+          mpt_proof,
+          old_value_cbor,
+          new_value_cbor,
+        )
   new_root
+}
+
+// this function checks
+// whitelisted_value is sufficient to mint `ordered_amount`
+// and update the value
+//
+pub fn update_whitelisted_value(
+  whitelisted_value: WhitelistedValue,
+  new_whitelisted_value: WhitelistedValue,
+  ordered_amount: Int,
+  tx_time_gap: Int,
+) -> (WhitelistedValue, Int) {
+  when whitelisted_value is {
+    [] -> (new_whitelisted_value, ordered_amount)
+    [whitelisted_item, ..rest_whitelisted_items] -> {
+      let WhitelistedItem { time_gap, amount } = whitelisted_item
+      // check amount
+      if amount <= 0 {
+        update_whitelisted_value(
+          rest_whitelisted_items,
+          new_whitelisted_value,
+          ordered_amount,
+          tx_time_gap,
+        )
+      } else {
+        // check time_gap
+        if tx_time_gap > time_gap {
+          update_whitelisted_value(
+            rest_whitelisted_items,
+            new_whitelisted_value |> list.concat([whitelisted_item]),
+            ordered_amount,
+            tx_time_gap,
+          )
+        } else {
+          let available_amount = math.min(amount, ordered_amount)
+          let new_amount = amount - available_amount
+          let new_ordered_amount = ordered_amount - available_amount
+
+          let new_whitelisted_value =
+            if new_amount <= 0 {
+              new_whitelisted_value
+            } else {
+              let updated_whitelisted_item =
+                WhitelistedItem { time_gap, amount: new_amount }
+              new_whitelisted_value
+                |> list.concat([updated_whitelisted_item])
+            }
+
+          if new_ordered_amount <= 0 {
+            (new_whitelisted_value |> list.concat(rest_whitelisted_items), 0)
+          } else {
+            update_whitelisted_value(
+              rest_whitelisted_items,
+              new_whitelisted_value,
+              new_ordered_amount,
+              tx_time_gap,
+            )
+          }
+        }
+      }
+    }
+  }
 }
 
 fn check_user_output(

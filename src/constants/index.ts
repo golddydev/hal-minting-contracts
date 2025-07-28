@@ -46,3 +46,6 @@ export const ROYALTY_ASSET_FULL_NAME = "001f4d70526f79616c7479";
 export const ROYALTY_INCLUDED_KEY = "royalty_included";
 
 export const ROYALTY_INCLUDED_HEX_KEY = "726f79616c74795f696e636c75646564";
+
+// Other constants
+export const MAX_ORDER_UTXOS_IN_ONE_TX = 20;

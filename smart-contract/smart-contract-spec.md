@@ -62,6 +62,26 @@ H.A.L. minting engine works by the combination of several smart contracts.
 
 - `royalty_spend` spending validator
 
+### 2.4 Data Structures
+
+We use two [MPF - Merkle Patricia Forestry](https://github.com/aiken-lang/merkle-patricia-forestry).
+
+#### MPF
+
+This is a main `MPF` which determines H.A.L. NFTs' name. We initiaize this `MPF` with pre-defined 10,000 H.A.L. NFTs' asset names with value of empty string. (`""`)
+
+`Key`: H.A.L. NFTs name (without asset name label)
+
+`Value`: Initially empty string (`""`) and when that asset is minted becomes `"minted"`.
+
+#### Whitelist MPF
+
+This is a whitelist `MPF` which determines who can mint assets how many hours early. (as whitelisted) We initialize this `MPF` with chose whitelisted users (by taking snapshot at certain point) and their validity.
+
+`Key`: Whitelisted Address (Destination Address) CBOR Hex
+
+`Value`: CBOR Hex of `WhitelistedValue`.
+
 ## 3. Smart Contracts Detail
 
 ### 3.1 `mint_proxy` minting policy
@@ -171,16 +191,21 @@ pub type AssetNameProof =
   (AssetName, mpt.Proof)
 
 // whitelisted item
-// time_gap: Gap between the time of minting and the time of whitelisting
-// amount: Amount of H.A.L. NFTs that address can mint
-//
-pub type WhitelistedItem =
-  (Int, Int)
+// time_gap: Gap between the time of minting and the time of whitelisting in milliseconds
+// amount: Amount of H.A.L. NFTs that address can mint as whitelisted
+pub type WhitelistedItem {
+  time_gap: Int,
+  amount: Int,
+}
+
+// whitelisted value
+// using corresponding whitelisted key (destination address)
+pub type WhitelistedValue =
+  List<WhitelistedItem>
 
 // whitelist proof
-// mpt.Proof is including proof of key as Address CBOR Hex, value as WhitelistedItem CBOR Hex
 pub type WhitelistProof =
-  (WhitelistedItem, mpt.Proof)
+  (WhitelistedValue, mpt.Proof)
 
 // asset name proofs and whitelist proof (which is optional)
 pub type Proofs =
@@ -209,19 +234,35 @@ pub type Proofs =
 
     - must have corresponding `asset_name_proofs` (`List<AssetNameProof>`) to update `MPF` `root_hash`.
 
-      > This is inclusion Proof of asset hex name (as key). We update value from empty string to `minted`
+      > They are inclusion Proofs of asset hex names (as key). We update value from empty string to `minted`
 
     - if `whitelist_proof_opt` is `None`, transaction must start after `minting_start_time` from `Settings`.
 
-    - if not, we update `Whitelist MPF` `root_hash` with given proof.
+    - if `whitelist_proof_opt` is `Some`, we update `Whitelist MPF` `root_hash` with given proof.
 
-      > Key is `destination_address` CBOR Hex and value is `whitelisted_item` (`WhitelistedItem`) CBOR Hex.
+      > `tx_start_time` means when transaction starts. Transaction validity range's lower bound. (must have finite value)
 
-      - transaction must start after `minting_start_time - time_gap`.
+      > `tx_time_gap` means how early transaction starts before `minting_start_time`. `tx_time_gap = minting_start_time - tx_start_time`
 
-      - `aggregated_amount` must be smaller than or equal to `amount` in `whitelisted_item`.
+      - go through `whitelisted_value` which is array of `whitelisted_item` for aggregated `destination_address` and `ordered_amount`.
 
-      - we update `amount` in whitelisted_item to amount - `aggregated_amount` (This will update `Whitelist MPF` `root_hash`)
+        1.  if `amount` is less than or equal to 0, then remove that `whitelisted_item`.
+
+        2.  if `tx_time_gap` is less than or equal to `time_gap` from `whitelisted_item`, cut the value of `whitelisted_items`'s `amount` by `Min(amount, ordered_amount)`. If `amount` becomes less than or equal to 0, remove this item. Also cut the value of `ordered_amount` by `Min(amount, ordered_amount)`.
+
+        3.  Continue `1.` and `2.` until `ordered_amount` becomes 0 or the end of `whitelisted_item` array.
+
+        4.  By this operation, we get updated `ordered_amount` and `whitelisted_value`
+
+      - `ordered_amount` must become 0 by above operation.
+
+      - we update `Whitelist MPF`.
+
+        - key: destination_address CBOR Hex
+
+        - old value: `WhitelistedValue` CBOR Hex
+
+        - new value: updated `WhitelistedValue` CBOR Hex
 
   - first output must be `minting_data_output`; Output with `Minting Data NFT`.
 
@@ -419,13 +460,13 @@ We use `Data` because when `Royalty NFT` is sent with invalid datum, we can fix 
 
   - must be signed by `allowed_minter` from `Settings`.
 
-  - spending UTxO must have only one Royalty Token.
-
   - there must be only one UTxO in transaction inputs from this script.
 
   - first output must be royalty output.
 
     - must have same value as spending input. (except `lovelace` because that can change)
+
+    - must have `RoyaltyDatum` Inline Datum.
 
     - must NOT have reference_script.
 

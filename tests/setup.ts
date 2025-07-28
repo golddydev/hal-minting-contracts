@@ -32,11 +32,11 @@ import {
   DeployedScripts,
   fillAssets,
   init,
-  makeWhitelistedItemData,
+  makeWhitelistedValueData,
   MintingData,
   Settings,
   SettingsV1,
-  WhitelistedItem,
+  WhitelistedValue,
 } from "../src/index.js";
 import { extractScriptCborsFromUplcProgram } from "./utils.js";
 
@@ -142,10 +142,11 @@ const setup = async () => {
     emulator.tick(200);
   }
 
-  // whitelisted user is user 5
+  // whitelisted users are user_4 and user_5
   const mintingStartTime = new Date("2025-07-01").valueOf();
-  const whitelistedTimeGap = 1000 * 60 * 60 * 2; // 2 hours early
-  const whitelistedTime = mintingStartTime - whitelistedTimeGap;
+  const twoHoursInMilliseconds = 1000 * 60 * 60 * 2; // 2 hours early
+  const oneHourInMilliseconds = 1000 * 60 * 60; // 1 hour early
+  const user4Wallet = usersWallets[3];
   const user5Wallet = usersWallets[4];
 
   // ============ build merkle trie db ============
@@ -190,7 +191,6 @@ const setup = async () => {
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
     royalty_spend_script_hash:
       royaltySpendConfig.royaltySpendValidatorHash.toHex(),
-    max_order_amount: 5,
     minting_start_time: mintingStartTime,
     payment_address: paymentWallet.address,
   };
@@ -204,7 +204,7 @@ const setup = async () => {
   // insert 10,000 hal assets names
   // with empty string value
   console.log("======= Starting Pre Filling DB =======\n");
-  const assetNames = Array.from({ length: 200 }, (_, i) => `hal-${i + 1}`);
+  const assetNames = Array.from({ length: 1000 }, (_, i) => `hal-${i + 1}`);
   await fillAssets(db, assetNames, () => {});
   console.log("======= DB Pre Filled =======\n");
   console.log("DB Root Hash:\n", db.hash?.toString("hex"));
@@ -212,10 +212,20 @@ const setup = async () => {
 
   // prepare whitelist db
   console.log("======= Starting Prepareing Whitelist DB =======\n");
-  const whitelistedItem: WhitelistedItem = [whitelistedTimeGap, 10];
+  const whitelistedValue1: WhitelistedValue = [
+    { time_gap: twoHoursInMilliseconds, amount: 10 },
+    { time_gap: oneHourInMilliseconds, amount: 5 },
+  ];
+  const whitelistedValue2: WhitelistedValue = [
+    { time_gap: oneHourInMilliseconds, amount: 10 },
+  ];
+  await whitelistDB.insert(
+    Buffer.from(user4Wallet.address.toUplcData().toCbor()),
+    Buffer.from(makeWhitelistedValueData(whitelistedValue1).toCbor())
+  );
   await whitelistDB.insert(
     Buffer.from(user5Wallet.address.toUplcData().toCbor()),
-    Buffer.from(makeWhitelistedItemData(whitelistedItem).toCbor())
+    Buffer.from(makeWhitelistedValueData(whitelistedValue2).toCbor())
   );
   console.log("======= Whitelist DB Pre Filled =======\n");
   console.log("Whitelist DB Root Hash:\n", whitelistDB.hash?.toString("hex"));
@@ -434,7 +444,10 @@ const setup = async () => {
     },
     orderTxInputs,
     normalMintingTime: mintingStartTime + GRACE_PERIOD,
-    whitelistMintingTime: whitelistedTime + GRACE_PERIOD,
+    whitelistMintingTimeTwoHoursEarly:
+      mintingStartTime - twoHoursInMilliseconds + GRACE_PERIOD,
+    whitelistMintingTimeOneHourEarly:
+      mintingStartTime - oneHourInMilliseconds + GRACE_PERIOD,
   };
 };
 

@@ -1,6 +1,6 @@
 {
   "name": "@koralabs/hal-minting-contracts",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "license": "MIT",
   "main": "index.js",
   "type": "module",
@@ -9,9 +9,8 @@
   },
   "scripts": {
     "build": "rm -rf lib/ && tsc",
-    "lint": "concurrently \"cd smart-contract && aiken fmt --check\" \"npx eslint './src/**/*.{ts,mjs}' --max-warnings=0\"",
+    "lint": "npx eslint './src/**/*.{ts,mjs}' --max-warnings=0",
     "test": "vitest run",
-    "test:aiken": "cd smart-contract &&  aiken check",
     "start:preview": "cd scripts/ && NODE_ENV=preview tsx ./run/index.ts",
     "start:preprod": "cd scripts/ && NODE_ENV=preprod tsx ./run/index.ts"
   },
@@ -34,17 +33,16 @@
     "ts-res": "1.3.0"
   },
   "devDependencies": {
-    "@eslint/js": "9.29.0",
+    "@eslint/js": "9.31.0",
     "@types/cli-progress": "3.11.6",
-    "@types/node": "22.15.32",
+    "@types/node": "22.16.4",
     "@types/prompts": "2.4.9",
-    "concurrently": "9.1.2",
-    "eslint": "9.29.0",
+    "eslint": "9.31.0",
     "eslint-plugin-simple-import-sort": "12.1.1",
     "globals": "16.2.0",
     "tsx": "4.20.3",
     "typescript": "5.8.3",
-    "typescript-eslint": "8.34.1",
+    "typescript-eslint": "8.37.0",
     "vite-tsconfig-paths": "5.1.4",
     "vitest": "3.2.4"
   }
