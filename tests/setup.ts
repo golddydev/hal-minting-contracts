@@ -109,7 +109,7 @@ const setup = async () => {
   // ============ prepare wallets ============
   // fund wallet
   const fundWallet = emulator.createWallet(
-    ACCOUNT_LOVELACE,
+    ACCOUNT_LOVELACE * 100n,
     makeAssets([
       [settingsAssetClass, 1n],
       [mintingDataAssetClass, 1n],
@@ -148,6 +148,13 @@ const setup = async () => {
   const oneHourInMilliseconds = 1000 * 60 * 60; // 1 hour early
   const user4Wallet = usersWallets[3];
   const user5Wallet = usersWallets[4];
+
+  // special users wallet (all whitelisted)
+  const specialUsersWallets: SimpleWallet[] = [];
+  for (let i = 0; i < 10; i++) {
+    specialUsersWallets.push(emulator.createWallet(ACCOUNT_LOVELACE));
+    emulator.tick(200);
+  }
 
   // ============ build merkle trie db ============
   await fs.rm(dbPath, { recursive: true, force: true });
@@ -227,6 +234,24 @@ const setup = async () => {
     Buffer.from(user5Wallet.address.toUplcData().toCbor()),
     Buffer.from(makeWhitelistedValueData(whitelistedValue2).toCbor())
   );
+
+  for (const specialWallet of specialUsersWallets) {
+    await whitelistDB.insert(
+      Buffer.from(specialWallet.address.toUplcData().toCbor()),
+      Buffer.from(
+        makeWhitelistedValueData([
+          {
+            time_gap: twoHoursInMilliseconds,
+            amount: 2,
+          },
+          {
+            time_gap: oneHourInMilliseconds,
+            amount: 1,
+          },
+        ]).toCbor()
+      )
+    );
+  }
   console.log("======= Whitelist DB Pre Filled =======\n");
   console.log("Whitelist DB Root Hash:\n", whitelistDB.hash?.toString("hex"));
   console.log("===========================\n");
@@ -441,6 +466,7 @@ const setup = async () => {
       refSpendAdminWallet,
       paymentWallet,
       usersWallets,
+      specialUsersWallets,
     },
     orderTxInputs,
     normalMintingTime: mintingStartTime + GRACE_PERIOD,
