@@ -11,9 +11,9 @@ import {
 } from "@helios-lang/ledger";
 import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
 import { ScriptDetails } from "@koralabs/kora-labs-common";
-import { MAX_ORDER_UTXOS_IN_ONE_TX } from "constants/index.js";
 import { Err, Ok, Result } from "ts-res";
 
+import { MAX_ORDER_UTXOS_IN_ONE_TX } from "../constants/index.js";
 import {
   buildOrderDatumData,
   buildOrdersSpendCancelOrderRedeemer,
