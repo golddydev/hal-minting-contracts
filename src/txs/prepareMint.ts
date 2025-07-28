@@ -92,6 +92,7 @@ const prepareMintTransaction = async (
     {
       txBuilder: TxBuilder;
       db: Trie;
+      whitelistDB: Trie;
       userOutputsData: HalUserOutputData[];
       referenceOutputs: TxOutput[];
     },
@@ -452,6 +453,7 @@ const prepareMintTransaction = async (
   return Ok({
     txBuilder,
     db,
+    whitelistDB,
     userOutputsData,
     referenceOutputs,
   });

@@ -41,13 +41,11 @@ import { updateWhitelistedValue } from "./whitelist.js";
  * @property {NetworkName} network Network
  * @property {Order[]} orders Orders to request
  * @property {Settings} settings Settings
- * @property {number} maxOrderAmount Maximum order amount in one UTxO
  */
 interface RequestParams {
   network: NetworkName;
   orders: Order[];
   settings: Settings;
-  maxOrderAmount?: number | undefined;
 }
 
 /**
@@ -58,7 +56,7 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, orders, settings, maxOrderAmount = 5 } = params;
+  const { network, orders, settings } = params;
   const isMainnet = network == "mainnet";
 
   for (const [address, amount] of orders) {
@@ -67,14 +65,6 @@ const request = async (
 
     if (amount <= 0n) {
       return Err(new Error("Amount must be greater than 0"));
-    }
-
-    if (amount > maxOrderAmount) {
-      return Err(
-        new Error(
-          `Amount must be less than or equal to maxOrderAmount: ${maxOrderAmount}`
-        )
-      );
     }
   }
 
