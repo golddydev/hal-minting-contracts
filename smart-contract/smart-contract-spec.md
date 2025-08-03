@@ -78,7 +78,9 @@ This is a main `MPF` which determines H.A.L. NFTs' name. We initiaize this `MPF`
 
 This is a whitelist `MPF` which determines who can mint assets how many hours early. (as whitelisted) We initialize this `MPF` with chose whitelisted users (by taking snapshot at certain point) and their validity.
 
-`Key`: Whitelisted Address (Destination Address) CBOR Hex
+`Key`: Whitelisted Credential CBOR HEx
+
+> NOTE: If `destination_address` has staking credential, key will be staking credential (which must be Inline staking credential), otherwise key will be payment credential.
 
 `Value`: CBOR Hex of `WhitelistedValue`.
 

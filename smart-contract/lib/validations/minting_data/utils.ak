@@ -14,7 +14,9 @@ use common/hashes.{ScriptHash}
 use common/utils.{get_tx_start_time}
 use hal_nft_mint/minting_data.{mpt_minted_value}
 use hal_nft_mint/orders.{Order, OrderDatum}
-use hal_nft_mint/whitelist.{WhitelistedItem, WhitelistedValue}
+use hal_nft_mint/whitelist.{
+  WhitelistedItem, WhitelistedValue, get_whitelisted_key_from_addres,
+}
 use validations/minting_data/types.{AssetNameProof, Proofs, WhitelistProof}
 
 // - all orders (all UTxOs in transaction inputs) are fulfilled correctly
@@ -160,7 +162,8 @@ pub fn update_whitelist_mpt_root(
   expect is_whitelisted_amount_sufficient
 
   // update root
-  let whitelisted_key_cbor = serialise(destination_address)
+  let whitelisted_key_cbor =
+    get_whitelisted_key_from_addres(destination_address)
   let old_value_cbor = serialise(old_whitelisted_value)
   let new_value_cbor = serialise(new_whitelisted_value)
 
