@@ -10,7 +10,7 @@ use tests/mocks/fake_constants.{
   admin_verification_key_hash, allowed_minter, hal_nft_price, hal_policy_id,
   mint_governor, minting_data_script_hash, minting_start_time,
   one_hour_in_milliseconds, two_hours_in_milliseconds, user_1_address,
-  user_2_address,
+  user_2_address, whitelisted_price_1, whitelisted_price_2,
 }
 use tests/mocks/fake_tx.{
   make_cip68_datum, make_hal_minted_value, make_minting_data_input,
@@ -231,15 +231,23 @@ test can_mint_3_as_one_order_and_whitelisted() {
     ["hal-2", "hal-3", "hal-5"]
 
   let order_inputs =
-    [make_order_input(user_1_address(), 3, hal_nft_price * 3, #"0001")]
+    [make_order_input(user_1_address(), 3, whitelisted_price_1 * 3, #"0001")]
   let user_output = make_user_output(user_1_address(), asset_names)
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
   let user_1_whitelisted_value: WhitelistedValue =
     [
-      WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 5 },
-      WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 3 },
+      WhitelistedItem {
+        time_gap: two_hours_in_milliseconds,
+        amount: 5,
+        price: whitelisted_price_1,
+      },
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 3,
+        price: whitelisted_price_2,
+      },
     ]
   let proofs_list: List<Proofs> =
     [
@@ -296,8 +304,8 @@ test can_mint_3_as_two_orders_and_whitelisted() {
 
   let order_inputs =
     [
-      make_order_input(user_1_address(), 2, hal_nft_price * 2, #"0001"),
-      make_order_input(user_1_address(), 1, hal_nft_price * 1, #"0002"),
+      make_order_input(user_1_address(), 2, whitelisted_price_1 * 2, #"0001"),
+      make_order_input(user_1_address(), 1, whitelisted_price_1 * 1, #"0002"),
     ]
   let user_output = make_user_output(user_1_address(), asset_names)
   let reference_outputs = make_reference_outputs(asset_names)
@@ -305,8 +313,16 @@ test can_mint_3_as_two_orders_and_whitelisted() {
 
   let user_1_whitelisted_value: WhitelistedValue =
     [
-      WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 5 },
-      WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 3 },
+      WhitelistedItem {
+        time_gap: two_hours_in_milliseconds,
+        amount: 5,
+        price: whitelisted_price_1,
+      },
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 3,
+        price: whitelisted_price_2,
+      },
     ]
   let proofs_list: List<Proofs> =
     [
@@ -662,15 +678,23 @@ test cannot_mint_as_whitelisted_if_not_whitelisted() fail {
     ["hal-2", "hal-3", "hal-5"]
 
   let order_inputs =
-    [make_order_input(user_1_address(), 3, hal_nft_price * 3, #"0001")]
+    [make_order_input(user_1_address(), 3, whitelisted_price_1 * 3, #"0001")]
   let user_output = make_user_output(user_1_address(), asset_names)
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
   let user_1_whitelisted_value: WhitelistedValue =
     [
-      WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 5 },
-      WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 3 },
+      WhitelistedItem {
+        time_gap: two_hours_in_milliseconds,
+        amount: 5,
+        price: whitelisted_price_1,
+      },
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 3,
+        price: whitelisted_price_2,
+      },
     ]
   let proofs_list: List<Proofs> =
     [
@@ -704,7 +728,7 @@ test cannot_mint_as_whitelisted_if_not_whitelisted() fail {
   )
 }
 
-test cannot_mint_before_whitelisted_item() fail {
+test cannot_mint_before_whitelisted_time() fail {
   let settings_reference_input = make_settings_reference_input()
   let spending_tx_hash = #"0000"
 
@@ -726,13 +750,19 @@ test cannot_mint_before_whitelisted_item() fail {
     ["hal-2", "hal-3", "hal-5"]
 
   let order_inputs =
-    [make_order_input(user_2_address(), 3, hal_nft_price * 3, #"0001")]
+    [make_order_input(user_2_address(), 3, whitelisted_price_2 * 3, #"0001")]
   let user_output = make_user_output(user_2_address(), asset_names)
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
   let user_2_whitelisted_value: WhitelistedValue =
-    [WhitelistedItem { time_gap: one_hour_in_milliseconds, amount: 10 }]
+    [
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 10,
+        price: whitelisted_price_2,
+      },
+    ]
   let proofs_list: List<Proofs> =
     [
       (
@@ -765,7 +795,7 @@ test cannot_mint_before_whitelisted_item() fail {
   )
 }
 
-test cannot_mint_more_than_whitelisted_amount() fail {
+test cannot_mint_more_than_whitelisted_amount_before_minting_start_time() fail {
   let settings_reference_input = make_settings_reference_input()
   let spending_tx_hash = #"0000"
 
@@ -787,13 +817,19 @@ test cannot_mint_more_than_whitelisted_amount() fail {
     ["hal-2", "hal-3", "hal-5"]
 
   let order_inputs =
-    [make_order_input(user_1_address(), 3, hal_nft_price * 3, #"0001")]
+    [make_order_input(user_1_address(), 3, whitelisted_price_2 * 3, #"0001")]
   let user_output = make_user_output(user_1_address(), asset_names)
   let reference_outputs = make_reference_outputs(asset_names)
   let minted_value = make_hal_minted_value(asset_names)
 
   let user_1_whitelisted_value: WhitelistedValue =
-    [WhitelistedItem { time_gap: two_hours_in_milliseconds, amount: 2 }]
+    [
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 2,
+        price: whitelisted_price_2,
+      },
+    ]
   let proofs_list: List<Proofs> =
     [
       (
@@ -919,4 +955,145 @@ test cannot_update_with_minting_assets() fail {
       interval.everything(),
     )
   can_update_mpt(transaction, admin_verification_key_hash)
+}
+
+test can_mint_more_than_whitelisted_amount_after_minting_start_time() {
+  let settings_reference_input = make_settings_reference_input()
+  let spending_tx_hash = #"0000"
+
+  let minting_data_input =
+    make_minting_data_input(
+      initial_trie() |> mpt.root,
+      whitelist_trie_with_user_1_minted_6_user_2_minted_6() |> mpt.root,
+      minting_data_script_hash,
+      spending_tx_hash,
+    )
+  let minting_data_output =
+    make_minting_data_output(
+      trie_with_hal_2_3_5() |> mpt.root,
+      whitelist_trie_with_user_1_minted_8_user_2_minted_6() |> mpt.root,
+      minting_data_script_hash,
+    )
+
+  let asset_names =
+    ["hal-2", "hal-3", "hal-5"]
+
+  let order_inputs =
+    [
+      make_order_input(
+        user_1_address(),
+        3,
+        whitelisted_price_2 * 2 + hal_nft_price,
+        #"0001",
+      ),
+    ]
+  let user_output = make_user_output(user_1_address(), asset_names)
+  let reference_outputs = make_reference_outputs(asset_names)
+  let minted_value = make_hal_minted_value(asset_names)
+
+  let user_1_whitelisted_value: WhitelistedValue =
+    [
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 2,
+        price: whitelisted_price_2,
+      },
+    ]
+  let proofs_list: List<Proofs> =
+    [
+      (
+        [
+          ("hal-2", proof_hal_2()),
+          ("hal-3", proof_hal_3()),
+          ("hal-5", proof_hal_5()),
+        ],
+        Some((user_1_whitelisted_value, whitelist_proof_user_1_3())),
+      ),
+    ]
+
+  let transaction =
+    make_transaction(
+      [minting_data_input, ..order_inputs],
+      [settings_reference_input],
+      [minting_data_output, user_output, ..reference_outputs],
+      minted_value,
+      make_withdrawals(mint_governor),
+      [allowed_minter],
+      interval.entirely_after(minting_start_time),
+    )
+  can_mint(
+    transaction,
+    OutputReference {
+      transaction_id: TransactionId { hash: spending_tx_hash },
+      output_index: 0,
+    },
+    proofs_list,
+  )
+}
+
+test cannot_mint_more_than_whitelisted_amount_without_paying_more_than_discount() fail {
+  let settings_reference_input = make_settings_reference_input()
+  let spending_tx_hash = #"0000"
+
+  let minting_data_input =
+    make_minting_data_input(
+      initial_trie() |> mpt.root,
+      whitelist_trie_with_user_1_minted_6_user_2_minted_6() |> mpt.root,
+      minting_data_script_hash,
+      spending_tx_hash,
+    )
+  let minting_data_output =
+    make_minting_data_output(
+      trie_with_hal_2_3_5() |> mpt.root,
+      whitelist_trie_with_user_1_minted_8_user_2_minted_6() |> mpt.root,
+      minting_data_script_hash,
+    )
+
+  let asset_names =
+    ["hal-2", "hal-3", "hal-5"]
+
+  let order_inputs =
+    [make_order_input(user_1_address(), 3, whitelisted_price_2 * 3, #"0001")]
+  let user_output = make_user_output(user_1_address(), asset_names)
+  let reference_outputs = make_reference_outputs(asset_names)
+  let minted_value = make_hal_minted_value(asset_names)
+
+  let user_1_whitelisted_value: WhitelistedValue =
+    [
+      WhitelistedItem {
+        time_gap: one_hour_in_milliseconds,
+        amount: 2,
+        price: whitelisted_price_2,
+      },
+    ]
+  let proofs_list: List<Proofs> =
+    [
+      (
+        [
+          ("hal-2", proof_hal_2()),
+          ("hal-3", proof_hal_3()),
+          ("hal-5", proof_hal_5()),
+        ],
+        Some((user_1_whitelisted_value, whitelist_proof_user_1_3())),
+      ),
+    ]
+
+  let transaction =
+    make_transaction(
+      [minting_data_input, ..order_inputs],
+      [settings_reference_input],
+      [minting_data_output, user_output, ..reference_outputs],
+      minted_value,
+      make_withdrawals(mint_governor),
+      [allowed_minter],
+      interval.entirely_after(minting_start_time),
+    )
+  can_mint(
+    transaction,
+    OutputReference {
+      transaction_id: TransactionId { hash: spending_tx_hash },
+      output_index: 0,
+    },
+    proofs_list,
+  )
 }

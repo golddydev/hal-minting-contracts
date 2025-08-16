@@ -114,3 +114,7 @@ pub fn user_5_address() -> Address {
 pub const two_hours_in_milliseconds: Int = 7200000
 
 pub const one_hour_in_milliseconds: Int = 3600000
+
+pub const whitelisted_price_1: Int = 150_000_000
+
+pub const whitelisted_price_2: Int = 160_000_000

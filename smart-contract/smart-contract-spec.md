@@ -226,6 +226,8 @@ pub type Proofs =
 
     This will give us the list of `[ Address: Destination of NFTs, amount: amount of NFTs to mint ]`
 
+    And we also get `total_paid_lovalce` as sum of lovelace from all Order UTxOs which will be used to check that an user has paid correctly.
+
   - for each item from `AggregatedOrders`; `destination_address` and `amount`
 
     - there must be corresponding user output. (with aggregated amount of H.A.L. NFTs)

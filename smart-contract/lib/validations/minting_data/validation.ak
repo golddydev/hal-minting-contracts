@@ -74,13 +74,10 @@ pub fn can_mint(
   let whitelist_root = mpt.from_root(whitelist_mpt_root_hash)
 
   // aggregate orders
-  let aggregated_orders <-
-    aggregate_orders_information(
-      inputs,
-      [],
-      orders_spend_script_hash,
-      hal_nft_price,
-    )
+  let
+    aggregated_orders,
+    total_paid_lovelace,
+  <- aggregate_orders_information(inputs, [], 0, orders_spend_script_hash)
   let aggregated_orders_count = list.length(aggregated_orders)
 
   // parse outputs
@@ -94,6 +91,7 @@ pub fn can_mint(
     new_root,
     new_whitelist_root,
     hal_asset_names,
+    total_spent_lovelace,
   <-
     are_all_orders_fulfilled(
       aggregated_orders,
@@ -101,11 +99,16 @@ pub fn can_mint(
       root,
       whitelist_root,
       [],
+      0,
       policy_id,
+      hal_nft_price,
       validity_range,
       minting_start_time,
       proofs_list,
     )
+
+  // check paid and spent lovelace
+  expect total_paid_lovelace >= total_spent_lovelace
 
   // calculate new roots
   let new_mpt_root_hash = new_root |> mpt.root
