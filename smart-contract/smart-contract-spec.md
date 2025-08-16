@@ -170,6 +170,8 @@ This is spending validator where `Minting Data NFT` is saved with `MPF` `root_ha
 
 - `amount`: How many they can mint in whitelist period.
 
+- `price`: The discounted price they can mint H.A.L.NFT with.
+
 #### 3.3.1 Parameter
 
 - _admin_verification_key_hash_: This is wallet's public key hash. This is `Admin`'s wallet and is used to update `MPF` `root_hash` without actual minting H.A.L. NFTs.
@@ -193,9 +195,11 @@ pub type AssetNameProof =
 // whitelisted item
 // time_gap: Gap between the time of minting and the time of whitelisting in milliseconds
 // amount: Amount of H.A.L. NFTs that address can mint as whitelisted
+// price: Discounted price of H.A.L. NFTs that address can mint as whitelisted
 pub type WhitelistedItem {
   time_gap: Int,
   amount: Int,
+  price: Int,
 }
 
 // whitelisted value
@@ -238,9 +242,7 @@ pub type Proofs =
 
       > They are inclusion Proofs of asset hex names (as key). We update value from empty string to `minted`
 
-    - if `whitelist_proof_opt` is `None`, transaction must start after `minting_start_time` from `Settings`.
-
-    - if `whitelist_proof_opt` is `Some`, we update `Whitelist MPF` `root_hash` with given proof.
+    - if `whitelist_proof_opt` is `Some`, we check how many NFTs we can mint as whitelisted for this aggregated order and update `Whitelist MPF` `root_hash` with given proof.
 
       > `tx_start_time` means when transaction starts. Transaction validity range's lower bound. (must have finite value)
 
@@ -248,15 +250,25 @@ pub type Proofs =
 
       - go through `whitelisted_value` which is array of `whitelisted_item` for aggregated `destination_address` and `ordered_amount`.
 
-        1.  if `amount` is less than or equal to 0, then remove that `whitelisted_item`.
+        > `remaining_ordered_amount`: The leftover amount from `ordered_amount` after checking whitelisted value.
 
-        2.  if `tx_time_gap` is less than or equal to `time_gap` from `whitelisted_item`, cut the value of `whitelisted_items`'s `amount` by `Min(amount, ordered_amount)`. If `amount` becomes less than or equal to 0, remove this item. Also cut the value of `ordered_amount` by `Min(amount, ordered_amount)`.
+        > `spent_lovelace_for_whitelisted`: Lovelace spent to mint H.A.L. NFTs as whitelisted using discounted price.
 
-        3.  Continue `1.` and `2.` until `ordered_amount` becomes 0 or the end of `whitelisted_item` array.
+        > `ordered_amount` will be used as initial value of `remaining_ordered_amount` 0 as initial value of `spent_lovelace_for_whitelisted`
 
-        4.  By this operation, we get updated `ordered_amount` and `whitelisted_value`
+        1.  check `whitelisted_item`'s `amount` is available. If `amount` is less than or equal to 0, then remove that `whitelisted_item`.
 
-      - `ordered_amount` must become 0 by above operation.
+        2.  Check if we can use `whitelisted_item`. If `tx_time_gap` is less than or equal to `time_gap` from `whitelisted_item`, cut the value of `whitelisted_item`'s `amount` by `Min(amount, remaining_ordered_amount)`. If `amount` becomes less than or equal to 0, remove this item. Also cut the value of `remaining_ordered_amount` by `Min(amount, remaining_ordered_amount)` - that will be `remaining_ordered_amount`.
+
+        When we cut the `whitelisted_item`'s `amount` by `Min(amount, remaining_ordered_amount)`, we add `whiltelisted_item`'s `price` multiplied by `Min(amount, remaining_ordered_amount)` to `spent_lovelace_for_whitelisted`.
+
+        3.  Continue `1.` and `2.` until `remaining_ordered_amount` becomes 0 or the end of `whitelisted_item` array.
+
+        4.  By this operation, we get updated `whitelisted_value` and `remaining_ordered_amount` and `spent_lovelace_for_whitelisted`
+
+      - check `remaining_ordered_amount`
+
+        > If `remaining_ordered_amount` is bigger than 0 then transaction must start after `minting_start_time`. Because we couldn't mint `ordered_amount` of NFTs as whitelisted.
 
       - we update `Whitelist MPF`.
 
@@ -265,6 +277,16 @@ pub type Proofs =
         - old value: `WhitelistedValue` CBOR Hex
 
         - new value: updated `WhitelistedValue` CBOR Hex
+
+      - calculate `spent_lovelace_for_ordered_amount` which is the cost to mint all H.A.L. NFTs of aggregated order's amount
+
+        `spent_lovelace_for_ordered_amount = spent_lovelace_for_whitelisted + hal_nft_price * remaining_ordered_amount`
+
+    > After this operation we can `total_spent_lovelace` which is the sum of all `spent_lovelace_for_ordered_amount`
+
+  - check minting engine is paid correctly
+
+    `total_paid_lovelace` must be greater than or equal to `total_spent_lovelace`
 
   - first output must be `minting_data_output`; Output with `Minting Data NFT`.
 
