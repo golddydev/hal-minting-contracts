@@ -133,7 +133,7 @@ const buildSettingsDataCbor = () => {
   } = configs;
 
   const contractsConfig = buildContracts({
-    network: NETWORK as NetworkName,
+    isMainnet: (NETWORK as NetworkName) == "mainnet",
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
@@ -186,7 +186,7 @@ const getStakingAddresses = () => {
   } = configs;
 
   const contractsConfig = buildContracts({
-    network: NETWORK as NetworkName,
+    isMainnet: (NETWORK as NetworkName) == "mainnet",
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
@@ -221,7 +221,7 @@ const doDeployActions = async () => {
           description: contract,
           value: async () => {
             const deployData = await deploy({
-              network: NETWORK as NetworkName,
+              isMainnet: (NETWORK as NetworkName) == "mainnet",
               mintVersion: MINT_VERSION,
               adminVerificationKeyHash: ADMIN_VERIFICATION_KEY_HASH,
               ordersSpendRandomizer: ORDERS_SPEND_RANDOMIZER,

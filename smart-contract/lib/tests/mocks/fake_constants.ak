@@ -68,10 +68,10 @@ pub fn payment_address() -> Address {
 // User wallets
 pub fn user_1_address() -> Address {
   credential.from_verification_key(
-    #"b5fd4b89573f3404914d51fd2a4613ec23f72632da198dbb66180c86",
+    #"2d8cd2fa0b6a46e037da14ca71b85094d0971f1f278ec87723a314af",
   )
     |> credential.with_delegation_key(
-        #"ebe28d2fb90e75d03f46511d54580298fc2fd019f6a59b08d0274e32",
+        #"07b90ff6d00550fd58e45042579522d52e782fb96d8d470d71b273a6",
       )
 }
 
@@ -95,19 +95,19 @@ pub fn user_3_address() -> Address {
 
 pub fn user_4_address() -> Address {
   credential.from_verification_key(
-    #"fbf7187e6318d7c42b8adeb923fd6893df76219a6e1cef6538f1cd51",
+    #"b5fd4b89573f3404914d51fd2a4613ec23f72632da198dbb66180c86",
   )
     |> credential.with_delegation_key(
-        #"0d40177417a500d2db7c925f3718240407469f600f111f001d286493",
+        #"ebe28d2fb90e75d03f46511d54580298fc2fd019f6a59b08d0274e32",
       )
 }
 
 pub fn user_5_address() -> Address {
   credential.from_verification_key(
-    #"2d8cd2fa0b6a46e037da14ca71b85094d0971f1f278ec87723a314af",
+    #"fbf7187e6318d7c42b8adeb923fd6893df76219a6e1cef6538f1cd51",
   )
     |> credential.with_delegation_key(
-        #"07b90ff6d00550fd58e45042579522d52e782fb96d8d470d71b273a6",
+        #"0d40177417a500d2db7c925f3718240407469f600f111f001d286493",
       )
 }
 

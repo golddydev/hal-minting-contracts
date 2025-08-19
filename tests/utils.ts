@@ -8,9 +8,10 @@ import {
   makeInlineTxOutputDatum,
   makeValidatorHash,
   makeValue,
+  Tx,
   TxInput,
 } from "@helios-lang/ledger";
-import { Emulator, NetworkName, SimpleWallet } from "@helios-lang/tx-utils";
+import { Emulator, SimpleWallet } from "@helios-lang/tx-utils";
 import {
   decodeUplcProgramV2FromCbor,
   makeByteArrayData,
@@ -180,7 +181,7 @@ const makeHalAssetDatum = (assetName: string) => {
 };
 
 const checkMintedAssets = async (
-  network: NetworkName,
+  isMainnet: boolean,
   emulator: Emulator,
   settingsV1: SettingsV1,
   orderTxInputs: TxInput[],
@@ -188,7 +189,7 @@ const checkMintedAssets = async (
 ) => {
   const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
   const refSpendProxyScriptAddress = makeAddress(
-    network === "mainnet",
+    isMainnet,
     makeValidatorHash(ref_spend_proxy_script_hash)
   );
   const refSpendBalance = await balanceOfAddress(
@@ -198,7 +199,7 @@ const checkMintedAssets = async (
 
   for (let i = 0; i < userOutputsData.length; i++) {
     const halOutputsData = userOutputsData[i];
-    const decoded = decodeOrderDatumData(orderTxInputs[i].datum, network);
+    const decoded = decodeOrderDatumData(orderTxInputs[i].datum, isMainnet);
     const userBalance = await balanceOfAddress(
       emulator,
       decoded.destination_address
@@ -220,11 +221,22 @@ const checkMintedAssets = async (
   }
 };
 
+const collectFeeAndMinLovelace = (tx: Tx): bigint => {
+  const minLovelace = tx.body.outputs.reduce((acc, output, index) => {
+    if (index === 0 || index === tx.body.outputs.length - 1) {
+      return acc;
+    }
+    return acc + output.value.lovelace;
+  }, 0n);
+  return minLovelace + tx.body.fee;
+};
+
 export {
   alwaysSucceedMintUplcProgram,
   balanceOfAddress,
   balanceOfWallet,
   checkMintedAssets,
+  collectFeeAndMinLovelace,
   extractScriptCborsFromUplcProgram,
   logMemAndCpu,
   makeHalAssetDatum,

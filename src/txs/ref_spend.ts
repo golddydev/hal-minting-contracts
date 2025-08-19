@@ -10,7 +10,7 @@ import {
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
-import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
+import { makeTxBuilder, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
 import { PREFIX_100, PREFIX_222 } from "../constants/index.js";
@@ -23,20 +23,8 @@ import {
 import { mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
 
-/**
- * @interface
- * @typedef {object} UpdateParams
- * @property {NetworkName} network Network
- * @property {string} assetUtf8Name The Utf8 name of H.A.L NFT to update datum
- * @property {TxInput} refTxInput The UTxO where reference asset is locked
- * @property {TxInput} userTxInput The UTxO where user asset is locked
- * @property {InlineTxOutputDatum} newDatum The new datum to update with
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- */
 interface UpdateParams {
-  network: NetworkName;
+  isMainnet: boolean;
   assetUtf8Name: string;
   refTxInput: TxInput;
   userTxInput: TxInput;
@@ -54,7 +42,7 @@ const update = async (
   params: UpdateParams
 ): Promise<Result<TxBuilder, Error>> => {
   const {
-    network,
+    isMainnet,
     assetUtf8Name,
     refTxInput,
     userTxInput,
@@ -62,7 +50,6 @@ const update = async (
     settingsAssetTxInput,
     deployedScripts,
   } = params;
-  const isMainnet = network == "mainnet";
   const assetHexName = Buffer.from(assetUtf8Name).toString("hex");
 
   const {
@@ -80,7 +67,7 @@ const update = async (
   }
   const { data: settingsV1Data } = settingsResult.data;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
+    decodeSettingsV1Data(settingsV1Data, isMainnet)
   );
   if (!settingsV1Result.ok) {
     return Err(

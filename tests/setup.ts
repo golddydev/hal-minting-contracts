@@ -31,6 +31,7 @@ import {
   buildSettingsV1Data,
   DeployedScripts,
   fillAssets,
+  getWhitelistedKey,
   init,
   makeWhitelistedValueData,
   MintingData,
@@ -146,6 +147,8 @@ const setup = async () => {
   const mintingStartTime = new Date("2025-07-01").valueOf();
   const twoHoursInMilliseconds = 1000 * 60 * 60 * 2; // 2 hours early
   const oneHourInMilliseconds = 1000 * 60 * 60; // 1 hour early
+  const whitelistedPrice1: bigint = 150_000_000n;
+  const whitelistedPrice2: bigint = 160_000_000n;
   const user4Wallet = usersWallets[3];
   const user5Wallet = usersWallets[4];
 
@@ -166,7 +169,7 @@ const setup = async () => {
   const mintVersion = 0n;
   const adminPubKeyHash = adminWallet.spendingPubKeyHash.toHex();
   const contractsConfig = buildContracts({
-    network,
+    isMainnet,
     mint_version: mintVersion,
     admin_verification_key_hash: adminPubKeyHash,
     orders_spend_randomizer: "",
@@ -220,33 +223,35 @@ const setup = async () => {
   // prepare whitelist db
   console.log("======= Starting Prepareing Whitelist DB =======\n");
   const whitelistedValue1: WhitelistedValue = [
-    { time_gap: twoHoursInMilliseconds, amount: 10 },
-    { time_gap: oneHourInMilliseconds, amount: 5 },
+    { time_gap: twoHoursInMilliseconds, amount: 10, price: whitelistedPrice1 },
+    { time_gap: oneHourInMilliseconds, amount: 5, price: whitelistedPrice2 },
   ];
   const whitelistedValue2: WhitelistedValue = [
-    { time_gap: oneHourInMilliseconds, amount: 10 },
+    { time_gap: oneHourInMilliseconds, amount: 10, price: whitelistedPrice2 },
   ];
   await whitelistDB.insert(
-    Buffer.from(user4Wallet.address.toUplcData().toCbor()),
+    getWhitelistedKey(user4Wallet.address),
     Buffer.from(makeWhitelistedValueData(whitelistedValue1).toCbor())
   );
   await whitelistDB.insert(
-    Buffer.from(user5Wallet.address.toUplcData().toCbor()),
+    getWhitelistedKey(user5Wallet.address),
     Buffer.from(makeWhitelistedValueData(whitelistedValue2).toCbor())
   );
 
   for (const specialWallet of specialUsersWallets) {
     await whitelistDB.insert(
-      Buffer.from(specialWallet.address.toUplcData().toCbor()),
+      getWhitelistedKey(specialWallet.address),
       Buffer.from(
         makeWhitelistedValueData([
           {
             time_gap: twoHoursInMilliseconds,
             amount: 2,
+            price: whitelistedPrice1,
           },
           {
             time_gap: oneHourInMilliseconds,
             amount: 1,
+            price: whitelistedPrice2,
           },
         ]).toCbor()
       )
@@ -440,11 +445,8 @@ const setup = async () => {
   });
   mockedGetNetwork.mockReturnValue(network);
 
-  const orderTxInputs: TxInput[] = [];
-
   return {
     isMainnet,
-    network,
     emulator,
     db,
     whitelistDB,
@@ -452,6 +454,7 @@ const setup = async () => {
     allowedMinterPubKeyHash,
     legacyPolicyId,
     deployedScripts,
+    maxOrderAmountInOneTx: 8,
     mockedFunctions: {
       mockedFetchAllDeployedScripts,
       mockedFetchSettings,
@@ -468,12 +471,14 @@ const setup = async () => {
       usersWallets,
       specialUsersWallets,
     },
-    orderTxInputs,
     normalMintingTime: mintingStartTime + GRACE_PERIOD,
     whitelistMintingTimeTwoHoursEarly:
       mintingStartTime - twoHoursInMilliseconds + GRACE_PERIOD,
     whitelistMintingTimeOneHourEarly:
       mintingStartTime - oneHourInMilliseconds + GRACE_PERIOD,
+    normalPrice: HAL_NFT_PRICE,
+    whitelistedPrice1,
+    whitelistedPrice2,
   };
 };
 

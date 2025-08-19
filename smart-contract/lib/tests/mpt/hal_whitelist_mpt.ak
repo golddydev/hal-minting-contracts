@@ -352,12 +352,12 @@ test can_whitelist_user_1_3_more_than_limit_with_remaining_ordered_amount() {
 /// user_2: (1 hour, limit of 10, 160 ada)
 ///
 ///   ╔═══════════════════════════════════════════════════════════════════╗
-///   ║ #fe301fd1272c2d9e3db9aa45cb7dd8604f474c096fe9960daddbcb23d18a5006 ║
+///   ║ #e276fd87f31877b90ca3302a7c165eaa71a93cc810eaa1c5659a419adcbd0457 ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
 pub fn whitelist_initial_trie() -> MerklePatriciaForestry {
   mpt.from_root(
-    #"fe301fd1272c2d9e3db9aa45cb7dd8604f474c096fe9960daddbcb23d18a5006",
+    #"e276fd87f31877b90ca3302a7c165eaa71a93cc810eaa1c5659a419adcbd0457",
   )
 }
 
@@ -368,12 +368,12 @@ pub fn whitelist_initial_trie() -> MerklePatriciaForestry {
 /// user_2: (1 hour, limit of 10, 160 ada)
 ///
 ///   ╔═══════════════════════════════════════════════════════════════════╗
-///   ║ #73d4c1dbfd6ccfca0c235d2db5e4d276b81b1583186ec382e803903fc601ca47 ║
+///   ║ #c54d7460d3bc4df3f4e54a8151fa9d6299c36c6aa093b97ec9e1f378789fbf02 ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
 pub fn whitelist_trie_with_user_1_minted_3() -> MerklePatriciaForestry {
   mpt.from_root(
-    #"73d4c1dbfd6ccfca0c235d2db5e4d276b81b1583186ec382e803903fc601ca47",
+    #"c54d7460d3bc4df3f4e54a8151fa9d6299c36c6aa093b97ec9e1f378789fbf02",
   )
 }
 
@@ -385,12 +385,12 @@ pub fn whitelist_trie_with_user_1_minted_3() -> MerklePatriciaForestry {
 /// user_2: (1 hour, limit of 7, 160 ada)
 ///
 ///   ╔═══════════════════════════════════════════════════════════════════╗
-///   ║ #2eb8b0e244a5cffce74bb4cf91367d8f1a0650cde6872b1213d0c482f0e9383b ║
+///   ║ #92f42c32960d214af31d20f86b02d239506a30891c718e09a37749f0c34c24c2 ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
 pub fn whitelist_trie_with_user_1_minted_3_user_2_minted_3() -> MerklePatriciaForestry {
   mpt.from_root(
-    #"2eb8b0e244a5cffce74bb4cf91367d8f1a0650cde6872b1213d0c482f0e9383b",
+    #"92f42c32960d214af31d20f86b02d239506a30891c718e09a37749f0c34c24c2",
   )
 }
 
@@ -403,12 +403,12 @@ pub fn whitelist_trie_with_user_1_minted_3_user_2_minted_3() -> MerklePatriciaFo
 /// user_2: (1 hour, limit of 7, 160 ada)
 ///
 ///   ╔═══════════════════════════════════════════════════════════════════╗
-///   ║ #91a14cec99418432faae236ea0010038d6c1de526e4b51a8e81d60b4be4d6054 ║
+///   ║ #3e89f82094d280b5d100878075ec12aee691cc37e650115cf45b85176e18010e ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
 pub fn whitelist_trie_with_user_1_minted_6_user_2_minted_3() -> MerklePatriciaForestry {
   mpt.from_root(
-    #"91a14cec99418432faae236ea0010038d6c1de526e4b51a8e81d60b4be4d6054",
+    #"3e89f82094d280b5d100878075ec12aee691cc37e650115cf45b85176e18010e",
   )
 }
 
@@ -422,12 +422,12 @@ pub fn whitelist_trie_with_user_1_minted_6_user_2_minted_3() -> MerklePatriciaFo
 /// user_2: (1 hour, limit of 4, 160 ada)
 ///
 ///   ╔═══════════════════════════════════════════════════════════════════╗
-///   ║ #de98cd5a611138cf97c15bd26f903aaf5f99e4522124eca57a7e95d363ac956e ║
+///   ║ #c0b3c615e49b68c0764b6d41b4f73715bc5c8fbee8b808eb1d515daea08fca26 ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
 pub fn whitelist_trie_with_user_1_minted_6_user_2_minted_6() -> MerklePatriciaForestry {
   mpt.from_root(
-    #"de98cd5a611138cf97c15bd26f903aaf5f99e4522124eca57a7e95d363ac956e",
+    #"c0b3c615e49b68c0764b6d41b4f73715bc5c8fbee8b808eb1d515daea08fca26",
   )
 }
 
@@ -442,12 +442,12 @@ pub fn whitelist_trie_with_user_1_minted_6_user_2_minted_6() -> MerklePatriciaFo
 /// user_2: (1 hour, limit of 4, 160 ada)
 ///
 ///   ╔═══════════════════════════════════════════════════════════════════╗
-///   ║ #8486aa3755bd146b16c4f06cb55b99837d644d27ec9bc2f1f638397bacf490f9 ║
+///   ║ #29bde844a5f162acc0c1b21451f61d69bbe39c4a4c670a9fdf4cde2e6f73ba1f ║
 ///   ╚═══════════════════════════════════════════════════════════════════╝
 ///
 pub fn whitelist_trie_with_user_1_minted_8_user_2_minted_6() -> MerklePatriciaForestry {
   mpt.from_root(
-    #"8486aa3755bd146b16c4f06cb55b99837d644d27ec9bc2f1f638397bacf490f9",
+    #"29bde844a5f162acc0c1b21451f61d69bbe39c4a4c670a9fdf4cde2e6f73ba1f",
   )
 }
 
@@ -467,7 +467,7 @@ pub fn whitelist_proof_user_2_1() {
   [
     Leaf {
       skip: 0,
-      key: #"6482c0f4a6287eb27b89e542e7cd4bf488ca34530e1a65ff01b7808cac828cfd",
+      key: #"e20dce9717e23b42e0e0ca76cd897e69e193a5eba3f1bb4d4b33765f31b4c573",
       value: #"4966cf503a375578354cf5c6cb56e7674e0d59e9de8bad82768bde4e052edb6d",
     },
   ]
@@ -487,7 +487,7 @@ pub fn whitelist_proof_user_2_2() {
   [
     Leaf {
       skip: 0,
-      key: #"6482c0f4a6287eb27b89e542e7cd4bf488ca34530e1a65ff01b7808cac828cfd",
+      key: #"e20dce9717e23b42e0e0ca76cd897e69e193a5eba3f1bb4d4b33765f31b4c573",
       value: #"705bec69340d412bb8cb32fc83ee1d75dc9e46b85be72b9bd090efaec2d3f764",
     },
   ]

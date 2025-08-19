@@ -226,7 +226,7 @@ pub type Proofs =
 
   - spending_input must UTxO with `Minting Data NFT`.
 
-  - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_hash`), aggregate orders by destination address. (amount will be summed for the same destination addresses)
+  - for Order Tx Inputs (UTxOs from `Settings.orders_spend_script_hash`), aggregate orders by destination address. (amount will be summed for the same destination addresses and these orders are sorted by address lexicographically)
 
     This will give us the list of `[ Address: Destination of NFTs, amount: amount of NFTs to mint ]`
 

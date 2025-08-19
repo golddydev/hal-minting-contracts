@@ -485,3 +485,13 @@ fn add_order_to_aggregated_orders(
       }
   }
 }
+
+// This function sorts aggregated orders
+// by their destination address's cbor hex
+//
+pub fn sort_aggregated_orders(self: List<Order>) -> List<Order> {
+  self
+    |> list.sort(
+        fn(a, b) { bytearray.compare(serialise(a.1st), serialise(b.1st)) },
+      )
+}

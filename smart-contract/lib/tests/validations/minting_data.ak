@@ -599,7 +599,7 @@ test cannot_mint_with_reference_asset_sent_to_wrong_address() fail {
   )
 }
 
-test cannot_mint_if_order_inputs_user_outputs_not_in_same_order() fail {
+test can_mint_even_if_order_inputs_user_outputs_not_in_same_order() {
   let settings_reference_input = make_settings_reference_input()
   let spending_tx_hash = #"0000"
 
@@ -622,8 +622,8 @@ test cannot_mint_if_order_inputs_user_outputs_not_in_same_order() fail {
 
   let order_inputs =
     [
-      make_order_input(user_1_address(), 2, hal_nft_price * 2, #"0001"),
-      make_order_input(user_2_address(), 1, hal_nft_price * 1, #"0002"),
+      make_order_input(user_2_address(), 1, hal_nft_price * 1, #"0001"),
+      make_order_input(user_1_address(), 2, hal_nft_price * 2, #"0002"),
     ]
   let user_1_output = make_user_output(user_1_address(), ["hal-2", "hal-3"])
   let user_2_output = make_user_output(user_2_address(), ["hal-5"])
@@ -640,7 +640,7 @@ test cannot_mint_if_order_inputs_user_outputs_not_in_same_order() fail {
     make_transaction(
       [minting_data_input, ..order_inputs],
       [settings_reference_input],
-      [minting_data_output, user_2_output, user_1_output, ..reference_outputs],
+      [minting_data_output, user_1_output, user_2_output, ..reference_outputs],
       minted_value,
       make_withdrawals(mint_governor),
       [allowed_minter],

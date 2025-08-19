@@ -1,6 +1,6 @@
 import { bytesToHex } from "@helios-lang/codec-utils";
 import { makeTxOutputId, TxInput } from "@helios-lang/ledger";
-import { BlockfrostV0Client, NetworkName } from "@helios-lang/tx-utils";
+import { BlockfrostV0Client } from "@helios-lang/tx-utils";
 import { decodeUplcProgramV2FromCbor, UplcProgramV2 } from "@helios-lang/uplc";
 import { ScriptDetails, ScriptType } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
@@ -16,16 +16,8 @@ import {
 import { convertError, invariant } from "../helpers/index.js";
 import { fetchDeployedScript } from "../utils/contract.js";
 
-/**
- * @interface
- * @typedef {object} DeployParams
- * @property {NetworkName} network Network
- * @property {bigint} mintVersion Mint Version - Parameter in Mint Proxy validator
- * @property {string} adminVerificationKeyHash Admin Verification Key  Hash - Parameter in Minting Data Spending Validator
- * @property {string} contractName Contract Name to Deploy
- */
 interface DeployParams {
-  network: NetworkName;
+  isMainnet: boolean;
   mintVersion: bigint;
   adminVerificationKeyHash: string;
   ordersSpendRandomizer?: string | undefined;
@@ -50,7 +42,7 @@ interface DeployData {
  */
 const deploy = async (params: DeployParams): Promise<DeployData> => {
   const {
-    network,
+    isMainnet,
     mintVersion,
     adminVerificationKeyHash,
     ordersSpendRandomizer = "",
@@ -59,7 +51,7 @@ const deploy = async (params: DeployParams): Promise<DeployData> => {
   } = params;
 
   const contractsConfig = buildContracts({
-    network,
+    isMainnet,
     mint_version: mintVersion,
     admin_verification_key_hash: adminVerificationKeyHash,
     orders_spend_randomizer: ordersSpendRandomizer,

@@ -6,7 +6,6 @@ import {
   makeStakingValidatorHash,
   makeValidatorHash,
 } from "@helios-lang/ledger";
-import { NetworkName } from "@helios-lang/tx-utils";
 
 import {
   getMintingDataSpendUplcProgram,
@@ -18,17 +17,8 @@ import {
   getRoyaltySpendUplcProgram,
 } from "./validators.js";
 
-/**
- * @interface
- * @typedef {object} BuildContractsParams
- * @property {NetworkName} network Cardano Network
- * @property {bigint} mint_version HAL NFT version
- * @property {string} admin_verification_key_hash Admin Verification Key Hash
- * @property {string | undefined} orders_spend_randomizer Orders Spend Randomizer (hex string)
- * @property {string} ref_spend_admin Ref Spend Admin (who authorizes CIP68Datum update)
- */
 interface BuildContractsParams {
-  network: NetworkName;
+  isMainnet: boolean;
   mint_version: bigint;
   admin_verification_key_hash: string;
   orders_spend_randomizer?: string | undefined;
@@ -42,13 +32,12 @@ interface BuildContractsParams {
  */
 const buildContracts = (params: BuildContractsParams) => {
   const {
-    network,
+    isMainnet,
     mint_version,
     admin_verification_key_hash,
     orders_spend_randomizer = "",
     ref_spend_admin,
   } = params;
-  const isMainnet = network == "mainnet";
 
   // "mint_proxy.mint"
   const mintProxyMintUplcProgram = getMintProxyMintUplcProgram(mint_version);

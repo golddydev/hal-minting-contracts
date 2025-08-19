@@ -1,4 +1,3 @@
-import { Trie } from "@aiken-lang/merkle-patricia-forestry";
 import {
   Address,
   makeAddress,
@@ -9,7 +8,7 @@ import {
   ShelleyAddress,
   TxInput,
 } from "@helios-lang/ledger";
-import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
+import { CardanoClient, makeTxBuilder, TxBuilder } from "@helios-lang/tx-utils";
 import { ScriptDetails } from "@koralabs/kora-labs-common";
 import { Err, Ok, Result } from "ts-res";
 
@@ -21,29 +20,16 @@ import {
   decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
-  decodeWhitelistedValueFromCBOR,
   OrderDatum,
   Settings,
+  SettingsV1,
 } from "../contracts/index.js";
-import { Order } from "../contracts/types/orders.js";
-import {
-  getBlockfrostV0Client,
-  getNetwork,
-  mayFail,
-  mayFailAsync,
-} from "../helpers/index.js";
+import { mayFail, mayFailAsync } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
-import { updateWhitelistedValue } from "./whitelist.js";
+import { Order } from "./types.js";
 
-/**
- * @interface
- * @typedef {object} RequestParams
- * @property {NetworkName} network Network
- * @property {Order[]} orders Orders to request
- * @property {Settings} settings Settings
- */
 interface RequestParams {
-  network: NetworkName;
+  isMainnet: boolean;
   orders: Order[];
   settings: Settings;
 }
@@ -56,11 +42,10 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, orders, settings } = params;
-  const isMainnet = network == "mainnet";
+  const { isMainnet, orders, settings } = params;
 
-  for (const [address, amount] of orders) {
-    if (address.spendingCredential.kind == "ValidatorHash")
+  for (const { destinationAddress, amount } of orders) {
+    if (destinationAddress.spendingCredential.kind == "ValidatorHash")
       return Err(new Error("Must be Base address"));
 
     if (amount <= 0n) {
@@ -79,14 +64,14 @@ const request = async (
   // decode settings
   const { data: settingsV1Data } = settings;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
+    decodeSettingsV1Data(settingsV1Data, isMainnet)
   );
   if (!settingsV1Result.ok) {
     return Err(
       new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
     );
   }
-  const { hal_nft_price, orders_spend_script_hash } = settingsV1Result.data;
+  const { orders_spend_script_hash } = settingsV1Result.data;
 
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -99,13 +84,13 @@ const request = async (
   });
 
   // <-- pay order value to order spend script address for each order
-  for (const [address, amount] of orders) {
+  for (const { destinationAddress, amount, price } of orders) {
     const orderDatum: OrderDatum = {
-      owner_key_hash: address.spendingCredential.toHex(),
-      destination_address: address,
+      owner_key_hash: destinationAddress.spendingCredential.toHex(),
+      destination_address: destinationAddress,
       amount,
     };
-    const orderValue = makeValue(hal_nft_price * BigInt(amount));
+    const orderValue = makeValue(price * BigInt(amount));
 
     txBuilder.payUnsafe(
       ordersSpendScriptAddress,
@@ -117,16 +102,8 @@ const request = async (
   return Ok(txBuilder);
 };
 
-/**
- * @interface
- * @typedef {object} CancelParams
- * @property {NetworkName} network Network
- * @property {Address} address User's Wallet Address to perform order
- * @property {TxInput} orderTxInput Order Tx Input
- * @property {DeployedScripts} deployedScripts Deployed Scripts
- */
 interface CancelParams {
-  network: NetworkName;
+  isMainnet: boolean;
   address: Address;
   orderTxInput: TxInput;
   deployedScripts: DeployedScripts;
@@ -140,8 +117,7 @@ interface CancelParams {
 const cancel = async (
   params: CancelParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, address, orderTxInput, deployedScripts } = params;
-  const isMainnet = network == "mainnet";
+  const { isMainnet, address, orderTxInput, deployedScripts } = params;
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
   if (address.spendingCredential.kind == "ValidatorHash")
@@ -163,7 +139,7 @@ const cancel = async (
 
   // check all order tx inputs must have same owner_key_hash in datum
   const orderDatumResult = mayFail(() =>
-    decodeOrderDatumData(orderTxInput.datum, network)
+    decodeOrderDatumData(orderTxInput.datum, isMainnet)
   );
   if (!orderDatumResult.ok) {
     return Err(
@@ -188,18 +164,8 @@ const cancel = async (
 
   return Ok(txBuilder);
 };
-
-/**
- * @interface
- * @typedef {object} RefundParams
- * @property {NetworkName} network Network
- * @property {TxInput} orderTxInput Order Tx Input to refund
- * @property {ShelleyAddress} refundingAddress Address to refund Order Tx Input
- * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- */
 interface RefundParams {
-  network: NetworkName;
+  isMainnet: boolean;
   orderTxInput: TxInput;
   refundingAddress: ShelleyAddress;
   deployedScripts: DeployedScripts;
@@ -215,13 +181,12 @@ const refund = async (
   params: RefundParams
 ): Promise<Result<TxBuilder, Error>> => {
   const {
-    network,
+    isMainnet,
     orderTxInput,
     refundingAddress,
     deployedScripts,
     settingsAssetTxInput,
   } = params;
-  const isMainnet = network == "mainnet";
 
   const { ordersSpendScriptTxInput, ordersSpendScriptDetails } =
     deployedScripts;
@@ -235,7 +200,7 @@ const refund = async (
   }
   const { data: settingsV1Data } = settingsResult.data;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
+    decodeSettingsV1Data(settingsV1Data, isMainnet)
   );
   if (!settingsV1Result.ok) {
     return Err(
@@ -269,7 +234,7 @@ const refund = async (
   // <-- spend order tx input
   txBuilder.spendUnsafe(orderTxInput, buildOrdersSpendRefundOrderRedeemer());
   const decodedOrderDatum = mayFail(() =>
-    decodeOrderDatumData(orderTxInput.datum, network)
+    decodeOrderDatumData(orderTxInput.datum, isMainnet)
   );
   if (decodedOrderDatum.ok) {
     // check refundingAddress has owner_key_hash as payment cred
@@ -291,16 +256,9 @@ const refund = async (
 
   return Ok(txBuilder);
 };
-
-/**
- * @interface
- * @typedef {object} FetchOrderTxInputsParams
- * @property {ScriptDetails} ordersSpendScriptDetails Deployed Orders Spend Script Detail
- * @property {string} blockfrostApiKey Blockfrost API Key
- */
 interface FetchOrderTxInputsParams {
+  cardanoClient: CardanoClient;
   ordersSpendScriptDetails: ScriptDetails;
-  blockfrostApiKey: string;
 }
 
 /**
@@ -311,10 +269,8 @@ interface FetchOrderTxInputsParams {
 const fetchOrderTxInputs = async (
   params: FetchOrderTxInputsParams
 ): Promise<Result<TxInput[], Error>> => {
-  const { ordersSpendScriptDetails, blockfrostApiKey } = params;
-  const network = getNetwork(blockfrostApiKey);
-  const isMainnet = network == "mainnet";
-  const blockfrostV0Client = getBlockfrostV0Client(blockfrostApiKey);
+  const { cardanoClient, ordersSpendScriptDetails } = params;
+  const isMainnet = cardanoClient.isMainnet();
 
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -323,68 +279,35 @@ const fetchOrderTxInputs = async (
 
   // fetch order utxos
   const orderUtxosResult = await mayFailAsync(() =>
-    blockfrostV0Client.getUtxos(ordersSpendScriptAddress)
+    cardanoClient.getUtxos(ordersSpendScriptAddress)
   ).complete();
   if (!orderUtxosResult.ok)
     return Err(
       new Error(`Failed to fetch order UTxOs: ${orderUtxosResult.error}`)
     );
 
-  // remove invalid order utxos
-  const orderUtxos = orderUtxosResult.data.filter((utxo) => {
-    const decodedResult = mayFail(() =>
-      decodeOrderDatumData(utxo.datum, network)
-    );
-    return decodedResult.ok;
-  });
-
-  return Ok(orderUtxos);
+  return Ok(orderUtxosResult.data);
 };
 
-/**
- * @interface
- * @typedef {object} IsValidOrderTxInputParams
- * @property {NetworkName} network Network
- * @property {TxInput} orderTxInput Order TxInput
- * @property {Settings} settings Settings
- * @property {Trie} whitelistDB Whitelist DB
- * @property {number | undefined} mintingTime Transaction Start Time
- */
-interface IsValidOrderTxInputParams {
-  network: NetworkName;
+interface IsOrderTxInputValidParams {
+  isMainnet: boolean;
   orderTxInput: TxInput;
-  settings: Settings;
-  whitelistDB: Trie;
-  mintingTime?: number | undefined;
+  settingsV1: SettingsV1;
+  maxOrderAmountInOneTx: number;
 }
 
 /**
- * @description Check TxInput is valid order UTxO
- * @param {IsValidOrderTxInputParams} params
+ * @description Check if TxInput is valid order UTxO
+ * Check if Order UTxO is from Orders Spend Script Address
+ * Check if Order UTxO's datum is valid
+ * @param {IsOrderTxInputValidParams} params
  * @returns {boolean} True if valid order UTxO, false otherwise
  */
-const isValidOrderTxInput = async (
-  params: IsValidOrderTxInputParams
-): Promise<Result<true, Error>> => {
-  const {
-    network,
-    orderTxInput,
-    settings,
-    whitelistDB,
-    mintingTime = Date.now(),
-  } = params;
-  const isMainnet = network == "mainnet";
-  const { data: settingsV1Data } = settings;
-  const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
-  );
-  if (!settingsV1Result.ok) {
-    return Err(
-      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
-    );
-  }
-  const { hal_nft_price, orders_spend_script_hash, minting_start_time } =
-    settingsV1Result.data;
+const isOrderTxInputValid = (
+  params: IsOrderTxInputValidParams
+): Result<true, Error> => {
+  const { isMainnet, orderTxInput, settingsV1, maxOrderAmountInOneTx } = params;
+  const { orders_spend_script_hash } = settingsV1;
 
   const ordersSpendScriptAddress = makeAddress(
     isMainnet,
@@ -400,70 +323,29 @@ const isValidOrderTxInput = async (
 
   // check if datum is valid
   const decodedResult = mayFail(() =>
-    decodeOrderDatumData(orderTxInput.datum, network)
+    decodeOrderDatumData(orderTxInput.datum, isMainnet)
   );
   if (!decodedResult.ok) {
     return Err(new Error("Invalid Order Datum"));
   }
-  const { destination_address, amount: ordered_amount } = decodedResult.data;
 
-  // check lovelace is enough
-  const expectedLovelace = BigInt(ordered_amount) * hal_nft_price;
-  if (orderTxInput.value.lovelace < expectedLovelace) {
-    return Err(new Error("Insufficient Lovelace"));
-  }
-
-  // check minting time
-  if (mintingTime < minting_start_time) {
-    // check whitelisted or not
-    const key = Buffer.from(destination_address.toUplcData().toCbor());
-    const value = await whitelistDB.get(key);
-    if (!value) {
-      return Err(
-        new Error(
-          `${destination_address.toBech32()} is not whitelisted. Wait until ${new Date(
-            minting_start_time
-          ).toLocaleString()}`
-        )
-      );
-    }
-
-    // check whitelisted time gap and amount
-    const decodedWhitelistedValueResult = decodeWhitelistedValueFromCBOR(value);
-    if (!decodedWhitelistedValueResult.ok) {
-      return Err(
-        new Error(
-          `${destination_address.toBech32()} has invalid whitelisted item data in Trie: ${
-            decodedWhitelistedValueResult.error
-          }`
-        )
-      );
-    }
-    const whitelistedValue = decodedWhitelistedValueResult.data;
-    const transactionTimeGap = minting_start_time - mintingTime;
-    const updatedWhitelistedValueResult = updateWhitelistedValue(
-      whitelistedValue,
-      ordered_amount,
-      transactionTimeGap
+  const { amount } = decodedResult.data;
+  if (amount > maxOrderAmountInOneTx) {
+    return Err(
+      new Error(
+        `Order Tx Input has too many amount ${amount}. maximum: ${maxOrderAmountInOneTx}`
+      )
     );
-    if (!updatedWhitelistedValueResult.ok) {
-      return Err(
-        new Error(
-          `${destination_address.toBech32()} has insufficient whitelisted value: ${
-            updatedWhitelistedValueResult.error
-          }`
-        )
-      );
-    }
   }
+
   return Ok(true);
 };
 
 export type {
   CancelParams,
   FetchOrderTxInputsParams,
-  IsValidOrderTxInputParams,
+  IsOrderTxInputValidParams,
   RefundParams,
   RequestParams,
 };
-export { cancel, fetchOrderTxInputs, isValidOrderTxInput, refund, request };
+export { cancel, fetchOrderTxInputs, isOrderTxInputValid, refund, request };

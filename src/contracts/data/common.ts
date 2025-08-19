@@ -11,7 +11,6 @@ import {
   StakingCredential,
   TxOutputDatum,
 } from "@helios-lang/ledger";
-import { NetworkName } from "@helios-lang/tx-utils";
 import {
   decodeUplcData,
   expectByteArrayData,
@@ -115,9 +114,8 @@ const buildAddressData = (address: ShelleyAddress): UplcData => {
 
 const decodeAddressFromData = (
   data: UplcData,
-  network: NetworkName
+  isMainnet: boolean
 ): ShelleyAddress => {
-  const isMainnet = network == "mainnet";
   const addressConstrData = expectConstrData(data, 0, 2);
   const spendingCredential = decodeCredentialFromData(
     addressConstrData.fields[0]

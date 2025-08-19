@@ -1,3 +1,4 @@
+use aiken/cbor.{diagnostic}
 use aiken/list
 use aiken/merkle_patricia_forestry as mpt
 use aiken/transaction.{
@@ -11,7 +12,7 @@ use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/minting_data/types.{Proofs}
 use validations/minting_data/utils.{
   aggregate_orders_information, are_all_orders_fulfilled,
-  check_hal_tokens_minted, check_ref_outputs,
+  check_hal_tokens_minted, check_ref_outputs, sort_aggregated_orders,
 }
 
 // Validation:
@@ -78,6 +79,11 @@ pub fn can_mint(
     aggregated_orders,
     total_paid_lovelace,
   <- aggregate_orders_information(inputs, [], 0, orders_spend_script_hash)
+  trace @"before"
+  trace diagnostic(aggregated_orders)
+  let aggregated_orders = aggregated_orders |> sort_aggregated_orders
+  trace @"after"
+  trace diagnostic(aggregated_orders)
   let aggregated_orders_count = list.length(aggregated_orders)
 
   // parse outputs
