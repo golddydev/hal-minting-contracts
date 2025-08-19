@@ -48,6 +48,7 @@ const MIN_LOVELACE = 5_000_000n;
 
 const dbPath = "./tests/test-db";
 const whitelistDBPath = "./tests/whitelist-test-db";
+const initialWhitelistDBPath = "./tests/initial-whitelist-test-db";
 
 const settingsAssetClass = makeAssetClass(
   "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c4068616e646c655f73657474696e6773"
@@ -164,6 +165,8 @@ const setup = async () => {
   const db = await init(dbPath);
   await fs.rm(whitelistDBPath, { recursive: true, force: true });
   const whitelistDB = await init(whitelistDBPath);
+  await fs.rm(initialWhitelistDBPath, { recursive: true, force: true });
+  const initialWhitelistDB = await init(initialWhitelistDBPath);
 
   // ============ build contracts ============
   const mintVersion = 0n;
@@ -229,33 +232,36 @@ const setup = async () => {
   const whitelistedValue2: WhitelistedValue = [
     { time_gap: oneHourInMilliseconds, amount: 10, price: whitelistedPrice2 },
   ];
-  await whitelistDB.insert(
-    getWhitelistedKey(user4Wallet.address),
-    Buffer.from(makeWhitelistedValueData(whitelistedValue1).toCbor())
-  );
-  await whitelistDB.insert(
-    getWhitelistedKey(user5Wallet.address),
-    Buffer.from(makeWhitelistedValueData(whitelistedValue2).toCbor())
-  );
-
-  for (const specialWallet of specialUsersWallets) {
-    await whitelistDB.insert(
-      getWhitelistedKey(specialWallet.address),
-      Buffer.from(
-        makeWhitelistedValueData([
-          {
-            time_gap: twoHoursInMilliseconds,
-            amount: 2,
-            price: whitelistedPrice1,
-          },
-          {
-            time_gap: oneHourInMilliseconds,
-            amount: 1,
-            price: whitelistedPrice2,
-          },
-        ]).toCbor()
-      )
+  for (let i = 0; i < 2; i++) {
+    const db = i === 0 ? initialWhitelistDB : whitelistDB;
+    await db.insert(
+      getWhitelistedKey(user4Wallet.address),
+      Buffer.from(makeWhitelistedValueData(whitelistedValue1).toCbor())
     );
+    await db.insert(
+      getWhitelistedKey(user5Wallet.address),
+      Buffer.from(makeWhitelistedValueData(whitelistedValue2).toCbor())
+    );
+
+    for (const specialWallet of specialUsersWallets) {
+      await db.insert(
+        getWhitelistedKey(specialWallet.address),
+        Buffer.from(
+          makeWhitelistedValueData([
+            {
+              time_gap: twoHoursInMilliseconds,
+              amount: 2,
+              price: whitelistedPrice1,
+            },
+            {
+              time_gap: oneHourInMilliseconds,
+              amount: 1,
+              price: whitelistedPrice2,
+            },
+          ]).toCbor()
+        )
+      );
+    }
   }
   console.log("======= Whitelist DB Pre Filled =======\n");
   console.log("Whitelist DB Root Hash:\n", whitelistDB.hash?.toString("hex"));
@@ -445,10 +451,14 @@ const setup = async () => {
   });
   mockedGetNetwork.mockReturnValue(network);
 
+  const usedOrdersCount: Record<string, number> = {};
+
   return {
     isMainnet,
     emulator,
     db,
+    usedOrdersCount,
+    initialWhitelistDB,
     whitelistDB,
     contractsConfig,
     allowedMinterPubKeyHash,

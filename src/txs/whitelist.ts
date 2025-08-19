@@ -103,6 +103,53 @@ const updateWhitelistedValue = (
   return result;
 };
 
+interface UseWhitelistedValueAsPossibleResult {
+  newWhitelistedValue: WhitelistedValue;
+  remainingOrderedAmount: number;
+  spentLovelaceForWhitelisted: bigint;
+}
+
+const useWhitelistedValueAsPossible = (
+  whitelistedValue: WhitelistedValue,
+  orderedAmount: number
+): UseWhitelistedValueAsPossibleResult => {
+  const result = whitelistedValue.reduce(
+    (acc, cur) => {
+      if (cur.amount <= 0) return acc;
+
+      const {
+        newWhitelistedValue,
+        remainingOrderedAmount,
+        spentLovelaceForWhitelisted,
+      } = acc;
+      const availableAmount = Math.min(cur.amount, remainingOrderedAmount);
+      const newRemainingOrderedAmount =
+        remainingOrderedAmount - availableAmount;
+      const newAmount = cur.amount - availableAmount;
+      const newSpentLovelaceForWhitelisted =
+        spentLovelaceForWhitelisted + cur.price * BigInt(availableAmount);
+
+      const updatedWhitelistedValue: WhitelistedValue =
+        newAmount <= 0
+          ? newWhitelistedValue
+          : [...newWhitelistedValue, { ...cur, amount: newAmount }];
+
+      return {
+        newWhitelistedValue: updatedWhitelistedValue,
+        remainingOrderedAmount: newRemainingOrderedAmount,
+        spentLovelaceForWhitelisted: newSpentLovelaceForWhitelisted,
+      } as UseWhitelistedValueAsPossibleResult;
+    },
+    {
+      newWhitelistedValue: [],
+      remainingOrderedAmount: orderedAmount,
+      spentLovelaceForWhitelisted: 0n,
+    } as UseWhitelistedValueAsPossibleResult
+  );
+
+  return result;
+};
+
 const getAvailableWhitelistedValue = (
   whitelistedValue: WhitelistedValue,
   txTimeGap: number
@@ -121,4 +168,5 @@ export {
   getWhitelistedKey,
   getWhitelistedValue,
   updateWhitelistedValue,
+  useWhitelistedValueAsPossible,
 };

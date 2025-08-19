@@ -32,6 +32,7 @@ interface RequestParams {
   isMainnet: boolean;
   orders: Order[];
   settings: Settings;
+  maxOrderAmountInOneTx: number;
 }
 
 /**
@@ -42,7 +43,7 @@ interface RequestParams {
 const request = async (
   params: RequestParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { isMainnet, orders, settings } = params;
+  const { isMainnet, orders, settings, maxOrderAmountInOneTx } = params;
 
   for (const { destinationAddress, amount } of orders) {
     if (destinationAddress.spendingCredential.kind == "ValidatorHash")
@@ -50,6 +51,14 @@ const request = async (
 
     if (amount <= 0n) {
       return Err(new Error("Amount must be greater than 0"));
+    }
+
+    if (amount > maxOrderAmountInOneTx) {
+      return Err(
+        new Error(
+          `Order amount must be less than or equal to ${maxOrderAmountInOneTx}`
+        )
+      );
     }
   }
 

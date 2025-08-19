@@ -15,6 +15,7 @@ import {
   getWhitelistedKey,
   getWhitelistedValue,
   updateWhitelistedValue,
+  useWhitelistedValueAsPossible,
 } from "./whitelist.js";
 
 interface PrepareOrdersParams {
@@ -144,6 +145,8 @@ const aggregateOrderTxInputs = async (
 
   // we keep WhitelistedValue by destination_address CBOR Hex to check
   const whitelistedValues: Record<string, WhitelistedValue | null> = {};
+  const availableWhitelistedValues: Record<string, WhitelistedValue | null> =
+    {};
 
   // this is processing state
   let aggregatingOrders: AggregatedOrder[] = [];
@@ -168,13 +171,16 @@ const aggregateOrderTxInputs = async (
     if (!(destinationAddressKey in whitelistedValues)) {
       const value = await getWhitelistedValue(whitelistDB, destination_address);
       // get available ones by minting time
-      whitelistedValues[destinationAddressKey] = value
+      whitelistedValues[destinationAddressKey] = value;
+      availableWhitelistedValues[destinationAddressKey] = value
         ? getAvailableWhitelistedValue(value, txTimeGap)
-        : value;
+        : null;
     }
 
     // check with whitelisted value (for discounted price)
-    const whitelistedValue = whitelistedValues[destinationAddressKey];
+    const availableWhitelistedValue =
+      availableWhitelistedValues[destinationAddressKey];
+    const allWhitelistedValue = whitelistedValues[destinationAddressKey];
 
     // check orderInput is valid to mint or not
     const canMintResult = checkCanMintOrder(
@@ -184,7 +190,8 @@ const aggregateOrderTxInputs = async (
       orderTxInput.value.lovelace,
       hal_nft_price,
       txTimeGap,
-      whitelistedValue
+      availableWhitelistedValue,
+      allWhitelistedValue
     );
 
     if (canMintResult.status === "valid") {
@@ -271,7 +278,8 @@ const checkCanMintOrder = (
   lovelace: bigint,
   halNftPrice: bigint,
   txTimeGap: number,
-  whitelistedValue: WhitelistedValue | null
+  whitelistedValue: WhitelistedValue | null,
+  allWhitelistedValue: WhitelistedValue | null
 ):
   | { status: "invalid" | "unprocessable" }
   | {
@@ -321,6 +329,33 @@ const checkCanMintOrder = (
       remainingOrderedAmount,
       spentLovelaceForWhitelisted,
     } = updateWhitelistedValue(whitelistedValue, amount, txTimeGap);
+
+    // we also check in case if user can use all of his current whitelisted value
+    // if he has at more than possibleExpectedLovelace
+    if (allWhitelistedValue) {
+      const useWhitelistedValueAsPossibleResult = useWhitelistedValueAsPossible(
+        allWhitelistedValue,
+        amount
+      );
+      const possibleExpectedLovelace =
+        useWhitelistedValueAsPossibleResult.spentLovelaceForWhitelisted +
+        halNftPrice *
+          BigInt(useWhitelistedValueAsPossibleResult.remainingOrderedAmount);
+      if (lovelace < possibleExpectedLovelace) {
+        console.error(
+          `Order UTxO ${orderTxInputId} failed to be processed even as whitelisted. Need ${possibleExpectedLovelace} but has only ${lovelace}`,
+          {
+            allWhitelistedValue,
+            amount,
+            possibleExpectedLovelace,
+            lovelace,
+          }
+        );
+        return {
+          status: "invalid",
+        };
+      }
+    }
 
     if (remainingOrderedAmount > 0) {
       // can not mint all as whitelisted
@@ -393,5 +428,52 @@ const checkCanMintOrder = (
   }
 };
 
-export type { AggregateOrderTxInputsParams, PrepareOrdersParams };
-export { aggregateOrderTxInputs, prepareOrders };
+interface GetMintingCostParams {
+  destinationAddress: ShelleyAddress;
+  amount: number;
+  initialWhitelistDB: Trie;
+  usedCount: number;
+  halNftPrice: bigint;
+}
+
+const getMintingCost = async (
+  params: GetMintingCostParams
+): Promise<bigint> => {
+  const {
+    destinationAddress,
+    amount,
+    initialWhitelistDB,
+    usedCount,
+    halNftPrice,
+  } = params;
+
+  const whitelistedValue = await getWhitelistedValue(
+    initialWhitelistDB,
+    destinationAddress
+  );
+  if (whitelistedValue) {
+    const {
+      newWhitelistedValue: usedWhitelistedValue,
+      remainingOrderedAmount: remainingAmountAfterUsed,
+    } = useWhitelistedValueAsPossible(whitelistedValue, usedCount);
+    if (remainingAmountAfterUsed > 0) {
+      return halNftPrice * BigInt(amount);
+    } else {
+      const { remainingOrderedAmount, spentLovelaceForWhitelisted } =
+        useWhitelistedValueAsPossible(usedWhitelistedValue, amount);
+      return (
+        spentLovelaceForWhitelisted +
+        halNftPrice * BigInt(remainingOrderedAmount)
+      );
+    }
+  } else {
+    return halNftPrice * BigInt(amount);
+  }
+};
+
+export type {
+  AggregateOrderTxInputsParams,
+  GetMintingCostParams,
+  PrepareOrdersParams,
+};
+export { aggregateOrderTxInputs, getMintingCost, prepareOrders };
