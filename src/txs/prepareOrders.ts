@@ -80,13 +80,19 @@ const prepareOrders = async (
       new Error(`Failed to aggregate orders: ${aggregatedResult.error}`)
     );
   }
-  const { aggregatedOrdersList, unprocessableOrderTxInputs } =
-    aggregatedResult.data;
+  const {
+    aggregatedOrdersList,
+    unprocessableOrderTxInputs,
+    invalidOrderTxInputs: additionalInvalidOrderTxInputs,
+  } = aggregatedResult.data;
 
   return Ok({
     aggregatedOrdersList,
     unprocessableOrderTxInputs,
-    invalidOrderTxInputs,
+    invalidOrderTxInputs: [
+      ...invalidOrderTxInputs,
+      ...additionalInvalidOrderTxInputs,
+    ],
   });
 };
 
@@ -111,6 +117,7 @@ const aggregateOrderTxInputs = async (
     {
       aggregatedOrdersList: Array<AggregatedOrder[]>;
       unprocessableOrderTxInputs: TxInput[];
+      invalidOrderTxInputs: TxInput[];
     },
     Error
   >
@@ -125,6 +132,7 @@ const aggregateOrderTxInputs = async (
   } = params;
   const aggregatedOrdersList: Array<AggregatedOrder[]> = [];
   const unprocessableOrderTxInputs: TxInput[] = [];
+  const invalidOrderTxInputs: TxInput[] = [];
 
   const { hal_nft_price, minting_start_time } = settingsV1;
   const txTimeGap = minting_start_time - mintingTime;
@@ -179,7 +187,7 @@ const aggregateOrderTxInputs = async (
       whitelistedValue
     );
 
-    if (canMintResult.canMint) {
+    if (canMintResult.status === "valid") {
       // update whitelisted value
       whitelistedValues[destinationAddressKey] =
         canMintResult.newWhitelistedValue;
@@ -197,8 +205,10 @@ const aggregateOrderTxInputs = async (
         canMintResult.needWhitelistProof
       );
       aggregatingTotalAmount += amount;
-    } else {
+    } else if (canMintResult.status === "unprocessable") {
       unprocessableOrderTxInputs.push(orderTxInput);
+    } else if (canMintResult.status === "invalid") {
+      invalidOrderTxInputs.push(orderTxInput);
     }
   }
 
@@ -209,6 +219,7 @@ const aggregateOrderTxInputs = async (
   return Ok({
     aggregatedOrdersList,
     unprocessableOrderTxInputs,
+    invalidOrderTxInputs,
   });
 };
 
@@ -262,9 +273,9 @@ const checkCanMintOrder = (
   txTimeGap: number,
   whitelistedValue: WhitelistedValue | null
 ):
-  | { canMint: false }
+  | { status: "invalid" | "unprocessable" }
   | {
-      canMint: true;
+      status: "valid";
       needWhitelistProof: boolean;
       newWhitelistedValue: WhitelistedValue | null;
     } => {
@@ -276,7 +287,7 @@ const checkCanMintOrder = (
     if (txTimeGap < 0) {
       if (lovelace >= expectedLovelace) {
         return {
-          canMint: true,
+          status: "valid",
           needWhitelistProof: false,
           newWhitelistedValue: whitelistedValue,
         };
@@ -285,15 +296,22 @@ const checkCanMintOrder = (
           `Order UTxO ${orderTxInputId} failed to be processed. Need ${expectedLovelace} but has only ${lovelace}`
         );
         return {
-          canMint: false,
+          status: "invalid",
         };
       }
     } else {
       console.error(
-        `Order UTxO ${orderTxInputId} failed to be processed. ${destinationAddress} not whitelisted. Wait till minting_start_time`
+        `Order UTxO ${orderTxInputId} failed to be processed as Whitelisted enough. ${destinationAddress} not whitelisted enough. Wait till minting_start_time`,
+        {
+          whitelistedValue,
+          txTimeGap,
+          amount,
+          expectedLovelace,
+          lovelace,
+        }
       );
       return {
-        canMint: false,
+        status: "unprocessable",
       };
     }
   } else {
@@ -313,43 +331,62 @@ const checkCanMintOrder = (
           spentLovelaceForWhitelisted;
         if (lovelace >= expectedLovelace) {
           return {
-            canMint: true,
+            status: "valid",
             needWhitelistProof: true,
             newWhitelistedValue,
           };
         } else {
           console.error(
-            `Order UTxO ${orderTxInputId} failed to be processed SOME as whitelisted. Need ${expectedLovelace} but has only ${lovelace}`
+            `Order UTxO ${orderTxInputId} failed to be processed SOME as whitelisted. Need ${expectedLovelace} but has only ${lovelace}`,
+            {
+              whitelistedValue,
+              txTimeGap,
+              amount,
+              expectedLovelace,
+              lovelace,
+            }
           );
           return {
-            canMint: false,
+            status: "unprocessable",
           };
         }
       } else {
         console.error(
-          `Order UTxO ${orderTxInputId} couldn't be minted whole as whitelisted. So wait till minting_start_time.`,
-          { whitelistedValue, txTimeGap, amount, remainingOrderedAmount }
+          `Order UTxO ${orderTxInputId} couldn't be minted ALL as whitelisted. So wait till minting_start_time`,
+          {
+            whitelistedValue,
+            txTimeGap,
+            amount,
+            remainingOrderedAmount,
+          }
         );
         return {
-          canMint: false,
+          status: "unprocessable",
         };
       }
     } else {
-      // this means we can mint all as whitelisted
+      // this means we can mint ALL as whitelisted
       // so only check if there is enough lovelace
       const expectedLovelace = spentLovelaceForWhitelisted;
       if (lovelace >= expectedLovelace) {
         return {
-          canMint: true,
+          status: "valid",
           needWhitelistProof: true,
           newWhitelistedValue,
         };
       } else {
         console.error(
-          `Order UTxO ${orderTxInputId} failed to be processed ALL as whitelisted. Need ${expectedLovelace} but has only ${lovelace}`
+          `Order UTxO ${orderTxInputId} failed to be processed ALL as whitelisted. Need ${expectedLovelace} but has only ${lovelace}`,
+          {
+            whitelistedValue,
+            txTimeGap,
+            amount,
+            expectedLovelace,
+            lovelace,
+          }
         );
         return {
-          canMint: false,
+          status: "unprocessable",
         };
       }
     }

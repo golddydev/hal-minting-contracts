@@ -9,8 +9,9 @@ import {
 type Order = {
   destinationAddress: ShelleyAddress;
   amount: number;
-  // users can pass normal price or whitelisted price
-  price: bigint;
+  // users can pass cost to process this order
+  // sum of normal price or whitelisted price
+  cost: bigint;
 };
 
 // Aggregated Order by destination address

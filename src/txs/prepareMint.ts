@@ -47,7 +47,7 @@ import {
 import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
 import { AggregatedOrder, HalAssetInfo, HalUserOutputData } from "./types.js";
-import { updateWhitelistedValue } from "./whitelist.js";
+import { getWhitelistedKey, updateWhitelistedValue } from "./whitelist.js";
 interface PrepareMintParams {
   isMainnet: boolean;
   address: Address;
@@ -99,6 +99,13 @@ const prepareMintTransaction = async (
     mintingDataAssetTxInput,
     mintingTime,
   } = params;
+
+  // sort aggregated orders by destination address
+  aggregatedOrders.sort((a, b) =>
+    getWhitelistedKey(a.destinationAddress)
+      .toString("hex")
+      .localeCompare(getWhitelistedKey(b.destinationAddress).toString("hex"))
+  );
 
   // destructure assetsInfo from param
   const assetsInfo = [...assetsInfoFromParam];

@@ -84,13 +84,13 @@ const request = async (
   });
 
   // <-- pay order value to order spend script address for each order
-  for (const { destinationAddress, amount, price } of orders) {
+  for (const { destinationAddress, amount, cost } of orders) {
     const orderDatum: OrderDatum = {
       owner_key_hash: destinationAddress.spendingCredential.toHex(),
       destination_address: destinationAddress,
       amount,
     };
-    const orderValue = makeValue(price * BigInt(amount));
+    const orderValue = makeValue(cost);
 
     txBuilder.payUnsafe(
       ordersSpendScriptAddress,
