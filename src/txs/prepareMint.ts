@@ -42,6 +42,7 @@ import {
   parseMPTProofJSON,
   Proofs,
   WhitelistedItem,
+  WhitelistedValue,
   WhitelistProof,
 } from "../contracts/index.js";
 import { convertError, mayFail } from "../helpers/index.js";
@@ -83,6 +84,10 @@ const prepareMintTransaction = async (
       whitelistDB: Trie;
       userOutputsData: HalUserOutputData[];
       referenceOutputs: TxOutput[];
+      updatedWhitelistedValues: Array<{
+        destinationAddress: ShelleyAddress;
+        whitelistedValue: WhitelistedValue;
+      }>;
     },
     Error
   >
@@ -193,6 +198,10 @@ const prepareMintTransaction = async (
   const userOutputsData: HalUserOutputData[] = [];
   const halTokensValue: [ByteArrayLike, IntLike][] = [];
   const referenceOutputs: TxOutput[] = [];
+  const updatedWhitelistedValues: Array<{
+    destinationAddress: ShelleyAddress;
+    whitelistedValue: WhitelistedValue;
+  }> = [];
 
   const transactionTimeGap = minting_start_time - mintingTime;
 
@@ -310,6 +319,11 @@ const prepareMintTransaction = async (
           destinationAddressKey,
           updatedWhitelistedValueCbor
         );
+
+        updatedWhitelistedValues.push({
+          destinationAddress,
+          whitelistedValue: newWhitelistedValue,
+        });
       } catch (error) {
         return Err(
           new Error(
@@ -420,6 +434,7 @@ const prepareMintTransaction = async (
     whitelistDB,
     userOutputsData,
     referenceOutputs,
+    updatedWhitelistedValues,
   });
 };
 
