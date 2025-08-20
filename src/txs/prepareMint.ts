@@ -17,7 +17,7 @@ import {
   TxInput,
   TxOutput,
 } from "@helios-lang/ledger";
-import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
+import { makeTxBuilder, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
 import {
@@ -32,7 +32,6 @@ import {
   buildMintMintNFTsRedeemer,
   buildOrdersSpendExecuteOrdersRedeemer,
   decodeMintingDataDatum,
-  decodeOrderDatumData,
   decodeSettingsDatum,
   decodeSettingsV1Data,
   decodeWhitelistedValueFromCBOR,
@@ -40,7 +39,6 @@ import {
   makeWhitelistedItemData,
   makeWhitelistedValueData,
   MintingData,
-  Order,
   parseMPTProofJSON,
   Proofs,
   WhitelistedItem,
@@ -48,40 +46,30 @@ import {
 } from "../contracts/index.js";
 import { convertError, mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
-import { HalAssetInfo, HalUserOutputData } from "./types.js";
-import { updateWhitelistedValue } from "./whitelist.js";
-
-/**
- * @interface
- * @typedef {object} PrepareMintParams
- * @property {NetworkName} network Network
- * @property {Address} address Wallet Address to perform mint
- * @property {TxInput[]} orderTxInputs Orders UTxOs
- * @property {HalAssetInfo[]} assetsInfo H.A.L. Assets' Info
- * @property {Trie} db Trie DB
- * @property {Trie} whitelistDB Whitelist DB
- * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} mintingDataAssetTxInput Minting Data UTxO
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- * @property {number | undefined} mintingTime Transaction Start Time
- * @property {number} maxOrderAmountInOneTx Maximum order amount in one transaction
- */
+import { AggregatedOrder, HalAssetInfo, HalUserOutputData } from "./types.js";
+import { getWhitelistedKey, updateWhitelistedValue } from "./whitelist.js";
 interface PrepareMintParams {
-  network: NetworkName;
+  isMainnet: boolean;
   address: Address;
-  orderTxInputs: TxInput[];
+  aggregatedOrders: AggregatedOrder[];
   assetsInfo: HalAssetInfo[];
   db: Trie;
   whitelistDB: Trie;
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
   mintingDataAssetTxInput: TxInput;
-  mintingTime?: number | undefined;
-  maxOrderAmountInOneTx?: number | undefined;
+  mintingTime: number;
 }
 
 /**
- * @description Mint New Handles from Order
+ * @description Prepare Mint Transaction
+ * This function assumes all parameters are valid and do not need to validate again.
+ * ## Before call this function:
+ * - Filter out invalid Order UTxOs using `isOrderTxInputValid` function.
+ * - Aggregate Order UTxOs using `aggregateOrderTxInputs` function.
+ * ## NOTE:
+ * - This function assumes that all Order UTxOs from aggregatedOrders are valid, otherwise it will return Error.
+ * - Assets Info must be enough to mint all orders. (sum of `amount` from `aggregatedOrders`)
  * @param {PrepareMintParams} params
  * @returns {Promise<Result<TxBuilder,  Error>>} Transaction Result
  */
@@ -100,24 +88,30 @@ const prepareMintTransaction = async (
   >
 > => {
   const {
-    network,
+    isMainnet,
     address,
-    orderTxInputs,
+    aggregatedOrders,
     assetsInfo: assetsInfoFromParam,
     db,
     whitelistDB,
     deployedScripts,
     settingsAssetTxInput,
     mintingDataAssetTxInput,
-    mintingTime = Date.now(),
-    maxOrderAmountInOneTx = 8,
+    mintingTime,
   } = params;
+
+  // sort aggregated orders by destination address
+  aggregatedOrders.sort((a, b) =>
+    getWhitelistedKey(a.destinationAddress)
+      .toString("hex")
+      .localeCompare(getWhitelistedKey(b.destinationAddress).toString("hex"))
+  );
+
+  // destructure assetsInfo from param
   const assetsInfo = [...assetsInfoFromParam];
-  const isMainnet = network == "mainnet";
+
   if (address.era == "Byron")
     return Err(new Error("Byron Address not supported"));
-
-  console.log(`${orderTxInputs.length} Orders are picked`);
 
   const {
     mintProxyScriptTxInput,
@@ -136,7 +130,7 @@ const prepareMintTransaction = async (
   }
   const { data: settingsV1Data } = settingsResult.data;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
+    decodeSettingsV1Data(settingsV1Data, isMainnet)
   );
   if (!settingsV1Result.ok) {
     return Err(
@@ -146,41 +140,15 @@ const prepareMintTransaction = async (
   const {
     policy_id,
     allowed_minter,
-    hal_nft_price,
     ref_spend_proxy_script_hash,
     minting_start_time,
   } = settingsV1Result.data;
 
+  // Get ref_spend_proxy script address where Ref Assets are collected.
   const refSpendProxyScriptAddress = makeAddress(
     isMainnet,
     makeValidatorHash(ref_spend_proxy_script_hash)
   );
-
-  // aggregate orders information
-  const aggregatedOrdersResult = aggregateOrdersInformation({
-    network,
-    orderTxInputs,
-    halNftPrice: hal_nft_price,
-  });
-  if (!aggregatedOrdersResult.ok) {
-    return Err(
-      new Error(`Failed to aggregate orders: ${aggregatedOrdersResult.error}`)
-    );
-  }
-  const aggregatedOrders = aggregatedOrdersResult.data;
-
-  // check aggregated orders (agains maxOrderAmount, maxOrderAmountInOneTx)
-  const totalOrderAmount = aggregatedOrders.reduce(
-    (acc, cur) => acc + cur[1],
-    0
-  );
-  if (totalOrderAmount > maxOrderAmountInOneTx) {
-    return Err(
-      new Error(
-        `Total order amount is too many: ${totalOrderAmount} > ${maxOrderAmountInOneTx}`
-      )
-    );
-  }
 
   // hal policy id
   const halPolicyHash = makeMintingPolicyHash(policy_id);
@@ -232,7 +200,7 @@ const prepareMintTransaction = async (
     const assetNameProofs: AssetNameProof[] = [];
     const assetUtf8Names: string[] = [];
     let whitelistProof: WhitelistProof | undefined;
-    const [destinationAddress, amount] = aggregatedOrder;
+    const { destinationAddress, amount, needWhitelistProof } = aggregatedOrder;
     const userValue = makeValue(1n);
 
     for (let i = 0; i < amount; i++) {
@@ -240,7 +208,7 @@ const prepareMintTransaction = async (
       if (!assetInfo) {
         return Err(new Error("Assets Info doesn't match with Orders' amount"));
       }
-      const [assetUtf8Name, assetDatum] = assetInfo;
+      const { assetUtf8Name, assetDatum } = assetInfo;
       const assetHexName = Buffer.from(assetUtf8Name, "utf8").toString("hex");
       assetUtf8Names.push(assetUtf8Name);
 
@@ -250,12 +218,12 @@ const prepareMintTransaction = async (
           throw new Error(`Asset name is not pre-defined: ${assetUtf8Name}`);
         }
 
-        const mpfProof = await db.prove(assetUtf8Name);
+        const mptProof = await db.prove(assetUtf8Name);
         await db.delete(assetUtf8Name);
         await db.insert(assetUtf8Name, MPT_MINTED_VALUE);
         assetNameProofs.push([
           assetHexName,
-          parseMPTProofJSON(mpfProof.toJSON()),
+          parseMPTProofJSON(mptProof.toJSON()),
         ]);
       } catch (error) {
         return Err(
@@ -292,8 +260,7 @@ const prepareMintTransaction = async (
       );
     }
 
-    // check minting time
-    if (mintingTime < minting_start_time) {
+    if (needWhitelistProof) {
       // have to be whitelisted
       const destinationAddressKey = Buffer.from(
         destinationAddress.toUplcData().toCbor()
@@ -324,27 +291,17 @@ const prepareMintTransaction = async (
           );
         }
         const whitelistedValue = whitelistedValueResult.data;
-        const updatedWhitelistedValueResult = updateWhitelistedValue(
+        const { newWhitelistedValue } = updateWhitelistedValue(
           whitelistedValue,
           amount,
           transactionTimeGap
         );
-        if (!updatedWhitelistedValueResult.ok) {
-          return Err(
-            new Error(
-              `Address ${destinationAddress.toBech32()} has insufficient whitelisted value: ${
-                updatedWhitelistedValueResult.error
-              }`
-            )
-          );
-        }
-        const updatedWhitelistedValue = updatedWhitelistedValueResult.data;
 
         // then make proof
         const proof = await whitelistDB.prove(destinationAddressKey);
         whitelistProof = [whitelistedValue, parseMPTProofJSON(proof.toJSON())];
         const updatedWhitelistedValueCbor = Buffer.from(
-          makeWhitelistedValueData(updatedWhitelistedValue).toCbor()
+          makeWhitelistedValueData(newWhitelistedValue).toCbor()
         );
 
         // update whitelist DB
@@ -384,7 +341,10 @@ const prepareMintTransaction = async (
   };
 
   // minting data asset value
-  const mintingDataValue = makeValue(1n, mintingDataAssetTxInput.value.assets);
+  const mintingDataValue = makeValue(
+    mintingDataAssetTxInput.value.lovelace,
+    mintingDataAssetTxInput.value.assets
+  );
 
   // build redeemer for mint v1 `MintNFTs`
   const mintMintNFTsRedeemer = buildMintMintNFTsRedeemer();
@@ -395,6 +355,10 @@ const prepareMintTransaction = async (
   // build redeemer for orders spend `ExecuteOrders`
   const ordersSpendExecuteOrdersRedeemer =
     buildOrdersSpendExecuteOrdersRedeemer();
+
+  const totalOrderTxInputs = aggregatedOrders
+    .map((aggregatedOrder) => aggregatedOrder.orderTxInputs)
+    .flat();
 
   // start building tx
   const txBuilder = makeTxBuilder({
@@ -446,7 +410,7 @@ const prepareMintTransaction = async (
   );
 
   // <-- spend order utxos
-  for (const orderTxInput of orderTxInputs) {
+  for (const orderTxInput of totalOrderTxInputs) {
     txBuilder.spendUnsafe(orderTxInput, ordersSpendExecuteOrdersRedeemer);
   }
 
@@ -457,87 +421,6 @@ const prepareMintTransaction = async (
     userOutputsData,
     referenceOutputs,
   });
-};
-
-/**
- * @interface
- * @typedef {object} AggregateOrdersInformationParams
- * @property {NetworkName} network Network
- * @property {Order[]} orderTxInputs Orders UTxOs
- */
-interface AggregateOrdersInformationParams {
-  network: NetworkName;
-  orderTxInputs: TxInput[];
-  halNftPrice: bigint;
-}
-
-/**
- * @description Aggregate Orders Tx Inputs Information and sort Tx Inputs
- * @param {AggregateOrdersInformationParams} params
- * @returns {Result<Order[],  Error>} Result or Error
- */
-const aggregateOrdersInformation = (
-  params: AggregateOrdersInformationParams
-): Result<Order[], Error> => {
-  const { network, orderTxInputs, halNftPrice } = params;
-  let aggregatedOrders: Order[] = [];
-
-  // refactor Orders Tx Inputs
-  // NOTE:
-  // sort orderUtxos before process
-  // because tx inputs is sorted lexicographically
-  orderTxInputs.sort((a, b) => (a.id.toString() > b.id.toString() ? 1 : -1));
-
-  for (const orderTxInput of orderTxInputs) {
-    const decodedResult = mayFail(() =>
-      decodeOrderDatumData(orderTxInput.datum, network)
-    );
-    if (!decodedResult.ok) {
-      return Err(new Error(`Invalid Order Datum: ${decodedResult.error}`));
-    }
-    const { destination_address, amount } = decodedResult.data;
-
-    // check lovelace is enough
-    if (orderTxInput.output.value.lovelace < halNftPrice * BigInt(amount)) {
-      return Err(
-        new Error(
-          `Order UTxO "${orderTxInput.id.toString()}" has insufficient lovelace`
-        )
-      );
-    }
-
-    aggregatedOrders = addOrderToAggregatedOrders(
-      aggregatedOrders,
-      destination_address,
-      amount
-    );
-  }
-
-  return Ok(aggregatedOrders);
-};
-
-const addOrderToAggregatedOrders = (
-  aggregatedOrders: Order[],
-  address: ShelleyAddress,
-  amount: number
-) => {
-  const newAggregatedOrders: Order[] = [];
-
-  let added: boolean = false;
-  for (const aggregatedOrder of aggregatedOrders) {
-    const [aggregatedAddress, aggregatedAmount] = aggregatedOrder;
-    if (address.toHex() === aggregatedAddress.toHex()) {
-      added = true;
-      newAggregatedOrders.push([address, aggregatedAmount + amount]);
-    } else {
-      newAggregatedOrders.push(aggregatedOrder);
-    }
-  }
-  if (!added) {
-    newAggregatedOrders.push([address, amount]);
-  }
-
-  return newAggregatedOrders;
 };
 
 /**
@@ -603,13 +486,5 @@ const rollBackOrdersFromTries = async (
   return Ok();
 };
 
-export type {
-  AggregateOrdersInformationParams,
-  PrepareMintParams,
-  RollBackOrdersFromTriesParams,
-};
-export {
-  aggregateOrdersInformation,
-  prepareMintTransaction,
-  rollBackOrdersFromTries,
-};
+export type { PrepareMintParams, RollBackOrdersFromTriesParams };
+export { prepareMintTransaction, rollBackOrdersFromTries };

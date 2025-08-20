@@ -1,5 +1,4 @@
 import { TxOutputDatum } from "@helios-lang/ledger";
-import { NetworkName } from "@helios-lang/tx-utils";
 import {
   expectByteArrayData,
   expectConstrData,
@@ -16,7 +15,7 @@ import { buildAddressData, decodeAddressFromData } from "./common.js";
 
 const decodeOrderDatumData = (
   datum: TxOutputDatum | undefined,
-  network: NetworkName
+  isMainnet: boolean
 ): OrderDatum => {
   invariant(
     datum?.kind == "InlineTxOutputDatum",
@@ -28,7 +27,7 @@ const decodeOrderDatumData = (
   const owner_key_hash = expectByteArrayData(orderConstrData.fields[0]).toHex();
   const destination_address = decodeAddressFromData(
     orderConstrData.fields[1],
-    network
+    isMainnet
   );
   const amount = Number(expectIntData(orderConstrData.fields[2]).value);
 

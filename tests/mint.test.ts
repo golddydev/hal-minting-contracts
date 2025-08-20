@@ -15,13 +15,16 @@ import {
   cancel,
   decodeMintingDataDatum,
   fetchMintingData,
+  fetchOrderTxInputs,
   fetchSettings,
+  getMintingCost,
   HalAssetInfo,
   invariant,
   makeVoidData,
   mayFailTransaction,
   Order,
   prepareMintTransaction,
+  prepareOrders,
   refund,
   request,
   rollBackOrdersFromTries,
@@ -31,6 +34,8 @@ import { myTest } from "./setup.js";
 import {
   balanceOfWallet,
   checkMintedAssets,
+  collectFee,
+  collectFeeAndMinLovelace,
   logMemAndCpu,
   makeHalAssetDatum,
 } from "./utils.js";
@@ -39,24 +44,43 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_1 orders 3 new assets
   myTest(
     "user_1 orders 3 new assets",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
       const { usersWallets } = wallets;
       const user1Wallet = usersWallets[0];
-      const orders: Order[] = [[user1Wallet.address, 3]];
+      const amount = 3;
+      const cost = await getMintingCost({
+        destinationAddress: user1Wallet.address,
+        amount,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user1Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user1Wallet.address.toBech32()] =
+        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) + amount;
+      const orders: Order[] = [
+        {
+          destinationAddress: user1Wallet.address,
+          amount,
+          cost,
+        },
+      ];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
-        network,
+        isMainnet,
         orders,
         settings,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -70,11 +94,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures(await user1Wallet.signTx(tx));
-      const txId = await user1Wallet.submitTx(tx);
+      await user1Wallet.submitTx(tx);
       emulator.tick(200);
-
-      const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      orderTxInputs.push(orderTxInput);
     }
   );
 
@@ -82,56 +103,50 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "cannot mint 3 new assets - <hal-1, hal-2, hal-3> as whitelisted",
     async ({
-      db,
+      isMainnet,
+      emulator,
       whitelistDB,
-      network,
-      wallets,
-      orderTxInputs,
       deployedScripts,
       whitelistMintingTimeOneHourEarly,
+      maxOrderAmountInOneTx,
     }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
-      const { allowedMinterWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = [
-        ["hal-1", makeHalAssetDatum("hal-1")],
-        ["hal-2", makeHalAssetDatum("hal-2")],
-        ["hal-3", makeHalAssetDatum("hal-3")],
-      ];
-
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
-      const mintingDataResult = await fetchMintingData();
-      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
-      const { mintingDataAssetTxInput } = mintingDataResult.data;
+      const { settingsV1 } = settingsResult.data;
 
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = whitelistMintingTimeOneHourEarly;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
         orderTxInputs,
-        assetsInfo,
-        db,
+        settingsV1,
         whitelistDB,
-        deployedScripts,
-        settingsAssetTxInput,
-        mintingDataAssetTxInput,
-        mintingTime: whitelistMintingTimeOneHourEarly,
+        mintingTime,
+        maxOrderAmountInOneTx,
       });
-      invariant(!txBuilderResult.ok, "Mint Tx Building should fail");
-      assert(txBuilderResult.error.message.includes("not whitelisted"));
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
 
-      const rollbackResult = await rollBackOrdersFromTries({
-        utf8Names: assetsInfo.map((item) => item[0]),
-        whitelistedItemsData: [],
-        db,
-        whitelistDB,
-      });
-      invariant(rollbackResult.ok, "Rollback failed");
+      invariant(
+        aggregatedOrdersList.length === 0 &&
+          unprocessableOrderTxInputs.length === 1 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
     }
   );
 
@@ -139,47 +154,82 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "mint 3 new assets - <hal-1, hal-2, hal-3>",
     async ({
+      isMainnet,
+      emulator,
+      wallets,
       mockedFunctions,
       db,
       whitelistDB,
-      network,
-      emulator,
-      wallets,
-      orderTxInputs,
       deployedScripts,
+      normalPrice,
       normalMintingTime,
+      maxOrderAmountInOneTx,
     }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from({ length: 3 }).map(
+        (_, index) => ({
+          assetUtf8Name: `hal-${index + 1}`,
+          assetDatum: makeHalAssetDatum(`hal-${index + 1}`),
+        })
       );
 
-      const { allowedMinterWallet, paymentWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = [
-        ["hal-1", makeHalAssetDatum("hal-1")],
-        ["hal-2", makeHalAssetDatum("hal-2")],
-        ["hal-3", makeHalAssetDatum("hal-3")],
-      ];
-
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
       const mintingDataResult = await fetchMintingData();
       invariant(mintingDataResult.ok, "Minting Data Fetch failed");
       const { mintingDataAssetTxInput } = mintingDataResult.data;
 
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = normalMintingTime;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
         orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 1 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      // prepare mint transaction
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
         assetsInfo,
         db,
         whitelistDB,
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: normalMintingTime,
+        mintingTime,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -200,21 +250,27 @@ describe.sequential("Koralab H.A.L Tests", () => {
       logMemAndCpu(txResult);
 
       // set emulator time
-      emulator.currentSlot = Math.ceil(normalMintingTime / 1000);
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
 
       const { tx } = txResult.data;
       tx.addSignatures(await allowedMinterWallet.signTx(tx));
       const txId = await allowedMinterWallet.submitTx(tx);
       emulator.tick(200);
 
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        orderTxInputs,
-        userOutputsData
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        normalPrice * 3n - collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting Cost should be greater than ${mintingCost} >= ${expectedMintingCost}`
       );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
 
       // update minting data input
       const newMintingDataAssetTxInput = await emulator.getUtxo(
@@ -233,33 +289,49 @@ describe.sequential("Koralab H.A.L Tests", () => {
           )
         )
       );
-
-      // empty orders detail
-      orderTxInputs.length = 0;
     }
   );
 
   // user_4 orders 5 new assets who is whitelisted
   myTest(
     "user_4 orders 5 new assets who is whitelisted",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
       const { usersWallets } = wallets;
       const user4Wallet = usersWallets[3];
-      const orders: Order[] = [[user4Wallet.address, 5]];
+      const amount = 5;
+      const cost = await getMintingCost({
+        destinationAddress: user4Wallet.address,
+        amount,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user4Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user4Wallet.address.toBech32()] =
+        (usedOrdersCount[user4Wallet.address.toBech32()] || 0) + amount;
+      const orders: Order[] = [
+        {
+          destinationAddress: user4Wallet.address,
+          amount,
+          cost,
+        },
+      ];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
-        network,
+        isMainnet,
         orders,
         settings,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -273,11 +345,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures(await user4Wallet.signTx(tx));
-      const txId = await user4Wallet.submitTx(tx);
+      await user4Wallet.submitTx(tx);
       emulator.tick(200);
-
-      const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      orderTxInputs.push(orderTxInput);
     }
   );
 
@@ -285,49 +354,82 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "mint 5 new assets - <hal-4, hal-5, hal-6, hal-7, hal-8> as whitelisted",
     async ({
+      isMainnet,
+      emulator,
+      wallets,
       mockedFunctions,
       db,
       whitelistDB,
-      network,
-      emulator,
-      wallets,
-      orderTxInputs,
       deployedScripts,
+      whitelistedPrice1,
       whitelistMintingTimeTwoHoursEarly,
+      maxOrderAmountInOneTx,
     }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from({ length: 5 }).map(
+        (_, index) => ({
+          assetUtf8Name: `hal-${index + 4}`,
+          assetDatum: makeHalAssetDatum(`hal-${index + 4}`),
+        })
       );
 
-      const { allowedMinterWallet, paymentWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = [
-        ["hal-4", makeHalAssetDatum("hal-4")],
-        ["hal-5", makeHalAssetDatum("hal-5")],
-        ["hal-6", makeHalAssetDatum("hal-6")],
-        ["hal-7", makeHalAssetDatum("hal-7")],
-        ["hal-8", makeHalAssetDatum("hal-8")],
-      ];
-
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
       const mintingDataResult = await fetchMintingData();
       invariant(mintingDataResult.ok, "Minting Data Fetch failed");
       const { mintingDataAssetTxInput } = mintingDataResult.data;
 
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = whitelistMintingTimeTwoHoursEarly;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
         orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 1 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      // prepare mint transaction
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
         assetsInfo,
         db,
         whitelistDB,
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: whitelistMintingTimeTwoHoursEarly,
+        mintingTime,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -348,23 +450,27 @@ describe.sequential("Koralab H.A.L Tests", () => {
       logMemAndCpu(txResult);
 
       // set emulator time
-      emulator.currentSlot = Math.ceil(
-        whitelistMintingTimeTwoHoursEarly / 1000
-      );
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
 
       const { tx } = txResult.data;
       tx.addSignatures(await allowedMinterWallet.signTx(tx));
       const txId = await allowedMinterWallet.submitTx(tx);
       emulator.tick(200);
 
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        orderTxInputs,
-        userOutputsData
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        whitelistedPrice1 * 5n - collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting Cost should be greater than ${mintingCost} >= ${expectedMintingCost}`
       );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
 
       // update minting data input
       const newMintingDataAssetTxInput = await emulator.getUtxo(
@@ -383,20 +489,17 @@ describe.sequential("Koralab H.A.L Tests", () => {
           )
         )
       );
-
-      // empty orders detail
-      orderTxInputs.length = 0;
     }
   );
 
   // user_1 can update <hal-1> datum
   myTest(
     "user_1 can update <hal-1> datum",
-    async ({ isMainnet, network, emulator, wallets, deployedScripts }) => {
+    async ({ isMainnet, emulator, wallets, deployedScripts }) => {
       const { usersWallets, refSpendAdminWallet } = wallets;
       const user1Wallet = usersWallets[0];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
       const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
@@ -427,7 +530,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       const newDatum = makeHalAssetDatum("hal-1-updated");
 
       const txBuilderResult = await update({
-        network,
+        isMainnet,
         assetUtf8Name: "hal-1",
         newDatum,
         refTxInput: foundRefUtxo,
@@ -462,27 +565,58 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_2 orders 2 new assets 2 times
   myTest(
     "user_2 orders 2 new assets 2 times",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
+      const amount1 = 2;
+      const amount2 = 2;
+      const cost1 = await getMintingCost({
+        destinationAddress: user2Wallet.address,
+        amount: amount1,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user2Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user2Wallet.address.toBech32()] =
+        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) + amount1;
+      const cost2 = await getMintingCost({
+        destinationAddress: user2Wallet.address,
+        amount: amount2,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user2Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user2Wallet.address.toBech32()] =
+        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) + amount2;
       const orders: Order[] = [
-        [user2Wallet.address, 2],
-        [user2Wallet.address, 2],
+        {
+          destinationAddress: user2Wallet.address,
+          amount: amount1,
+          cost: cost1,
+        },
+        {
+          destinationAddress: user2Wallet.address,
+          amount: amount2,
+          cost: cost2,
+        },
       ];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
-        network,
+        isMainnet,
         orders,
         settings,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -496,13 +630,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures(await user2Wallet.signTx(tx));
-      const txId = await user2Wallet.submitTx(tx);
+      await user2Wallet.submitTx(tx);
       emulator.tick(200);
-
-      for (let i = 0; i < 2; i++) {
-        const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        orderTxInputs.push(orderTxInput);
-      }
     }
   );
 
@@ -510,53 +639,88 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "cannot mint 2 new assets because one asset name is not pre-defined in MPT - <hal-9, hal-10> and <hal-11, no-hal-12>",
     async ({
-      network,
+      isMainnet,
+      emulator,
+      wallets,
       db,
       whitelistDB,
-      wallets,
-      orderTxInputs,
       deployedScripts,
       normalMintingTime,
+      maxOrderAmountInOneTx,
     }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
       const { allowedMinterWallet } = wallets;
 
       const assetsInfo: HalAssetInfo[] = [
-        ["hal-9", makeHalAssetDatum("hal-9")],
-        ["hal-10", makeHalAssetDatum("hal-10")],
-        ["hal-11", makeHalAssetDatum("hal-11")],
-        ["no-hal-12", makeHalAssetDatum("no-hal-12")],
+        ...Array.from({ length: 3 }).map((_, index) => ({
+          assetUtf8Name: `hal-${index + 9}`,
+          assetDatum: makeHalAssetDatum(`hal-${index + 9}`),
+        })),
+        {
+          assetUtf8Name: "no-hal-12",
+          assetDatum: makeHalAssetDatum("no-hal-12"),
+        },
       ];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
       const mintingDataResult = await fetchMintingData();
       invariant(mintingDataResult.ok, "Minting Data Fetch failed");
       const { mintingDataAssetTxInput } = mintingDataResult.data;
 
-      const txResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = normalMintingTime;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
         orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 1 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      const txResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
         assetsInfo,
         db,
         whitelistDB,
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: normalMintingTime,
+        mintingTime,
       });
       invariant(!txResult.ok, "Mint Tx Building Should Fail");
       assert(txResult.error.message.includes("Asset name is not pre-defined"));
 
       // roll back
       const rollBackResult = await rollBackOrdersFromTries({
-        utf8Names: assetsInfo.map(([utf8Name]) => utf8Name),
+        utf8Names: assetsInfo.map((item) => item.assetUtf8Name),
         whitelistedItemsData: [],
         db,
         whitelistDB,
@@ -568,17 +732,21 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // cannot cancel 2 orders in a transaction
   myTest(
     "cannot cancel 2 orders in a transaction",
-    async ({ network, wallets, orderTxInputs, deployedScripts }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
+    async ({ isMainnet, emulator, wallets, deployedScripts }) => {
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(orderTxInputs.length === 2, "Order Tx Inputs should be 2");
 
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
 
       const txBuilderResult = await cancel({
-        network,
+        isMainnet,
         address: user2Wallet.address,
         orderTxInput: orderTxInputs[0],
         deployedScripts,
@@ -606,21 +774,25 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // cannot refund 2 orders in a transaction
   myTest(
     "cannot refund 2 orders in a transaction",
-    async ({ network, wallets, orderTxInputs, deployedScripts }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
+    async ({ isMainnet, emulator, wallets, deployedScripts }) => {
+      // fetch
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(orderTxInputs.length === 2, "Order Tx Inputs should be 2");
 
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput } = settingsResult.data;
 
       const txBuilderResult = await refund({
-        network,
+        isMainnet,
         orderTxInput: orderTxInputs[0],
         refundingAddress: user2Wallet.address,
         deployedScripts,
@@ -649,19 +821,28 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // can cancel one order
   myTest(
     "can cancel one order",
-    async ({ network, emulator, wallets, orderTxInputs, deployedScripts }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      deployedScripts,
+    }) => {
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(orderTxInputs.length === 2, "Order Tx Inputs should be 2");
 
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
       const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-      const orderUtxoLovelace = orderTxInputs[1].value.lovelace;
 
       const txBuilderResult = await cancel({
-        network,
+        isMainnet,
         address: user2Wallet.address,
         orderTxInput: orderTxInputs[1],
         deployedScripts,
@@ -683,37 +864,49 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       const afterUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-
+      const expectedLovelace =
+        beforeUser2Lovelace + orderTxInputs[1].value.lovelace - collectFee(tx);
       invariant(
-        afterUser2Lovelace - beforeUser2Lovelace >
-          orderUtxoLovelace - 1_000_000n,
-        "User 2 Lovelace is not correct"
+        afterUser2Lovelace === expectedLovelace,
+        `User 2 Lovelace is not correct. Expected: ${expectedLovelace}, Actual: ${afterUser2Lovelace}`
       );
 
-      orderTxInputs.splice(1, 1);
+      usedOrdersCount[user2Wallet.address.toBech32()] = Math.max(
+        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) - 2,
+        0
+      );
     }
   );
 
   // can refund one order
   myTest(
     "can refund one order",
-    async ({ network, emulator, wallets, orderTxInputs, deployedScripts }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      deployedScripts,
+    }) => {
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(orderTxInputs.length === 1, "Order Tx Inputs should be 1");
 
       const { usersWallets, allowedMinterWallet } = wallets;
       const user2Wallet = usersWallets[1];
       const beforeUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-      const orderUtxoLovelace = orderTxInputs[0].value.lovelace;
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput } = settingsResult.data;
 
       const txBuilderResult = await refund({
-        network,
+        isMainnet,
         orderTxInput: orderTxInputs[0],
         refundingAddress: user2Wallet.address,
         deployedScripts,
@@ -737,38 +930,61 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       const afterUser2Lovelace = (await balanceOfWallet(user2Wallet)).lovelace;
-
+      const expectedLovelace =
+        beforeUser2Lovelace + orderTxInputs[0].value.lovelace - collectFee(tx);
       invariant(
-        afterUser2Lovelace - beforeUser2Lovelace >
-          orderUtxoLovelace - 1_000_000n,
-        "User 2 Lovelace is not correct"
+        afterUser2Lovelace === expectedLovelace,
+        `User 2 Lovelace is not correct. Expected: ${expectedLovelace}, Actual: ${afterUser2Lovelace}`
       );
 
-      orderTxInputs.splice(0, 1);
+      usedOrdersCount[user2Wallet.address.toBech32()] = Math.max(
+        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) - 2,
+        0
+      );
     }
   );
 
   // user_1 request order with invalid datum
   myTest(
     "user_1 request order with invalid datum",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
       const { usersWallets } = wallets;
       const user1Wallet = usersWallets[0];
+      const amount = 2;
+      const cost = await getMintingCost({
+        destinationAddress: user1Wallet.address,
+        amount,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user1Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user1Wallet.address.toBech32()] =
+        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) + amount;
+      const orders: Order[] = [
+        {
+          destinationAddress: user1Wallet.address,
+          amount,
+          cost,
+        },
+      ];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settings } = settingsResult.data;
 
       // user_1 make Order UTxO with invalid datum
       const txBuilderResult = await request({
-        network,
-        orders: [[user1Wallet.address, 2]],
+        isMainnet,
+        orders,
         settings,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -784,35 +1000,41 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures(await user1Wallet.signTx(tx));
-      const txId = await user1Wallet.submitTx(tx);
+      await user1Wallet.submitTx(tx);
       emulator.tick(200);
-
-      const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      orderTxInputs.push(orderTxInput);
     }
   );
 
   // refund order with invalid datum
   myTest(
     "refund order with invalid datum",
-    async ({ network, emulator, wallets, orderTxInputs, deployedScripts }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      deployedScripts,
+    }) => {
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(orderTxInputs.length === 1, "Order Tx Inputs should be 1");
 
       const { usersWallets, allowedMinterWallet } = wallets;
       const user1Wallet = usersWallets[0];
       const beforeUser1Lovelace = (await balanceOfWallet(user1Wallet)).lovelace;
-      const orderUtxoLovelace = orderTxInputs[0].value.lovelace;
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput } = settingsResult.data;
 
       const refundingAddress = user1Wallet.address;
       const txBuilderResult = await refund({
-        network,
+        isMainnet,
         orderTxInput: orderTxInputs[0],
         refundingAddress,
         deployedScripts,
@@ -836,38 +1058,60 @@ describe.sequential("Koralab H.A.L Tests", () => {
       emulator.tick(200);
 
       const afterUser1Lovelace = (await balanceOfWallet(user1Wallet)).lovelace;
-
+      const expectedLovelace =
+        beforeUser1Lovelace + orderTxInputs[0].value.lovelace - collectFee(tx);
       invariant(
-        afterUser1Lovelace - beforeUser1Lovelace >
-          orderUtxoLovelace - 1_000_000n,
-        "User 1 Lovelace is not correct"
+        afterUser1Lovelace === expectedLovelace,
+        `User 1 Lovelace is not correct. Expected: ${expectedLovelace}, Actual: ${afterUser1Lovelace}`
       );
 
-      orderTxInputs.length = 0;
+      usedOrdersCount[user1Wallet.address.toBech32()] = Math.max(
+        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) - 2,
+        0
+      );
     }
   );
 
   // user_1 orders 3 new assets
   myTest(
     "user_1 orders 3 new assets",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
       const { usersWallets } = wallets;
       const user1Wallet = usersWallets[0];
-      const orders: Order[] = [[user1Wallet.address, 3]];
+      const amount = 3;
+      const cost = await getMintingCost({
+        destinationAddress: user1Wallet.address,
+        amount,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user1Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user1Wallet.address.toBech32()] =
+        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) + amount;
+      const orders: Order[] = [
+        {
+          destinationAddress: user1Wallet.address,
+          amount,
+          cost,
+        },
+      ];
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
-        network,
+        isMainnet,
         orders,
         settings,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -881,11 +1125,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures(await user1Wallet.signTx(tx));
-      const txId = await user1Wallet.submitTx(tx);
+      await user1Wallet.submitTx(tx);
       emulator.tick(200);
-
-      const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, 0));
-      orderTxInputs.push(orderTxInput);
     }
   );
 
@@ -893,47 +1134,82 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "mint 3 new assets - <hal-9, hal-10, hal-11>",
     async ({
+      isMainnet,
+      emulator,
+      wallets,
       mockedFunctions,
       db,
       whitelistDB,
-      network,
-      emulator,
-      wallets,
-      orderTxInputs,
       deployedScripts,
+      normalPrice,
       normalMintingTime,
+      maxOrderAmountInOneTx,
     }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from(
+        { length: 3 },
+        (_, index) => ({
+          assetUtf8Name: `hal-${9 + index}`,
+          assetDatum: makeHalAssetDatum(`hal-${9 + index}`),
+        })
       );
 
-      const { allowedMinterWallet, paymentWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = [
-        ["hal-9", makeHalAssetDatum("hal-9")],
-        ["hal-10", makeHalAssetDatum("hal-10")],
-        ["hal-11", makeHalAssetDatum("hal-11")],
-      ];
-
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
       const mintingDataResult = await fetchMintingData();
       invariant(mintingDataResult.ok, "Minting Data Fetch failed");
       const { mintingDataAssetTxInput } = mintingDataResult.data;
 
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = normalMintingTime;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
         orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 1 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
         assetsInfo,
         db,
         whitelistDB,
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: normalMintingTime,
+        mintingTime,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -954,21 +1230,27 @@ describe.sequential("Koralab H.A.L Tests", () => {
       logMemAndCpu(txResult);
 
       // set emulator time
-      emulator.currentSlot = Math.ceil(normalMintingTime / 1000);
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
 
       const { tx } = txResult.data;
       tx.addSignatures(await allowedMinterWallet.signTx(tx));
       const txId = await allowedMinterWallet.submitTx(tx);
       emulator.tick(200);
 
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        orderTxInputs,
-        userOutputsData
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        normalPrice * 3n - collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting Cost should be greater than ${mintingCost} >= ${expectedMintingCost}`
       );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
 
       // update minting data input
       const newMintingDataAssetTxInput = await emulator.getUtxo(
@@ -987,37 +1269,47 @@ describe.sequential("Koralab H.A.L Tests", () => {
           )
         )
       );
-
-      // empty orders detail
-      orderTxInputs.length = 0;
     }
   );
 
   // user_3 orders 5 new assets 3 times
   myTest(
     "user_3 orders 5 new assets 3 times",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
       const { usersWallets } = wallets;
       const user3Wallet = usersWallets[2];
-      const orders: Order[] = [
-        [user3Wallet.address, 5],
-        [user3Wallet.address, 5],
-        [user3Wallet.address, 5],
-      ];
+      const amount = 5;
+      const cost = await getMintingCost({
+        destinationAddress: user3Wallet.address,
+        amount,
+        initialWhitelistDB,
+        usedCount: usedOrdersCount[user3Wallet.address.toBech32()] || 0,
+        halNftPrice: normalPrice,
+      });
+      usedOrdersCount[user3Wallet.address.toBech32()] =
+        (usedOrdersCount[user3Wallet.address.toBech32()] || 0) + amount;
+      const orders: Order[] = Array.from({ length: 3 }, () => ({
+        destinationAddress: user3Wallet.address,
+        amount,
+        cost,
+      }));
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settings } = settingsResult.data;
 
       const txBuilderResult = await request({
-        network,
+        isMainnet,
         orders,
         settings,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -1031,13 +1323,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const { tx } = txResult.data;
       tx.addSignatures(await user3Wallet.signTx(tx));
-      const txId = await user3Wallet.submitTx(tx);
+      await user3Wallet.submitTx(tx);
       emulator.tick(200);
-
-      for (let i = 0; i < 3; i++) {
-        const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        orderTxInputs.push(orderTxInput);
-      }
     }
   );
 
@@ -1045,434 +1332,81 @@ describe.sequential("Koralab H.A.L Tests", () => {
   myTest(
     "mint 15 new assets - <hal-101 ~ hal-115> - 1 user recieve 15 assets",
     async ({
+      isMainnet,
+      emulator,
+      wallets,
       mockedFunctions,
       db,
       whitelistDB,
-      network,
-      emulator,
-      wallets,
-      orderTxInputs,
       deployedScripts,
+      normalPrice,
       normalMintingTime,
     }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
       const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
 
       const assetsInfo: HalAssetInfo[] = Array.from(
         { length: 15 },
-        (_, index) => [
-          `hal-${101 + index}`,
-          makeHalAssetDatum(`hal-${101 + index}`),
-        ]
+        (_, index) => ({
+          assetUtf8Name: `hal-${101 + index}`,
+          assetDatum: makeHalAssetDatum(`hal-${101 + index}`),
+        })
       );
 
-      const settingsResult = await fetchSettings(network);
+      const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
       const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
       const mintingDataResult = await fetchMintingData();
       invariant(mintingDataResult.ok, "Minting Data Fetch failed");
       const { mintingDataAssetTxInput } = mintingDataResult.data;
 
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = normalMintingTime;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
         orderTxInputs,
-        assetsInfo,
-        db,
+        settingsV1,
         whitelistDB,
-        deployedScripts,
-        settingsAssetTxInput,
-        mintingDataAssetTxInput,
-        mintingTime: normalMintingTime,
+        mintingTime,
         maxOrderAmountInOneTx: 15,
       });
-      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
-
-      const { txBuilder, userOutputsData, referenceOutputs } =
-        txBuilderResult.data;
-      txBuilder.addOutput(
-        ...userOutputsData.map((item) => item.userOutput),
-        ...referenceOutputs
-      );
-
-      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
-      const txResult = await mayFailTransaction(
-        txBuilder,
-        paymentWallet.address,
-        []
-      ).complete();
-      invariant(txResult.ok, "Mint Tx Complete Failed");
-      logMemAndCpu(txResult);
-
-      const { tx } = txResult.data;
-      tx.addSignatures(await allowedMinterWallet.signTx(tx));
-      const txId = await allowedMinterWallet.submitTx(tx);
-      emulator.tick(200);
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
 
       invariant(
-        userOutputsData.length === 1,
-        "User Outputs Data List Length is not correct"
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 1 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
       );
-
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        orderTxInputs,
-        userOutputsData
-      );
-
-      // update minting data input
-      const newMintingDataAssetTxInput = await emulator.getUtxo(
-        makeTxOutputId(txId, 0)
-      );
-      const newMintingData = decodeMintingDataDatum(
-        newMintingDataAssetTxInput.datum
-      );
-      mockedFunctions.mockedFetchMintingData.mockReturnValue(
-        new Promise((resolve) =>
-          resolve(
-            Ok({
-              mintingData: newMintingData,
-              mintingDataAssetTxInput: newMintingDataAssetTxInput,
-            })
-          )
-        )
-      );
-
-      // empty orders detail
-      orderTxInputs.length = 0;
-    }
-  );
-
-  // user_1, user_2, user_3 order 5 new assets
-  myTest(
-    "user_1, user_2, user_3 order 5 new assets",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
-      const { usersWallets, fundWallet } = wallets;
-      const user1Wallet = usersWallets[0];
-      const user2Wallet = usersWallets[1];
-      const user3Wallet = usersWallets[2];
-      const orders: Order[] = [
-        [user1Wallet.address, 5],
-        [user2Wallet.address, 5],
-        [user3Wallet.address, 5],
-      ];
-
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settings } = settingsResult.data;
-
-      const txBuilderResult = await request({
-        network,
-        orders,
-        settings,
-      });
-      invariant(txBuilderResult.ok, "Order Tx Building failed");
-
-      const txBuilder = txBuilderResult.data;
-      const txResult = await mayFailTransaction(
-        txBuilder,
-        fundWallet.address,
-        await fundWallet.utxos
-      ).complete();
-      invariant(txResult.ok, "Order Tx Complete failed");
-
-      const { tx } = txResult.data;
-      tx.addSignatures(await fundWallet.signTx(tx));
-      const txId = await fundWallet.submitTx(tx);
-      emulator.tick(200);
-
-      for (let i = 0; i < 3; i++) {
-        const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        orderTxInputs.push(orderTxInput);
-      }
-    }
-  );
-
-  // mint 15 new assets - <hal-151 ~ hal-165> - 3 users recieve 5 assets each
-  myTest(
-    "mint 15 new assets - <hal-151 ~ hal-165> - 3 users recieve 5 assets each",
-    async ({
-      mockedFunctions,
-      db,
-      whitelistDB,
-      network,
-      emulator,
-      wallets,
-      orderTxInputs,
-      deployedScripts,
-      normalMintingTime,
-    }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
-      const { allowedMinterWallet, paymentWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = Array.from(
-        { length: 15 },
-        (_, index) => [
-          `hal-${151 + index}`,
-          makeHalAssetDatum(`hal-${151 + index}`),
-        ]
-      );
-
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-      const mintingDataResult = await fetchMintingData();
-      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
-      const { mintingDataAssetTxInput } = mintingDataResult.data;
 
       const txBuilderResult = await prepareMintTransaction({
-        network,
+        isMainnet,
         address: allowedMinterWallet.address,
-        orderTxInputs,
+        aggregatedOrders: aggregatedOrdersList[0],
         assetsInfo,
         db,
         whitelistDB,
         deployedScripts,
         settingsAssetTxInput,
         mintingDataAssetTxInput,
-        mintingTime: normalMintingTime,
-        maxOrderAmountInOneTx: 15,
-      });
-      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
-
-      const { txBuilder, userOutputsData, referenceOutputs } =
-        txBuilderResult.data;
-      txBuilder.addOutput(
-        ...userOutputsData.map((item) => item.userOutput),
-        ...referenceOutputs
-      );
-
-      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
-      const txResult = await mayFailTransaction(
-        txBuilder,
-        paymentWallet.address,
-        []
-      ).complete();
-      invariant(txResult.ok, "Mint Tx Complete Failed");
-      logMemAndCpu(txResult);
-
-      const { tx } = txResult.data;
-      tx.addSignatures(await allowedMinterWallet.signTx(tx));
-      const txId = await allowedMinterWallet.submitTx(tx);
-      emulator.tick(200);
-
-      invariant(
-        userOutputsData.length === 3,
-        "User Outputs Data List Length is not correct"
-      );
-
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        orderTxInputs,
-        userOutputsData
-      );
-
-      // update minting data input
-      const newMintingDataAssetTxInput = await emulator.getUtxo(
-        makeTxOutputId(txId, 0)
-      );
-      const newMintingData = decodeMintingDataDatum(
-        newMintingDataAssetTxInput.datum
-      );
-      mockedFunctions.mockedFetchMintingData.mockReturnValue(
-        new Promise((resolve) =>
-          resolve(
-            Ok({
-              mintingData: newMintingData,
-              mintingDataAssetTxInput: newMintingDataAssetTxInput,
-            })
-          )
-        )
-      );
-
-      // empty orders detail
-      orderTxInputs.length = 0;
-    }
-  );
-
-  // user_4 orders 9 new assets who is whitelisted
-  myTest(
-    "user_4 orders 9 new assets who is whitelisted",
-    async ({ network, emulator, wallets, orderTxInputs }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
-      const { usersWallets } = wallets;
-      const user4Wallet = usersWallets[3];
-      const orders: Order[] = [
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-        [user4Wallet.address, 1],
-      ];
-
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settings } = settingsResult.data;
-
-      const txBuilderResult = await request({
-        network,
-        orders,
-        settings,
-      });
-      invariant(txBuilderResult.ok, "Order Tx Building failed");
-
-      const txBuilder = txBuilderResult.data;
-      const txResult = await mayFailTransaction(
-        txBuilder,
-        user4Wallet.address,
-        await user4Wallet.utxos
-      ).complete();
-      invariant(txResult.ok, "Order Tx Complete failed");
-
-      const { tx } = txResult.data;
-      tx.addSignatures(await user4Wallet.signTx(tx));
-      const txId = await user4Wallet.submitTx(tx);
-      emulator.tick(200);
-
-      for (let i = 0; i < 9; i++) {
-        const orderTxInput = await emulator.getUtxo(makeTxOutputId(txId, i));
-        orderTxInputs.push(orderTxInput);
-      }
-    }
-  );
-
-  // can not mint 9 new assets - <hal-201 ~ hal-209> as whitelisted because whitelisted value is not enough
-  myTest(
-    "can not mint 9 new assets - <hal-201 ~ hal-209> as whitelisted because whitelisted value is not enough",
-    async ({
-      db,
-      whitelistDB,
-      network,
-      wallets,
-      orderTxInputs,
-      deployedScripts,
-      whitelistMintingTimeTwoHoursEarly,
-    }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
-      const { allowedMinterWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = Array.from(
-        { length: 9 },
-        (_, index) => [
-          `hal-20${index + 1}`,
-          makeHalAssetDatum(`hal-20${index + 1}`),
-        ]
-      );
-
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput } = settingsResult.data;
-      const mintingDataResult = await fetchMintingData();
-      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
-      const { mintingDataAssetTxInput } = mintingDataResult.data;
-
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
-        orderTxInputs,
-        assetsInfo,
-        db,
-        whitelistDB,
-        deployedScripts,
-        settingsAssetTxInput,
-        mintingDataAssetTxInput,
-        mintingTime: whitelistMintingTimeTwoHoursEarly,
-        maxOrderAmountInOneTx: 9,
-      });
-      invariant(!txBuilderResult.ok, "Mint Tx Building should fail");
-      assert(
-        txBuilderResult.error.message.includes("insufficient whitelisted value")
-      );
-
-      const rollbackResult = await rollBackOrdersFromTries({
-        utf8Names: assetsInfo.map((item) => item[0]),
-        whitelistedItemsData: [],
-        db,
-        whitelistDB,
-      });
-      invariant(rollbackResult.ok, "Rollback failed");
-    }
-  );
-
-  // can mint 9 new assets - <hal-201 ~ hal-209> as whitelisted
-  myTest(
-    "can mint 9 new assets - <hal-201 ~ hal-209> as whitelisted",
-    async ({
-      mockedFunctions,
-      db,
-      whitelistDB,
-      network,
-      emulator,
-      wallets,
-      orderTxInputs,
-      deployedScripts,
-      whitelistMintingTimeOneHourEarly,
-    }) => {
-      invariant(
-        Array.isArray(orderTxInputs),
-        "Orders tx inputs is not an array"
-      );
-
-      const { allowedMinterWallet, paymentWallet } = wallets;
-
-      const assetsInfo: HalAssetInfo[] = Array.from(
-        { length: 9 },
-        (_, index) => [
-          `hal-20${index + 1}`,
-          makeHalAssetDatum(`hal-20${index + 1}`),
-        ]
-      );
-
-      const settingsResult = await fetchSettings(network);
-      invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
-      const mintingDataResult = await fetchMintingData();
-      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
-      const { mintingDataAssetTxInput } = mintingDataResult.data;
-
-      const txBuilderResult = await prepareMintTransaction({
-        network,
-        address: allowedMinterWallet.address,
-        orderTxInputs,
-        assetsInfo,
-        db,
-        whitelistDB,
-        deployedScripts,
-        settingsAssetTxInput,
-        mintingDataAssetTxInput,
-        mintingTime: whitelistMintingTimeOneHourEarly,
-        maxOrderAmountInOneTx: 9,
+        mintingTime,
       });
       invariant(txBuilderResult.ok, "Mint Tx Building Failed");
 
@@ -1493,21 +1427,33 @@ describe.sequential("Koralab H.A.L Tests", () => {
       logMemAndCpu(txResult);
 
       // set emulator time
-      emulator.currentSlot = Math.ceil(whitelistMintingTimeOneHourEarly / 1000);
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
 
       const { tx } = txResult.data;
       tx.addSignatures(await allowedMinterWallet.signTx(tx));
       const txId = await allowedMinterWallet.submitTx(tx);
       emulator.tick(200);
 
-      // check minted assets
-      await checkMintedAssets(
-        network,
-        emulator,
-        settingsV1,
-        orderTxInputs,
-        userOutputsData
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        normalPrice * 15n - collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting Cost should be greater than ${mintingCost} >= ${expectedMintingCost}`
       );
+
+      // check user outputs data
+      invariant(
+        userOutputsData.length === 1,
+        "User Outputs Data List Length is not correct"
+      );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
 
       // update minting data input
       const newMintingDataAssetTxInput = await emulator.getUtxo(
@@ -1526,9 +1472,846 @@ describe.sequential("Koralab H.A.L Tests", () => {
           )
         )
       );
+    }
+  );
 
-      // empty orders detail
-      orderTxInputs.length = 0;
+  // user_1, user_2, user_3 order 5 new assets
+  myTest(
+    "user_1, user_2, user_3 order 5 new assets",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
+      const { usersWallets, fundWallet } = wallets;
+      const amount = 5;
+      const orders: Order[] = [];
+      for (let i = 0; i < 3; i++) {
+        const cost = await getMintingCost({
+          destinationAddress: usersWallets[i].address,
+          amount,
+          initialWhitelistDB,
+          usedCount: usedOrdersCount[usersWallets[i].address.toBech32()] || 0,
+          halNftPrice: normalPrice,
+        });
+        usedOrdersCount[usersWallets[i].address.toBech32()] =
+          (usedOrdersCount[usersWallets[i].address.toBech32()] || 0) + amount;
+        orders.push({
+          destinationAddress: usersWallets[i].address,
+          amount,
+          cost,
+        });
+      }
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settings } = settingsResult.data;
+
+      const txBuilderResult = await request({
+        isMainnet,
+        orders,
+        settings,
+        maxOrderAmountInOneTx: 8,
+      });
+      invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        fundWallet.address,
+        await fundWallet.utxos
+      ).complete();
+      invariant(txResult.ok, "Order Tx Complete failed");
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await fundWallet.signTx(tx));
+      await fundWallet.submitTx(tx);
+      emulator.tick(200);
+    }
+  );
+
+  // mint 15 new assets - <hal-151 ~ hal-165> - 3 users recieve 5 assets each
+  myTest(
+    "mint 15 new assets - <hal-151 ~ hal-165> - 3 users recieve 5 assets each",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      mockedFunctions,
+      db,
+      whitelistDB,
+      deployedScripts,
+      normalPrice,
+      normalMintingTime,
+    }) => {
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from(
+        { length: 15 },
+        (_, index) => ({
+          assetUtf8Name: `hal-${151 + index}`,
+          assetDatum: makeHalAssetDatum(`hal-${151 + index}`),
+        })
+      );
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+
+      // start minting
+      const mintingTime = normalMintingTime;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
+        orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx: 15,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 3 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
+        assetsInfo,
+        db,
+        whitelistDB,
+        deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
+        mintingTime,
+      });
+      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+
+      const { txBuilder, userOutputsData, referenceOutputs } =
+        txBuilderResult.data;
+      txBuilder.addOutput(
+        ...userOutputsData.map((item) => item.userOutput),
+        ...referenceOutputs
+      );
+
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        paymentWallet.address,
+        []
+      ).complete();
+      invariant(txResult.ok, "Mint Tx Complete Failed");
+      logMemAndCpu(txResult);
+
+      // set emulator time
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      const txId = await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        normalPrice * 15n - collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting Cost should be greater than ${mintingCost} >= ${expectedMintingCost}`
+      );
+
+      invariant(
+        userOutputsData.length === 3,
+        "User Outputs Data List Length is not correct"
+      );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
+
+      // update minting data input
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
+        makeTxOutputId(txId, 0)
+      );
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
+      mockedFunctions.mockedFetchMintingData.mockReturnValue(
+        new Promise((resolve) =>
+          resolve(
+            Ok({
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
+            })
+          )
+        )
+      );
+    }
+  );
+
+  // user_4 orders 9 new assets who is whitelisted
+  myTest(
+    "user_4 orders 9 new assets who is whitelisted",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
+      const { usersWallets } = wallets;
+      const user4Wallet = usersWallets[3];
+      const amount = 1;
+      const orders: Order[] = [];
+      for (let i = 0; i < 9; i++) {
+        const cost = await getMintingCost({
+          destinationAddress: user4Wallet.address,
+          amount,
+          initialWhitelistDB,
+          usedCount: usedOrdersCount[user4Wallet.address.toBech32()] || 0,
+          halNftPrice: normalPrice,
+        });
+        usedOrdersCount[user4Wallet.address.toBech32()] =
+          (usedOrdersCount[user4Wallet.address.toBech32()] || 0) + amount;
+        orders.push({
+          destinationAddress: user4Wallet.address,
+          amount,
+          cost,
+        });
+      }
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settings } = settingsResult.data;
+
+      const txBuilderResult = await request({
+        isMainnet,
+        orders,
+        settings,
+        maxOrderAmountInOneTx: 9,
+      });
+      invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        user4Wallet.address,
+        await user4Wallet.utxos
+      ).complete();
+      invariant(txResult.ok, "Order Tx Complete failed");
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await user4Wallet.signTx(tx));
+      await user4Wallet.submitTx(tx);
+      emulator.tick(200);
+    }
+  );
+
+  // can mint 9 new assets - <hal-201 ~ hal-209> as whitelisted
+  myTest(
+    "can mint 9 new assets - <hal-201 ~ hal-209> as whitelisted",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      mockedFunctions,
+      db,
+      whitelistDB,
+      deployedScripts,
+      whitelistedPrice1,
+      whitelistedPrice2,
+      whitelistMintingTimeOneHourEarly,
+    }) => {
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from(
+        { length: 9 },
+        (_, index) => ({
+          assetUtf8Name: `hal-20${index + 1}`,
+          assetDatum: makeHalAssetDatum(`hal-20${index + 1}`),
+        })
+      );
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(
+        orderTxInputs.length === 9,
+        "Order Tx Inputs Length is not correct"
+      );
+
+      // start minting
+      const mintingTime = whitelistMintingTimeOneHourEarly;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
+        orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx: 9,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 1 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
+        assetsInfo,
+        db,
+        whitelistDB,
+        deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
+        mintingTime,
+      });
+      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+
+      const { txBuilder, userOutputsData, referenceOutputs } =
+        txBuilderResult.data;
+      txBuilder.addOutput(
+        ...userOutputsData.map((item) => item.userOutput),
+        ...referenceOutputs
+      );
+
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        paymentWallet.address,
+        []
+      ).complete();
+      invariant(txResult.ok, "Mint Tx Complete Failed");
+      logMemAndCpu(txResult);
+
+      // set emulator time
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      const txId = await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        whitelistedPrice1 * 5n +
+        whitelistedPrice2 * 4n -
+        collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting cost must match ${mintingCost} == ${expectedMintingCost}`
+      );
+
+      // check user outputs data
+      invariant(
+        userOutputsData.length === 1,
+        "User Outputs Data List Length is not correct"
+      );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
+
+      // update minting data input
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
+        makeTxOutputId(txId, 0)
+      );
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
+      mockedFunctions.mockedFetchMintingData.mockReturnValue(
+        new Promise((resolve) =>
+          resolve(
+            Ok({
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
+            })
+          )
+        )
+      );
+    }
+  );
+
+  // special user_1 ~ user_8 orders 8 new assets
+  myTest(
+    "special user_1 ~ user_8 orders 8 new assets",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      whitelistedPrice1,
+    }) => {
+      const { specialUsersWallets, fundWallet } = wallets;
+      const amount = 1;
+      const orders: Order[] = [];
+      for (let i = 0; i < 8; i++) {
+        const cost = await getMintingCost({
+          destinationAddress: specialUsersWallets[i].address,
+          amount,
+          initialWhitelistDB,
+          usedCount:
+            usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0,
+          halNftPrice: whitelistedPrice1,
+        });
+        usedOrdersCount[specialUsersWallets[i].address.toBech32()] =
+          (usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0) +
+          amount;
+        orders.push({
+          destinationAddress: specialUsersWallets[i].address,
+          amount,
+          cost,
+        });
+      }
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settings } = settingsResult.data;
+
+      const txBuilderResult = await request({
+        isMainnet,
+        orders,
+        settings,
+        maxOrderAmountInOneTx: 8,
+      });
+      invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        fundWallet.address,
+        await fundWallet.utxos
+      ).complete();
+      invariant(txResult.ok, "Order Tx Complete failed");
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await fundWallet.signTx(tx));
+      await fundWallet.submitTx(tx);
+      emulator.tick(200);
+    }
+  );
+
+  // can mint 8 new assets from 8 order UTxOs - <hal-301 ~ hal-308> as whitelisted
+  myTest(
+    "can mint 8 new assets from 8 order UTxOs - <hal-301 ~ hal-308> as whitelisted",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      mockedFunctions,
+      db,
+      whitelistDB,
+      deployedScripts,
+      whitelistedPrice1,
+      whitelistMintingTimeTwoHoursEarly,
+    }) => {
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from(
+        { length: 8 },
+        (_, index) => ({
+          assetUtf8Name: `hal-30${index + 1}`,
+          assetDatum: makeHalAssetDatum(`hal-30${index + 1}`),
+        })
+      );
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(
+        orderTxInputs.length === 8,
+        "Order Tx Inputs Length is not correct"
+      );
+
+      // start minting
+      const mintingTime = whitelistMintingTimeTwoHoursEarly;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
+        orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx: 8,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 8 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      // prepare mint transaction
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
+        assetsInfo,
+        db,
+        whitelistDB,
+        deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
+        mintingTime,
+      });
+      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+
+      const { txBuilder, userOutputsData, referenceOutputs } =
+        txBuilderResult.data;
+      txBuilder.addOutput(
+        ...userOutputsData.map((item) => item.userOutput),
+        ...referenceOutputs
+      );
+
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        paymentWallet.address,
+        []
+      ).complete();
+      invariant(txResult.ok, "Mint Tx Complete Failed");
+      logMemAndCpu(txResult);
+
+      // set emulator time
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      const txId = await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      // check user outputs data
+      invariant(
+        userOutputsData.length === 8,
+        "User Outputs Data List Length is not correct"
+      );
+
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        whitelistedPrice1 * 8n - collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting cost must match ${mintingCost} == ${expectedMintingCost}`
+      );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
+
+      // update minting data input
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
+        makeTxOutputId(txId, 0)
+      );
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
+      mockedFunctions.mockedFetchMintingData.mockReturnValue(
+        new Promise((resolve) =>
+          resolve(
+            Ok({
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
+            })
+          )
+        )
+      );
+    }
+  );
+
+  // special user_1 ~ user_4 orders 8 new assets
+  myTest(
+    "special user_1 ~ user_4 orders 8 new assets",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      usedOrdersCount,
+      initialWhitelistDB,
+      normalPrice,
+    }) => {
+      const { specialUsersWallets, fundWallet } = wallets;
+      const amount = 2;
+      const orders: Order[] = [];
+      for (let i = 0; i < 4; i++) {
+        const cost = await getMintingCost({
+          destinationAddress: specialUsersWallets[i].address,
+          amount,
+          initialWhitelistDB,
+          usedCount:
+            usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0,
+          halNftPrice: normalPrice,
+        });
+        usedOrdersCount[specialUsersWallets[i].address.toBech32()] =
+          (usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0) +
+          amount;
+        orders.push({
+          destinationAddress: specialUsersWallets[i].address,
+          amount,
+          cost,
+        });
+      }
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settings } = settingsResult.data;
+
+      const txBuilderResult = await request({
+        isMainnet,
+        orders,
+        settings,
+        maxOrderAmountInOneTx: 8,
+      });
+      invariant(txBuilderResult.ok, "Order Tx Building failed");
+
+      const txBuilder = txBuilderResult.data;
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        fundWallet.address,
+        await fundWallet.utxos
+      ).complete();
+      invariant(txResult.ok, "Order Tx Complete failed");
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await fundWallet.signTx(tx));
+      await fundWallet.submitTx(tx);
+      emulator.tick(200);
+    }
+  );
+
+  // can mint 8 new assets from 4 order UTxOs - <hal-401 ~ hal-408> as whitelisted
+  myTest(
+    "can mint 8 new assets from 4 order UTxOs - <hal-401 ~ hal-408> as whitelisted",
+    async ({
+      isMainnet,
+      emulator,
+      wallets,
+      mockedFunctions,
+      db,
+      whitelistDB,
+      deployedScripts,
+      whitelistedPrice1,
+      whitelistedPrice2,
+      whitelistMintingTimeOneHourEarly,
+    }) => {
+      const { allowedMinterWallet, paymentWallet } = wallets;
+      const beforePaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+
+      const assetsInfo: HalAssetInfo[] = Array.from(
+        { length: 8 },
+        (_, index) => ({
+          assetUtf8Name: `hal-40${index + 1}`,
+          assetDatum: makeHalAssetDatum(`hal-40${index + 1}`),
+        })
+      );
+
+      const settingsResult = await fetchSettings(isMainnet);
+      invariant(settingsResult.ok, "Settings Fetch Failed");
+      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const mintingDataResult = await fetchMintingData();
+      invariant(mintingDataResult.ok, "Minting Data Fetch failed");
+      const { mintingDataAssetTxInput } = mintingDataResult.data;
+
+      // fetch order tx inputs
+      const orderTxInputsResult = await fetchOrderTxInputs({
+        cardanoClient: emulator,
+        ordersSpendScriptDetails: deployedScripts.ordersSpendScriptDetails,
+      });
+      invariant(orderTxInputsResult.ok, "Order Tx Inputs Fetch Failed");
+      const orderTxInputs = orderTxInputsResult.data;
+      invariant(
+        orderTxInputs.length === 4,
+        "Order Tx Inputs Length is not correct"
+      );
+
+      // start minting
+      const mintingTime = whitelistMintingTimeOneHourEarly;
+
+      // prepare orders
+      const prepareOrdersResult = await prepareOrders({
+        isMainnet,
+        orderTxInputs,
+        settingsV1,
+        whitelistDB,
+        mintingTime,
+        maxOrderAmountInOneTx: 8,
+      });
+      invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
+      const {
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      } = prepareOrdersResult.data;
+      invariant(
+        aggregatedOrdersList.length === 1 &&
+          aggregatedOrdersList[0].length === 4 &&
+          unprocessableOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 0,
+        "Prepare Orders returned Wrong value"
+      );
+
+      const txBuilderResult = await prepareMintTransaction({
+        isMainnet,
+        address: allowedMinterWallet.address,
+        aggregatedOrders: aggregatedOrdersList[0],
+        assetsInfo,
+        db,
+        whitelistDB,
+        deployedScripts,
+        settingsAssetTxInput,
+        mintingDataAssetTxInput,
+        mintingTime,
+      });
+      invariant(txBuilderResult.ok, "Mint Tx Building Failed");
+
+      const { txBuilder, userOutputsData, referenceOutputs } =
+        txBuilderResult.data;
+      txBuilder.addOutput(
+        ...userOutputsData.map((item) => item.userOutput),
+        ...referenceOutputs
+      );
+
+      txBuilder.addCollateral((await allowedMinterWallet.utxos)[0]);
+      const txResult = await mayFailTransaction(
+        txBuilder,
+        paymentWallet.address,
+        []
+      ).complete();
+      invariant(txResult.ok, "Mint Tx Complete Failed");
+      logMemAndCpu(txResult);
+
+      // set emulator time
+      emulator.currentSlot = Math.ceil(mintingTime / 1000);
+
+      const { tx } = txResult.data;
+      tx.addSignatures(await allowedMinterWallet.signTx(tx));
+      const txId = await allowedMinterWallet.submitTx(tx);
+      emulator.tick(200);
+
+      // check user outputs data
+      invariant(
+        userOutputsData.length === 4,
+        "User Outputs Data List Length is not correct"
+      );
+
+      // check minting cost
+      const afterPaymentWalletLovelace = (await balanceOfWallet(paymentWallet))
+        .lovelace;
+      const mintingCost =
+        afterPaymentWalletLovelace - beforePaymentWalletLovelace;
+      const expectedMintingCost =
+        (whitelistedPrice1 + whitelistedPrice2) * 4n -
+        collectFeeAndMinLovelace(tx);
+      invariant(
+        mintingCost === expectedMintingCost,
+        `Minting cost must match ${mintingCost} == ${expectedMintingCost}`
+      );
+
+      // check minted assets
+      await checkMintedAssets(isMainnet, emulator, settingsV1, userOutputsData);
+
+      // update minting data input
+      const newMintingDataAssetTxInput = await emulator.getUtxo(
+        makeTxOutputId(txId, 0)
+      );
+      const newMintingData = decodeMintingDataDatum(
+        newMintingDataAssetTxInput.datum
+      );
+      mockedFunctions.mockedFetchMintingData.mockReturnValue(
+        new Promise((resolve) =>
+          resolve(
+            Ok({
+              mintingData: newMintingData,
+              mintingDataAssetTxInput: newMintingDataAssetTxInput,
+            })
+          )
+        )
+      );
     }
   );
 });

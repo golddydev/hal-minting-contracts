@@ -33,7 +33,7 @@ const decodeWhitelistedValueFromCBOR = (
 };
 
 const decodeWhitelistedItem = (data: UplcData): WhitelistedItem => {
-  const constrData = expectConstrData(data, 0, 2);
+  const constrData = expectConstrData(data, 0, 3);
 
   const time_gap = Number(
     expectIntData(constrData.fields[0], "time_gap must be Int data").value
@@ -41,10 +41,15 @@ const decodeWhitelistedItem = (data: UplcData): WhitelistedItem => {
   const amount = Number(
     expectIntData(constrData.fields[1], "amount must be Int data").value
   );
+  const price = expectIntData(
+    constrData.fields[2],
+    "price must be Int data"
+  ).value;
 
   return {
     time_gap,
     amount,
+    price,
   };
 };
 
@@ -57,8 +62,12 @@ const makeWhitelistedValueData = (
 const makeWhitelistedItemData = (
   whitelistedItem: WhitelistedItem
 ): UplcData => {
-  const { time_gap, amount } = whitelistedItem;
-  return makeConstrData(0, [makeIntData(time_gap), makeIntData(amount)]);
+  const { time_gap, amount, price } = whitelistedItem;
+  return makeConstrData(0, [
+    makeIntData(time_gap),
+    makeIntData(amount),
+    makeIntData(price),
+  ]);
 };
 
 export {

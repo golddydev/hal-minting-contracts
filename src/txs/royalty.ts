@@ -12,7 +12,7 @@ import {
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
-import { makeTxBuilder, NetworkName, TxBuilder } from "@helios-lang/tx-utils";
+import { makeTxBuilder, TxBuilder } from "@helios-lang/tx-utils";
 import { Err, Ok, Result } from "ts-res";
 
 import { ROYALTY_ASSET_FULL_NAME } from "../constants/index.js";
@@ -27,16 +27,8 @@ import {
 import { mayFail } from "../helpers/index.js";
 import { DeployedScripts } from "./deploy.js";
 
-/**
- * @interface
- * @typedef {object} MintRoyaltyParams
- * @property {NetworkName} network Network
- * @property {RoyaltyDatum} royaltyDatum Royalty Datum
- * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- */
 interface MintRoyaltyParams {
-  network: NetworkName;
+  isMainnet: boolean;
   royaltyDatum: RoyaltyDatum;
   deployedScripts: DeployedScripts;
   settingsAssetTxInput: TxInput;
@@ -50,9 +42,8 @@ interface MintRoyaltyParams {
 const mintRoyalty = async (
   params: MintRoyaltyParams
 ): Promise<Result<TxBuilder, Error>> => {
-  const { network, royaltyDatum, deployedScripts, settingsAssetTxInput } =
+  const { isMainnet, royaltyDatum, deployedScripts, settingsAssetTxInput } =
     params;
-  const isMainnet = network == "mainnet";
 
   const { mintProxyScriptTxInput, mintScriptDetails, mintScriptTxInput } =
     deployedScripts;
@@ -66,7 +57,7 @@ const mintRoyalty = async (
   }
   const { data: settingsV1Data } = settingsResult.data;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
+    decodeSettingsV1Data(settingsV1Data, isMainnet)
   );
   if (!settingsV1Result.ok) {
     return Err(
@@ -141,17 +132,8 @@ const mintRoyalty = async (
   return Ok(txBuilder);
 };
 
-/**
- * @interface
- * @typedef {object} UpdateRoyaltyParams
- * @property {NetworkName} network Network
- * @property {TxInput} royaltyTxInput Tx Input where Royalty Token is locked
- * @property {RoyaltyDatum} newRoyaltyDatum Royalty Datum
- * @property {DeployedScripts} deployedScripts Deployed Scripts
- * @property {TxInput} settingsAssetTxInput Settings Reference UTxO
- */
 interface UpdateRoyaltyParams {
-  network: NetworkName;
+  isMainnet: boolean;
   royaltyTxInput: TxInput;
   newRoyaltyDatum: RoyaltyDatum;
   deployedScripts: DeployedScripts;
@@ -167,13 +149,12 @@ const updateRoyalty = async (
   params: UpdateRoyaltyParams
 ): Promise<Result<TxBuilder, Error>> => {
   const {
-    network,
+    isMainnet,
     royaltyTxInput,
     newRoyaltyDatum,
     deployedScripts,
     settingsAssetTxInput,
   } = params;
-  const isMainnet = network == "mainnet";
 
   const { royaltySpendScriptTxInput } = deployedScripts;
 
@@ -186,7 +167,7 @@ const updateRoyalty = async (
   }
   const { data: settingsV1Data } = settingsResult.data;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, network)
+    decodeSettingsV1Data(settingsV1Data, isMainnet)
   );
   if (!settingsV1Result.ok) {
     return Err(

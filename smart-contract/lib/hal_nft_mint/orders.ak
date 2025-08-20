@@ -12,5 +12,6 @@ pub type OrderDatum {
 // only have
 // destination_address
 // and amount
+// can be sorted by address's cbor hex
 pub type Order =
   (Address, Int)

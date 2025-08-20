@@ -1,5 +1,4 @@
 import { ShelleyAddress } from "@helios-lang/ledger";
-import { NetworkName } from "@helios-lang/tx-utils";
 import {
   expectByteArrayData,
   expectConstrData,
@@ -45,7 +44,7 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
 
 const decodeSettingsV1Data = (
   data: UplcData,
-  network: NetworkName
+  isMainnet: boolean
 ): SettingsV1 => {
   const settingsV1ConstrData = expectConstrData(data, 0, 11);
 
@@ -114,7 +113,7 @@ const decodeSettingsV1Data = (
   // payment_address
   const payment_address = decodeAddressFromData(
     settingsV1ConstrData.fields[10],
-    network
+    isMainnet
   );
 
   return {

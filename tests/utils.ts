@@ -8,9 +8,9 @@ import {
   makeInlineTxOutputDatum,
   makeValidatorHash,
   makeValue,
-  TxInput,
+  Tx,
 } from "@helios-lang/ledger";
-import { Emulator, NetworkName, SimpleWallet } from "@helios-lang/tx-utils";
+import { Emulator, SimpleWallet } from "@helios-lang/tx-utils";
 import {
   decodeUplcProgramV2FromCbor,
   makeByteArrayData,
@@ -26,7 +26,6 @@ import { Result } from "ts-res";
 import { PREFIX_100, PREFIX_222 } from "../src/constants/index.js";
 import {
   BuildTxError,
-  decodeOrderDatumData,
   HalUserOutputData,
   invariant,
   makeVoidData,
@@ -180,15 +179,14 @@ const makeHalAssetDatum = (assetName: string) => {
 };
 
 const checkMintedAssets = async (
-  network: NetworkName,
+  isMainnet: boolean,
   emulator: Emulator,
   settingsV1: SettingsV1,
-  orderTxInputs: TxInput[],
   userOutputsData: HalUserOutputData[]
 ) => {
   const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
   const refSpendProxyScriptAddress = makeAddress(
-    network === "mainnet",
+    isMainnet,
     makeValidatorHash(ref_spend_proxy_script_hash)
   );
   const refSpendBalance = await balanceOfAddress(
@@ -198,12 +196,9 @@ const checkMintedAssets = async (
 
   for (let i = 0; i < userOutputsData.length; i++) {
     const halOutputsData = userOutputsData[i];
-    const decoded = decodeOrderDatumData(orderTxInputs[i].datum, network);
-    const userBalance = await balanceOfAddress(
-      emulator,
-      decoded.destination_address
-    );
-    for (const assetName of halOutputsData.assetUtf8Names) {
+    const { assetUtf8Names, destinationAddress } = halOutputsData;
+    const userBalance = await balanceOfAddress(emulator, destinationAddress);
+    for (const assetName of assetUtf8Names) {
       invariant(
         userBalance.isGreaterOrEqual(userAssetValue(policy_id, assetName)) ==
           true,
@@ -220,11 +215,27 @@ const checkMintedAssets = async (
   }
 };
 
+const collectFeeAndMinLovelace = (tx: Tx): bigint => {
+  const minLovelace = tx.body.outputs.reduce((acc, output, index) => {
+    if (index === 0 || index === tx.body.outputs.length - 1) {
+      return acc;
+    }
+    return acc + output.value.lovelace;
+  }, 0n);
+  return minLovelace + tx.body.fee;
+};
+
+const collectFee = (tx: Tx): bigint => {
+  return tx.body.fee;
+};
+
 export {
   alwaysSucceedMintUplcProgram,
   balanceOfAddress,
   balanceOfWallet,
   checkMintedAssets,
+  collectFee,
+  collectFeeAndMinLovelace,
   extractScriptCborsFromUplcProgram,
   logMemAndCpu,
   makeHalAssetDatum,

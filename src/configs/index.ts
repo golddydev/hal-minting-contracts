@@ -8,7 +8,6 @@ import {
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
-import { NetworkName } from "@helios-lang/tx-utils";
 import { decodeUplcData } from "@helios-lang/uplc";
 import { Err, Ok, Result } from "ts-res";
 
@@ -28,7 +27,7 @@ import {
 import { fetchApi, mayFail } from "../helpers/index.js";
 
 const fetchSettings = async (
-  network: NetworkName
+  isMainnet: boolean
 ): Promise<
   Result<
     {
@@ -73,7 +72,7 @@ const fetchSettings = async (
   }
 
   const decodedSettingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(decodedSettingsResult.data.data, network)
+    decodeSettingsV1Data(decodedSettingsResult.data.data, isMainnet)
   );
   if (!decodedSettingsV1Result.ok) return Err(decodedSettingsV1Result.error);
 
