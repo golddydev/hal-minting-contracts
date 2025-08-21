@@ -428,52 +428,5 @@ const checkCanMintOrder = (
   }
 };
 
-interface GetMintingCostParams {
-  destinationAddress: ShelleyAddress;
-  amount: number;
-  initialWhitelistDB: Trie;
-  usedCount: number;
-  halNftPrice: bigint;
-}
-
-const getMintingCost = async (
-  params: GetMintingCostParams
-): Promise<bigint> => {
-  const {
-    destinationAddress,
-    amount,
-    initialWhitelistDB,
-    usedCount,
-    halNftPrice,
-  } = params;
-
-  const whitelistedValue = await getWhitelistedValue(
-    initialWhitelistDB,
-    destinationAddress
-  );
-  if (whitelistedValue) {
-    const {
-      newWhitelistedValue: usedWhitelistedValue,
-      remainingOrderedAmount: remainingAmountAfterUsed,
-    } = useWhitelistedValueAsPossible(whitelistedValue, usedCount);
-    if (remainingAmountAfterUsed > 0) {
-      return halNftPrice * BigInt(amount);
-    } else {
-      const { remainingOrderedAmount, spentLovelaceForWhitelisted } =
-        useWhitelistedValueAsPossible(usedWhitelistedValue, amount);
-      return (
-        spentLovelaceForWhitelisted +
-        halNftPrice * BigInt(remainingOrderedAmount)
-      );
-    }
-  } else {
-    return halNftPrice * BigInt(amount);
-  }
-};
-
-export type {
-  AggregateOrderTxInputsParams,
-  GetMintingCostParams,
-  PrepareOrdersParams,
-};
-export { aggregateOrderTxInputs, getMintingCost, prepareOrders };
+export type { AggregateOrderTxInputsParams, PrepareOrdersParams };
+export { aggregateOrderTxInputs, prepareOrders };
