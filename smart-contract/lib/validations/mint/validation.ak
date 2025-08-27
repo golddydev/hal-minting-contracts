@@ -8,7 +8,7 @@ use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/mint/utils.{check_mint_one_royalty_asset, check_royalty_output}
 
 // Validation:
-// Main validation logic for new handles' minting
+// Main validation logic for H.A.L. minting
 //
 // Checks
 // - must attach `Settings` in reference inputs.
@@ -24,7 +24,7 @@ pub fn can_mint_nfts(transaction: Transaction) -> Bool {
   expect settings_datum: SettingsV1 = settings_data
   let SettingsV1 { minting_data_script_hash, .. } = settings_datum
 
-  // minting_data asset is spent from minting_data_script from parameter
+  // minting_data asset is spent from minting_data_script from Settings
   let (minting_data_input, _) = find_minting_data(inputs)
   expect
     minting_data_input.address.payment_credential == ScriptCredential(

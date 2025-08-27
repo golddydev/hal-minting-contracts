@@ -14,10 +14,11 @@ pub type MintingDataRedeemer {
 // This is spending validator
 // It is referred to as `minting_data_script_hash` in SettingsV1
 // This validators locks `Minting Data NFT`.
-// which holds the MPT root hash (of all HAL NFTs with its datum hash) in its datum
-// To mint HAL NFTs, you must spend minting_data_asset from here
+// which holds the MPT root hash (of all H.A.L. NFTs name)
+// and Whitelist MPT root hash (of all whitelisted users address and their whitelisted options).
+// To mint H.A.L. NFTs, you must spend minting_data_asset from here
 //
-// This validator contains almost all logic for decentralized minting
+// This validator contains almost all logic for H.A.L. NFT minting
 //
 // ======= Parameters =======
 // `admin_verification_key_hash`: has the authority to spend minting_data_asset
