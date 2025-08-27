@@ -1,8 +1,8 @@
 use aiken/list
 use aiken/transaction.{Output, OutputReference, Transaction}
 use aiken/transaction/value.{PolicyId}
-use common/utils.{get_own_script_hash,
-  get_own_utxo, get_own_utxos_count} as common_utils
+use common/utils.{get_own_utxo,
+  get_own_utxos_count, get_script_hash_from_utxo} as common_utils
 use hal_nft_mint/orders.{OrderDatum}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
@@ -54,8 +54,8 @@ pub fn can_cancel_order(
   expect is_owner_signed
 
   // there must be only one UTxO in transaction inputs from this script.
-  let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let own_script_hash = get_own_script_hash(own_utxo)
+  let own_script_hash =
+    get_own_utxo(inputs, spending_output_reference) |> get_script_hash_from_utxo
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxo_count == 1
 
@@ -97,7 +97,7 @@ pub fn can_refund_order(
 
   // there must be only one UTxO in transaction inputs from this script
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let own_script_hash = get_own_script_hash(own_utxo)
+  let own_script_hash = get_script_hash_from_utxo(own_utxo)
   let own_utxo_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxo_count == 1
 

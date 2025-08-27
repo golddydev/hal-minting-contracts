@@ -28,13 +28,6 @@ pub fn get_own_utxo(
   spending_input.output
 }
 
-pub fn get_own_script_hash(own_utxo: Output) -> ScriptHash {
-  let Output { address: Address { payment_credential, .. }, .. } = own_utxo
-  expect ScriptCredential(spending_script_hash) = payment_credential
-
-  spending_script_hash
-}
-
 pub fn get_own_utxos_count(
   inputs: List<Input>,
   own_script_hash: ScriptHash,
@@ -54,6 +47,13 @@ pub fn get_own_utxos_count(
           },
         )
   own_utxo_count
+}
+
+pub fn get_script_hash_from_utxo(own_utxo: Output) -> ScriptHash {
+  let Output { address: Address { payment_credential, .. }, .. } = own_utxo
+  expect ScriptCredential(spending_script_hash) = payment_credential
+
+  spending_script_hash
 }
 
 // get the start time of the transaction
