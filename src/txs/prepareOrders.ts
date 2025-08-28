@@ -227,11 +227,10 @@ const aggregateOrderTxInputs = async (
   while (halsLeftToMint > 0) {
     let tx: AggregatedOrder[] = [];
     // fill aggregatedOrders with as many orders as possible
-    const unpickedOrders = validOrders.filter((o) => !o.addedToTx);
-    if (unpickedOrders.length === 0) {
-      break;
-    }
-    for (const order of unpickedOrders) {
+    for (const order of validOrders) {
+      if (order.addedToTx) {
+        continue;
+      }
       const currentTxAmount = tx.reduce(
         (total, { amount }) => amount + total,
         0
