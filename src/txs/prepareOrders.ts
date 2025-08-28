@@ -25,6 +25,8 @@ interface PrepareOrdersParams {
   whitelistDB: Trie;
   mintingTime: number;
   maxOrderAmountInOneTx: number;
+  maxTxsPerLambda: number;
+  remainingHals: number;
 }
 
 interface PreparedOrdersResult {
@@ -43,6 +45,8 @@ const prepareOrders = async (
     whitelistDB,
     mintingTime,
     maxOrderAmountInOneTx,
+    maxTxsPerLambda,
+    remainingHals,
   } = params;
 
   // first check order TxInput is valid or not
@@ -75,6 +79,8 @@ const prepareOrders = async (
     whitelistDB,
     mintingTime,
     maxOrderAmountInOneTx,
+    maxTxsPerLambda,
+    remainingHals,
   });
   if (!aggregatedResult.ok) {
     return Err(
@@ -104,6 +110,8 @@ interface AggregateOrderTxInputsParams {
   whitelistDB: Trie;
   mintingTime: number;
   maxOrderAmountInOneTx: number;
+  maxTxsPerLambda: number;
+  remainingHals: number;
 }
 
 /**
@@ -130,8 +138,13 @@ const aggregateOrderTxInputs = async (
     whitelistDB,
     mintingTime,
     maxOrderAmountInOneTx,
+    maxTxsPerLambda,
+    remainingHals,
   } = params;
-  const aggregatedOrdersList: Array<AggregatedOrder[]> = [];
+  const aggregatedOrdersList: Array<AggregatedOrder[]> = Array.from(
+    { length: maxTxsPerLambda },
+    () => []
+  );
   const unprocessableOrderTxInputs: TxInput[] = [];
   const invalidOrderTxInputs: TxInput[] = [];
 
@@ -149,8 +162,7 @@ const aggregateOrderTxInputs = async (
     {};
 
   // this is processing state
-  let aggregatingOrders: AggregatedOrder[] = [];
-  let aggregatingTotalAmount: number = 0;
+  let validOrders: AggregatedOrder[] = [];
 
   for (const orderTxInput of orderTxInputs) {
     const decodedResult = mayFail(() =>
@@ -198,20 +210,15 @@ const aggregateOrderTxInputs = async (
       // update whitelisted value
       whitelistedValues[destinationAddressKey] =
         canMintResult.newWhitelistedValue;
-      // put it to aggregatingOrders or aggregatedOrdersList
-      if (aggregatingTotalAmount + amount > maxOrderAmountInOneTx) {
-        aggregatedOrdersList.push(aggregatingOrders);
-        aggregatingOrders = [];
-        aggregatingTotalAmount = 0;
-      }
-      aggregatingOrders = addOrderToAggregatedOrders(
-        aggregatingOrders,
+
+      validOrders = addOrderToAggregatedOrders(
+        validOrders,
         orderTxInput,
         destination_address,
         amount,
         canMintResult.needWhitelistProof
       );
-      aggregatingTotalAmount += amount;
+      // aggregatingTotalAmount += amount;
     } else if (canMintResult.status === "unprocessable") {
       unprocessableOrderTxInputs.push(orderTxInput);
     } else if (canMintResult.status === "invalid") {
@@ -219,8 +226,20 @@ const aggregateOrderTxInputs = async (
     }
   }
 
-  if (aggregatingOrders.length > 0) {
-    aggregatedOrdersList.push(aggregatingOrders);
+  let halsLeftToMint = Number(remainingHals);
+  for (let i = 0; i < aggregatedOrdersList.length; i++) {
+    const tx = aggregatedOrdersList[i];
+    for (const order of validOrders.filter((o) => !o.addedToTx)) {
+      if (
+        tx.reduce((total, { amount }) => amount + total, 0) + order.amount <=
+        Math.min(halsLeftToMint, maxOrderAmountInOneTx)
+      ) {
+        // we have enough HALs for this transaction
+        order.addedToTx = true;
+        tx.push(order);
+        halsLeftToMint -= order.amount;
+      }
+    }
   }
 
   return Ok({

@@ -133,6 +133,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -142,7 +144,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 0 &&
+        aggregatedOrdersList.length === 8 &&
           unprocessableOrderTxInputs.length === 1 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
@@ -202,6 +204,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -211,7 +215,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -402,6 +406,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -411,7 +417,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -687,6 +693,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -696,7 +704,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1183,6 +1191,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -1192,7 +1202,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1380,6 +1390,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx: 15,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -1389,7 +1401,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1585,6 +1597,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx: 15,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -1594,7 +1608,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 3 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1795,6 +1809,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx: 9,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -1803,7 +1819,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -2007,6 +2023,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx: 8,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
 
@@ -2016,7 +2034,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 8 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -2220,6 +2238,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         whitelistDB,
         mintingTime,
         maxOrderAmountInOneTx: 8,
+        maxTxsPerLambda: 8,
+        remainingHals: 10000,
       });
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
@@ -2228,7 +2248,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
-        aggregatedOrdersList.length === 1 &&
+        aggregatedOrdersList.length === 8 &&
           aggregatedOrdersList[0].length === 4 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,

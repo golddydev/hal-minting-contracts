@@ -22,6 +22,7 @@ type AggregatedOrder = {
   orderTxInputs: TxInput[];
   // need whitelist proof or not
   needWhitelistProof: boolean;
+  addedToTx?: boolean;
 };
 
 // H.A.L. Asset's Info
