@@ -31,7 +31,7 @@ interface PrepareOrdersParams {
 
 interface PreparedOrdersResult {
   aggregatedOrdersList: Array<AggregatedOrder[]>;
-  unprocessableOrderTxInputs: TxInput[];
+  unpickedOrderTxInputs: TxInput[];
   invalidOrderTxInputs: TxInput[];
 }
 
@@ -89,13 +89,13 @@ const prepareOrders = async (
   }
   const {
     aggregatedOrdersList,
-    unprocessableOrderTxInputs,
+    unpickedOrderTxInputs,
     invalidOrderTxInputs: additionalInvalidOrderTxInputs,
   } = aggregatedResult.data;
 
   return Ok({
     aggregatedOrdersList,
-    unprocessableOrderTxInputs,
+    unpickedOrderTxInputs,
     invalidOrderTxInputs: [
       ...invalidOrderTxInputs,
       ...additionalInvalidOrderTxInputs,
@@ -125,7 +125,7 @@ const aggregateOrderTxInputs = async (
   Result<
     {
       aggregatedOrdersList: Array<AggregatedOrder[]>;
-      unprocessableOrderTxInputs: TxInput[];
+      unpickedOrderTxInputs: TxInput[];
       invalidOrderTxInputs: TxInput[];
     },
     Error
@@ -141,7 +141,7 @@ const aggregateOrderTxInputs = async (
     maxTxsPerLambda,
     remainingHals,
   } = params;
-  const unprocessableOrderTxInputs: TxInput[] = [];
+  const unpickedOrderTxInputs: TxInput[] = [];
   const invalidOrderTxInputs: TxInput[] = [];
 
   const { hal_nft_price, minting_start_time } = settingsV1;
@@ -214,9 +214,9 @@ const aggregateOrderTxInputs = async (
         needWhitelistProof: canMintResult.needWhitelistProof,
         addedToTx: false,
       });
-    } else if (canMintResult.status === "unprocessable") {
-      unprocessableOrderTxInputs.push(orderTxInput);
-    } else if (canMintResult.status === "invalid") {
+    } else {
+      // we will refund unprocessable orders
+      // users can wait to get this UTxO minted but we refund them.
       invalidOrderTxInputs.push(orderTxInput);
     }
   }
@@ -253,21 +253,26 @@ const aggregateOrderTxInputs = async (
 
     if (tx.length > 0) {
       aggregatedOrdersList.push(tx);
+    } else {
+      // if tx is empty, break the loop
+      // because there is no available orders to pick
+      break;
     }
+
     if (aggregatedOrdersList.length >= maxTxsPerLambda) {
       break;
     }
   }
 
   // collect orders which are not picked
-  // and put them to unprocessableOrderTxInputs
+  // and put them to unpickedOrderTxInputs
   validOrders
     .filter((o) => !o.addedToTx)
-    .forEach((o) => unprocessableOrderTxInputs.push(o.txInput));
+    .forEach((o) => unpickedOrderTxInputs.push(o.txInput));
 
   return Ok({
     aggregatedOrdersList,
-    unprocessableOrderTxInputs,
+    unpickedOrderTxInputs,
     invalidOrderTxInputs,
   });
 };
