@@ -246,12 +246,14 @@ const aggregateOrderTxInputs = async (
           order.amount,
           order.needWhitelistProof
         );
-        halsLeftToMint -= order.amount;
       }
     }
 
     if (tx.length > 0) {
       aggregatedOrdersList.push(tx);
+      // reduce halsLeftToMint
+      const txAmount = tx.reduce((total, { amount }) => amount + total, 0);
+      halsLeftToMint = halsLeftToMint - txAmount;
     } else {
       // if tx is empty, break the loop
       // because there is no available orders to pick
@@ -264,10 +266,17 @@ const aggregateOrderTxInputs = async (
   }
 
   // collect orders which are not picked
-  // and put them to unpickedOrderTxInputs
+  // and put them to unpickedOrderTxInputs if its amount is less than or equal to halsLeftToMint
+  // otherwise put them to invalidOrderTxInputs
   validOrders
     .filter((o) => !o.addedToTx)
-    .forEach((o) => unpickedOrderTxInputs.push(o.txInput));
+    .forEach((o) => {
+      if (o.amount <= halsLeftToMint) {
+        unpickedOrderTxInputs.push(o.txInput);
+      } else {
+        invalidOrderTxInputs.push(o.txInput);
+      }
+    });
 
   return Ok({
     aggregatedOrdersList,
