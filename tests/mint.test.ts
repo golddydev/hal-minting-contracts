@@ -142,9 +142,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
         unprocessableOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
+      console.log({
+        aggregatedOrdersList,
+        unprocessableOrderTxInputs,
+        invalidOrderTxInputs,
+      });
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 0 &&
           unprocessableOrderTxInputs.length === 1 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
@@ -215,7 +220,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -417,7 +422,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -704,7 +709,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1202,7 +1207,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1401,7 +1406,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1608,7 +1613,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
       } = prepareOrdersResult.data;
 
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 3 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -1819,7 +1824,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -2034,7 +2039,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 8 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
@@ -2248,7 +2253,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
-        aggregatedOrdersList.length === 8 &&
+        aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 4 &&
           unprocessableOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,

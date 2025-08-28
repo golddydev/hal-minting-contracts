@@ -9,7 +9,7 @@ import {
 } from "../contracts/index.js";
 import { mayFail } from "../helpers/index.js";
 import { isOrderTxInputValid } from "./order.js";
-import { AggregatedOrder } from "./types.js";
+import { AggregatedOrder, ValidOrder } from "./types.js";
 import {
   getAvailableWhitelistedValue,
   getWhitelistedKey,
@@ -141,10 +141,6 @@ const aggregateOrderTxInputs = async (
     maxTxsPerLambda,
     remainingHals,
   } = params;
-  const aggregatedOrdersList: Array<AggregatedOrder[]> = Array.from(
-    { length: maxTxsPerLambda },
-    () => []
-  );
   const unprocessableOrderTxInputs: TxInput[] = [];
   const invalidOrderTxInputs: TxInput[] = [];
 
@@ -162,7 +158,7 @@ const aggregateOrderTxInputs = async (
     {};
 
   // this is processing state
-  let validOrders: AggregatedOrder[] = [];
+  const validOrders: ValidOrder[] = [];
 
   for (const orderTxInput of orderTxInputs) {
     const decodedResult = mayFail(() =>
@@ -211,14 +207,13 @@ const aggregateOrderTxInputs = async (
       whitelistedValues[destinationAddressKey] =
         canMintResult.newWhitelistedValue;
 
-      validOrders = addOrderToAggregatedOrders(
-        validOrders,
-        orderTxInput,
-        destination_address,
+      validOrders.push({
+        txInput: orderTxInput,
+        destinationAddress: destination_address,
         amount,
-        canMintResult.needWhitelistProof
-      );
-      // aggregatingTotalAmount += amount;
+        needWhitelistProof: canMintResult.needWhitelistProof,
+        addedToTx: false,
+      });
     } else if (canMintResult.status === "unprocessable") {
       unprocessableOrderTxInputs.push(orderTxInput);
     } else if (canMintResult.status === "invalid") {
@@ -226,21 +221,49 @@ const aggregateOrderTxInputs = async (
     }
   }
 
-  let halsLeftToMint = Number(remainingHals);
-  for (let i = 0; i < aggregatedOrdersList.length; i++) {
-    const tx = aggregatedOrdersList[i];
-    for (const order of validOrders.filter((o) => !o.addedToTx)) {
-      if (
-        tx.reduce((total, { amount }) => amount + total, 0) + order.amount <=
-        Math.min(halsLeftToMint, maxOrderAmountInOneTx)
-      ) {
-        // we have enough HALs for this transaction
+  // build aggregatedOrdersList
+  let halsLeftToMint = remainingHals;
+  const aggregatedOrdersList: Array<AggregatedOrder[]> = [];
+  while (halsLeftToMint > 0) {
+    let tx: AggregatedOrder[] = [];
+    // fill aggregatedOrders with as many orders as possible
+    const unpickedOrders = validOrders.filter((o) => !o.addedToTx);
+    if (unpickedOrders.length === 0) {
+      break;
+    }
+    for (const order of unpickedOrders) {
+      const currentTxAmount = tx.reduce(
+        (total, { amount }) => amount + total,
+        0
+      );
+      const availableAmount = Math.min(halsLeftToMint, maxOrderAmountInOneTx);
+      if (currentTxAmount + order.amount <= availableAmount) {
+        // we have enough H.A.L.s left for this transaction
         order.addedToTx = true;
-        tx.push(order);
+        tx = addOrderToAggregatedOrders(
+          tx,
+          order.txInput,
+          order.destinationAddress,
+          order.amount,
+          order.needWhitelistProof
+        );
         halsLeftToMint -= order.amount;
       }
     }
+
+    if (tx.length > 0) {
+      aggregatedOrdersList.push(tx);
+    }
+    if (aggregatedOrdersList.length >= maxTxsPerLambda) {
+      break;
+    }
   }
+
+  // collect orders which are not picked
+  // and put them to unprocessableOrderTxInputs
+  validOrders
+    .filter((o) => !o.addedToTx)
+    .forEach((o) => unprocessableOrderTxInputs.push(o.txInput));
 
   return Ok({
     aggregatedOrdersList,

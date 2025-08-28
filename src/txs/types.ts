@@ -22,7 +22,17 @@ type AggregatedOrder = {
   orderTxInputs: TxInput[];
   // need whitelist proof or not
   needWhitelistProof: boolean;
-  addedToTx?: boolean;
+};
+
+// The Order which can be processed
+type ValidOrder = {
+  txInput: TxInput;
+  destinationAddress: ShelleyAddress;
+  amount: number;
+  // is this added to Transaction (to run on lambda)
+  addedToTx: boolean;
+  // amount in orderTxInput's datum
+  needWhitelistProof: boolean;
 };
 
 // H.A.L. Asset's Info
@@ -39,4 +49,10 @@ interface HalUserOutputData {
   userOutput: TxOutput;
 }
 
-export type { AggregatedOrder, HalAssetInfo, HalUserOutputData, Order };
+export type {
+  AggregatedOrder,
+  HalAssetInfo,
+  HalUserOutputData,
+  Order,
+  ValidOrder,
+};
