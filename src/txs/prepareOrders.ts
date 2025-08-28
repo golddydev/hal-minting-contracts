@@ -246,12 +246,14 @@ const aggregateOrderTxInputs = async (
           order.amount,
           order.needWhitelistProof
         );
-        halsLeftToMint -= order.amount;
       }
     }
 
     if (tx.length > 0) {
       aggregatedOrdersList.push(tx);
+      // reduce halsLeftToMint
+      const txAmount = tx.reduce((total, { amount }) => amount + total, 0);
+      halsLeftToMint = halsLeftToMint - txAmount;
     } else {
       // if tx is empty, break the loop
       // because there is no available orders to pick
