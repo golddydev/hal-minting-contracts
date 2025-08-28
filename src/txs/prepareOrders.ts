@@ -266,10 +266,17 @@ const aggregateOrderTxInputs = async (
   }
 
   // collect orders which are not picked
-  // and put them to unpickedOrderTxInputs
+  // and put them to unpickedOrderTxInputs if its amount is less than or equal to halsLeftToMint
+  // otherwise put them to invalidOrderTxInputs
   validOrders
     .filter((o) => !o.addedToTx)
-    .forEach((o) => unpickedOrderTxInputs.push(o.txInput));
+    .forEach((o) => {
+      if (o.amount <= halsLeftToMint) {
+        unpickedOrderTxInputs.push(o.txInput);
+      } else {
+        invalidOrderTxInputs.push(o.txInput);
+      }
+    });
 
   return Ok({
     aggregatedOrdersList,
