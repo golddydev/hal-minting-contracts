@@ -139,19 +139,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
-      console.log({
-        aggregatedOrdersList,
-        unprocessableOrderTxInputs,
-        invalidOrderTxInputs,
-      });
 
       invariant(
         aggregatedOrdersList.length === 0 &&
-          unprocessableOrderTxInputs.length === 1 &&
-          invalidOrderTxInputs.length === 0,
+          unpickedOrderTxInputs.length === 0 &&
+          invalidOrderTxInputs.length === 1,
         "Prepare Orders returned Wrong value"
       );
     }
@@ -215,14 +210,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
 
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -417,14 +412,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
 
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -704,14 +699,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
 
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -1202,14 +1197,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
 
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -1401,14 +1396,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
 
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -1608,14 +1603,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
 
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 3 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -1820,13 +1815,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 1 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -2035,13 +2030,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 8 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
@@ -2249,13 +2244,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
       invariant(prepareOrdersResult.ok, "Prepare Orders Failed");
       const {
         aggregatedOrdersList,
-        unprocessableOrderTxInputs,
+        unpickedOrderTxInputs,
         invalidOrderTxInputs,
       } = prepareOrdersResult.data;
       invariant(
         aggregatedOrdersList.length === 1 &&
           aggregatedOrdersList[0].length === 4 &&
-          unprocessableOrderTxInputs.length === 0 &&
+          unpickedOrderTxInputs.length === 0 &&
           invalidOrderTxInputs.length === 0,
         "Prepare Orders returned Wrong value"
       );
