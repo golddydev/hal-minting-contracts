@@ -177,13 +177,10 @@ const aggregateOrderTxInputs = async (
   }
 
   // NOTE:
-  // sort orderUtxos by average nft price (lovelace / amount)
-  // so we pick possible UTxO with least lovelace
-  orderTxInputsWithDatum.sort((a, b) => {
-    const aAverageNftPrice = a.txInput.value.lovelace / BigInt(a.datum.amount);
-    const bAverageNftPrice = b.txInput.value.lovelace / BigInt(b.datum.amount);
-    return Number(aAverageNftPrice - bAverageNftPrice);
-  });
+  // efficient sorting algorithm
+  const refinedOrderTxInputsWithDatum = orderToConsecutiveSum7(
+    orderTxInputsWithDatum
+  );
 
   // we keep WhitelistedValue by destination_address CBOR Hex to check
   const whitelistedValues: Record<string, WhitelistedValue | null> = {};
@@ -193,7 +190,7 @@ const aggregateOrderTxInputs = async (
   // this is processing state
   const validOrders: ValidOrder[] = [];
 
-  for (const { txInput, datum } of orderTxInputsWithDatum) {
+  for (const { txInput, datum } of refinedOrderTxInputsWithDatum) {
     const { destination_address, amount } = datum;
 
     // get whitelisted value if destination_address is not in whitelistedValues
@@ -508,3 +505,57 @@ const checkCanMintOrder = (
 
 export type { AggregateOrderTxInputsParams, PrepareOrdersParams };
 export { aggregateOrderTxInputs, prepareOrders };
+
+/**
+ * Greedy, stable "sum-to-7" ordering over consecutive items.
+ * - Scans left-to-right in original order.
+ * - At each position, tries to find the shortest-length consecutive run that sums to 7.
+ * - If found, emits that run (in-order).
+ * - Otherwise, emits the single current item.
+ *
+ * @template T extends { amount: number }
+ * @param {T[]} items
+ * @returns {T[]} flat list, reordered by the rule above (stable within each chosen run)
+ */
+export function orderToConsecutiveSum7(
+  orderTxInputsWithDatum: { txInput: TxInput; datum: OrderDatum }[]
+) {
+  const n = orderTxInputsWithDatum.length;
+  const used = Array(n).fill(false);
+  const out: { txInput: TxInput; datum: OrderDatum }[] = [];
+
+  const pick = (i: number, target: number, len: number): number[] | null => {
+    // earliest, consecutive-in-order combo
+    if (!len) return target ? null : [];
+    for (let j = i + 1; j < n; j++) {
+      if (used[j]) continue;
+      const v = orderTxInputsWithDatum[j].datum.amount;
+      if (v > target) continue; // amounts > 0
+      const tail = pick(j, target - v, len - 1);
+      if (tail) return [j, ...tail];
+    }
+    return null;
+  };
+
+  for (let i = 0; i < n; i++) {
+    if (used[i]) continue;
+    used[i] = true;
+    out.push(orderTxInputsWithDatum[i]);
+
+    const a = orderTxInputsWithDatum[i].datum.amount;
+    if (a >= 7) continue; // 7 => solo; >7 can’t help with positives
+
+    const need = 7 - a;
+    for (let len = 1; len <= need; len++) {
+      const combo = pick(i, need, len);
+      if (combo) {
+        for (const j of combo) {
+          used[j] = true;
+          out.push(orderTxInputsWithDatum[j]);
+        }
+        break; // prefer the fewest partners
+      }
+    }
+  }
+  return out;
+}
