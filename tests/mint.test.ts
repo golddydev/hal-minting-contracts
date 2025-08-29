@@ -17,7 +17,6 @@ import {
   fetchMintingData,
   fetchOrderTxInputs,
   fetchSettings,
-  getMintingCost,
   HalAssetInfo,
   invariant,
   makeVoidData,
@@ -44,31 +43,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_1 orders 3 new assets
   myTest(
     "user_1 orders 3 new assets",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, normalPrice }) => {
       const { usersWallets } = wallets;
       const user1Wallet = usersWallets[0];
-      const amount = 3;
-      const cost = await getMintingCost({
-        destinationAddress: user1Wallet.address,
-        amount,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user1Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user1Wallet.address.toBech32()] =
-        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) + amount;
       const orders: Order[] = [
         {
           destinationAddress: user1Wallet.address,
-          amount,
-          cost,
+          amount: 3,
+          cost: normalPrice * 3n,
         },
       ];
 
@@ -299,31 +281,14 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_4 orders 5 new assets who is whitelisted
   myTest(
     "user_4 orders 5 new assets who is whitelisted",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, whitelistedPrice1 }) => {
       const { usersWallets } = wallets;
       const user4Wallet = usersWallets[3];
-      const amount = 5;
-      const cost = await getMintingCost({
-        destinationAddress: user4Wallet.address,
-        amount,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user4Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user4Wallet.address.toBech32()] =
-        (usedOrdersCount[user4Wallet.address.toBech32()] || 0) + amount;
       const orders: Order[] = [
         {
           destinationAddress: user4Wallet.address,
-          amount,
-          cost,
+          amount: 5,
+          cost: whitelistedPrice1 * 5n,
         },
       ];
 
@@ -571,46 +536,19 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_2 orders 2 new assets 2 times
   myTest(
     "user_2 orders 2 new assets 2 times",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, normalPrice }) => {
       const { usersWallets } = wallets;
       const user2Wallet = usersWallets[1];
-      const amount1 = 2;
-      const amount2 = 2;
-      const cost1 = await getMintingCost({
-        destinationAddress: user2Wallet.address,
-        amount: amount1,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user2Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user2Wallet.address.toBech32()] =
-        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) + amount1;
-      const cost2 = await getMintingCost({
-        destinationAddress: user2Wallet.address,
-        amount: amount2,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user2Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user2Wallet.address.toBech32()] =
-        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) + amount2;
       const orders: Order[] = [
         {
           destinationAddress: user2Wallet.address,
-          amount: amount1,
-          cost: cost1,
+          amount: 2,
+          cost: normalPrice * 2n,
         },
         {
           destinationAddress: user2Wallet.address,
-          amount: amount2,
-          cost: cost2,
+          amount: 2,
+          cost: normalPrice * 2n,
         },
       ];
 
@@ -829,13 +767,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // can cancel one order
   myTest(
     "can cancel one order",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      deployedScripts,
-    }) => {
+    async ({ isMainnet, emulator, wallets, deployedScripts }) => {
       // fetch order tx inputs
       const orderTxInputsResult = await fetchOrderTxInputs({
         cardanoClient: emulator,
@@ -878,24 +810,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
         afterUser2Lovelace === expectedLovelace,
         `User 2 Lovelace is not correct. Expected: ${expectedLovelace}, Actual: ${afterUser2Lovelace}`
       );
-
-      usedOrdersCount[user2Wallet.address.toBech32()] = Math.max(
-        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) - 2,
-        0
-      );
     }
   );
 
   // can refund one order
   myTest(
     "can refund one order",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      deployedScripts,
-    }) => {
+    async ({ isMainnet, emulator, wallets, deployedScripts }) => {
       // fetch order tx inputs
       const orderTxInputsResult = await fetchOrderTxInputs({
         cardanoClient: emulator,
@@ -944,42 +865,20 @@ describe.sequential("Koralab H.A.L Tests", () => {
         afterUser2Lovelace === expectedLovelace,
         `User 2 Lovelace is not correct. Expected: ${expectedLovelace}, Actual: ${afterUser2Lovelace}`
       );
-
-      usedOrdersCount[user2Wallet.address.toBech32()] = Math.max(
-        (usedOrdersCount[user2Wallet.address.toBech32()] || 0) - 2,
-        0
-      );
     }
   );
 
   // user_1 request order with invalid datum
   myTest(
     "user_1 request order with invalid datum",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, normalPrice }) => {
       const { usersWallets } = wallets;
       const user1Wallet = usersWallets[0];
-      const amount = 2;
-      const cost = await getMintingCost({
-        destinationAddress: user1Wallet.address,
-        amount,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user1Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user1Wallet.address.toBech32()] =
-        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) + amount;
       const orders: Order[] = [
         {
           destinationAddress: user1Wallet.address,
-          amount,
-          cost,
+          amount: 2,
+          cost: normalPrice * 2n,
         },
       ];
 
@@ -1016,13 +915,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // refund order with invalid datum
   myTest(
     "refund order with invalid datum",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      deployedScripts,
-    }) => {
+    async ({ isMainnet, emulator, wallets, deployedScripts }) => {
       // fetch order tx inputs
       const orderTxInputsResult = await fetchOrderTxInputs({
         cardanoClient: emulator,
@@ -1072,42 +965,20 @@ describe.sequential("Koralab H.A.L Tests", () => {
         afterUser1Lovelace === expectedLovelace,
         `User 1 Lovelace is not correct. Expected: ${expectedLovelace}, Actual: ${afterUser1Lovelace}`
       );
-
-      usedOrdersCount[user1Wallet.address.toBech32()] = Math.max(
-        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) - 2,
-        0
-      );
     }
   );
 
   // user_1 orders 3 new assets
   myTest(
     "user_1 orders 3 new assets",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, normalPrice }) => {
       const { usersWallets } = wallets;
       const user1Wallet = usersWallets[0];
-      const amount = 3;
-      const cost = await getMintingCost({
-        destinationAddress: user1Wallet.address,
-        amount,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user1Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user1Wallet.address.toBech32()] =
-        (usedOrdersCount[user1Wallet.address.toBech32()] || 0) + amount;
       const orders: Order[] = [
         {
           destinationAddress: user1Wallet.address,
-          amount,
-          cost,
+          amount: 3,
+          cost: normalPrice * 3n,
         },
       ];
 
@@ -1285,30 +1156,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_3 orders 5 new assets 3 times
   myTest(
     "user_3 orders 5 new assets 3 times",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, normalPrice }) => {
       const { usersWallets } = wallets;
       const user3Wallet = usersWallets[2];
-      const amount = 5;
-      const cost = await getMintingCost({
-        destinationAddress: user3Wallet.address,
-        amount,
-        initialWhitelistDB,
-        usedCount: usedOrdersCount[user3Wallet.address.toBech32()] || 0,
-        halNftPrice: normalPrice,
-      });
-      usedOrdersCount[user3Wallet.address.toBech32()] =
-        (usedOrdersCount[user3Wallet.address.toBech32()] || 0) + amount;
       const orders: Order[] = Array.from({ length: 3 }, () => ({
         destinationAddress: user3Wallet.address,
-        amount,
-        cost,
+        amount: 5,
+        cost: normalPrice * 5n,
       }));
 
       const settingsResult = await fetchSettings(isMainnet);
@@ -1490,33 +1344,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // user_1, user_2, user_3 order 5 new assets
   myTest(
     "user_1, user_2, user_3 order 5 new assets",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
-    }) => {
+    async ({ isMainnet, emulator, wallets, normalPrice }) => {
       const { usersWallets, fundWallet } = wallets;
-      const amount = 5;
-      const orders: Order[] = [];
-      for (let i = 0; i < 3; i++) {
-        const cost = await getMintingCost({
-          destinationAddress: usersWallets[i].address,
-          amount,
-          initialWhitelistDB,
-          usedCount: usedOrdersCount[usersWallets[i].address.toBech32()] || 0,
-          halNftPrice: normalPrice,
-        });
-        usedOrdersCount[usersWallets[i].address.toBech32()] =
-          (usedOrdersCount[usersWallets[i].address.toBech32()] || 0) + amount;
-        orders.push({
-          destinationAddress: usersWallets[i].address,
-          amount,
-          cost,
-        });
-      }
+      const orders: Order[] = Array.from({ length: 3 }, (_, index) => ({
+        destinationAddress: usersWallets[index].address,
+        amount: 5,
+        cost: normalPrice * 5n,
+      }));
 
       const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
@@ -1700,30 +1534,23 @@ describe.sequential("Koralab H.A.L Tests", () => {
       isMainnet,
       emulator,
       wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
+      whitelistedPrice1,
+      whitelistedPrice2,
     }) => {
       const { usersWallets } = wallets;
       const user4Wallet = usersWallets[3];
-      const amount = 1;
-      const orders: Order[] = [];
-      for (let i = 0; i < 9; i++) {
-        const cost = await getMintingCost({
+      const orders: Order[] = [
+        ...Array.from({ length: 5 }, () => ({
           destinationAddress: user4Wallet.address,
-          amount,
-          initialWhitelistDB,
-          usedCount: usedOrdersCount[user4Wallet.address.toBech32()] || 0,
-          halNftPrice: normalPrice,
-        });
-        usedOrdersCount[user4Wallet.address.toBech32()] =
-          (usedOrdersCount[user4Wallet.address.toBech32()] || 0) + amount;
-        orders.push({
+          amount: 1,
+          cost: whitelistedPrice1,
+        })),
+        ...Array.from({ length: 4 }, () => ({
           destinationAddress: user4Wallet.address,
-          amount,
-          cost,
-        });
-      }
+          amount: 1,
+          cost: whitelistedPrice2,
+        })),
+      ];
 
       const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
@@ -1733,7 +1560,7 @@ describe.sequential("Koralab H.A.L Tests", () => {
         isMainnet,
         orders,
         settings,
-        maxOrderAmountInOneTx: 9,
+        maxOrderAmountInOneTx: 8,
       });
       invariant(txBuilderResult.ok, "Order Tx Building failed");
 
@@ -1910,35 +1737,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
   // special user_1 ~ user_8 orders 8 new assets
   myTest(
     "special user_1 ~ user_8 orders 8 new assets",
-    async ({
-      isMainnet,
-      emulator,
-      wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      whitelistedPrice1,
-    }) => {
+    async ({ isMainnet, emulator, wallets, whitelistedPrice1 }) => {
       const { specialUsersWallets, fundWallet } = wallets;
-      const amount = 1;
-      const orders: Order[] = [];
-      for (let i = 0; i < 8; i++) {
-        const cost = await getMintingCost({
-          destinationAddress: specialUsersWallets[i].address,
-          amount,
-          initialWhitelistDB,
-          usedCount:
-            usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0,
-          halNftPrice: whitelistedPrice1,
-        });
-        usedOrdersCount[specialUsersWallets[i].address.toBech32()] =
-          (usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0) +
-          amount;
-        orders.push({
-          destinationAddress: specialUsersWallets[i].address,
-          amount,
-          cost,
-        });
-      }
+      const orders: Order[] = Array.from({ length: 8 }, (_, index) => ({
+        destinationAddress: specialUsersWallets[index].address,
+        amount: 1,
+        cost: whitelistedPrice1,
+      }));
 
       const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
@@ -2128,31 +1933,15 @@ describe.sequential("Koralab H.A.L Tests", () => {
       isMainnet,
       emulator,
       wallets,
-      usedOrdersCount,
-      initialWhitelistDB,
-      normalPrice,
+      whitelistedPrice1,
+      whitelistedPrice2,
     }) => {
       const { specialUsersWallets, fundWallet } = wallets;
-      const amount = 2;
-      const orders: Order[] = [];
-      for (let i = 0; i < 4; i++) {
-        const cost = await getMintingCost({
-          destinationAddress: specialUsersWallets[i].address,
-          amount,
-          initialWhitelistDB,
-          usedCount:
-            usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0,
-          halNftPrice: normalPrice,
-        });
-        usedOrdersCount[specialUsersWallets[i].address.toBech32()] =
-          (usedOrdersCount[specialUsersWallets[i].address.toBech32()] || 0) +
-          amount;
-        orders.push({
-          destinationAddress: specialUsersWallets[i].address,
-          amount,
-          cost,
-        });
-      }
+      const orders: Order[] = Array.from({ length: 4 }, (_, index) => ({
+        destinationAddress: specialUsersWallets[index].address,
+        amount: 2,
+        cost: whitelistedPrice1 + whitelistedPrice2,
+      }));
 
       const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");

@@ -335,7 +335,7 @@ const isOrderTxInputValid = (
     decodeOrderDatumData(orderTxInput.datum, isMainnet)
   );
   if (!decodedResult.ok) {
-    return Err(new Error("Invalid Order Datum"));
+    return Err(new Error(`Invalid Order Datum: ${decodedResult.error}`));
   }
 
   const { amount } = decodedResult.data;
@@ -345,6 +345,10 @@ const isOrderTxInputValid = (
         `Order Tx Input has too many amount ${amount}. maximum: ${maxOrderAmountInOneTx}`
       )
     );
+  }
+
+  if (amount === 0) {
+    return Err(new Error("Order TxInput has 0 amount"));
   }
 
   return Ok(true);

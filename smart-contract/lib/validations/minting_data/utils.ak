@@ -407,8 +407,8 @@ pub fn check_hal_tokens_minted(
 }
 
 // This function returns aggregated orders information
-// if there are more than 1 Order UTxOs with same destinationAddress
-// that will be aggregated with sum of amounts
+// if there are more than 1 Order UTxO with same destinationAddress
+// those will be aggregated with sum of amounts
 // and return total paid lovelace: The sum of lovelace of all Order UTxOs
 //
 pub fn aggregate_orders_information(

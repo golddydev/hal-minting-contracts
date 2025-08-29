@@ -4,6 +4,7 @@ import { Err, Ok, Result } from "ts-res";
 
 import {
   decodeOrderDatumData,
+  OrderDatum,
   SettingsV1,
   WhitelistedValue,
 } from "../contracts/index.js";
@@ -147,19 +148,11 @@ const aggregateOrderTxInputs = async (
   const { hal_nft_price, minting_start_time } = settingsV1;
   const txTimeGap = minting_start_time - mintingTime;
 
-  // NOTE:
-  // sort orderUtxos by their lovelace
-  // so we pick possible UTxO with least lovelace
-  orderTxInputs.sort((a, b) => (a.value.lovelace > b.value.lovelace ? 1 : -1));
-
-  // we keep WhitelistedValue by destination_address CBOR Hex to check
-  const whitelistedValues: Record<string, WhitelistedValue | null> = {};
-  const availableWhitelistedValues: Record<string, WhitelistedValue | null> =
-    {};
-
-  // this is processing state
-  const validOrders: ValidOrder[] = [];
-
+  // get Order Datum
+  const orderTxInputsWithDatum: {
+    txInput: TxInput;
+    datum: OrderDatum;
+  }[] = [];
   for (const orderTxInput of orderTxInputs) {
     const decodedResult = mayFail(() =>
       decodeOrderDatumData(orderTxInput.datum, isMainnet)
@@ -171,7 +164,34 @@ const aggregateOrderTxInputs = async (
         )
       );
     }
-    const { destination_address, amount } = decodedResult.data;
+
+    if (decodedResult.data.amount === 0) {
+      invalidOrderTxInputs.push(orderTxInput);
+      continue;
+    }
+
+    orderTxInputsWithDatum.push({
+      txInput: orderTxInput,
+      datum: decodedResult.data,
+    });
+  }
+
+  // NOTE:
+  // efficient sorting algorithm
+  const refinedOrderTxInputsWithDatum = orderToConsecutiveSum7(
+    orderTxInputsWithDatum
+  );
+
+  // we keep WhitelistedValue by destination_address CBOR Hex to check
+  const whitelistedValues: Record<string, WhitelistedValue | null> = {};
+  const availableWhitelistedValues: Record<string, WhitelistedValue | null> =
+    {};
+
+  // this is processing state
+  const validOrders: ValidOrder[] = [];
+
+  for (const { txInput, datum } of refinedOrderTxInputsWithDatum) {
+    const { destination_address, amount } = datum;
 
     // get whitelisted value if destination_address is not in whitelistedValues
     const destinationAddressKey =
@@ -192,10 +212,10 @@ const aggregateOrderTxInputs = async (
 
     // check orderInput is valid to mint or not
     const canMintResult = checkCanMintOrder(
-      orderTxInput.id.toString(),
+      txInput.id.toString(),
       destination_address.toBech32(),
       amount,
-      orderTxInput.value.lovelace,
+      txInput.value.lovelace,
       hal_nft_price,
       txTimeGap,
       availableWhitelistedValue,
@@ -208,7 +228,7 @@ const aggregateOrderTxInputs = async (
         canMintResult.newWhitelistedValue;
 
       validOrders.push({
-        txInput: orderTxInput,
+        txInput,
         destinationAddress: destination_address,
         amount,
         needWhitelistProof: canMintResult.needWhitelistProof,
@@ -217,7 +237,7 @@ const aggregateOrderTxInputs = async (
     } else {
       // we will refund unprocessable orders
       // users can wait to get this UTxO minted but we refund them.
-      invalidOrderTxInputs.push(orderTxInput);
+      invalidOrderTxInputs.push(txInput);
     }
   }
 
@@ -483,52 +503,59 @@ const checkCanMintOrder = (
   }
 };
 
-interface GetMintingCostParams {
-  destinationAddress: ShelleyAddress;
-  amount: number;
-  initialWhitelistDB: Trie;
-  usedCount: number;
-  halNftPrice: bigint;
-}
+export type { AggregateOrderTxInputsParams, PrepareOrdersParams };
+export { aggregateOrderTxInputs, prepareOrders };
 
-const getMintingCost = async (
-  params: GetMintingCostParams
-): Promise<bigint> => {
-  const {
-    destinationAddress,
-    amount,
-    initialWhitelistDB,
-    usedCount,
-    halNftPrice,
-  } = params;
+/**
+ * Greedy, stable "sum-to-7" ordering over consecutive items.
+ * - Scans left-to-right in original order.
+ * - At each position, tries to find the shortest-length consecutive run that sums to 7.
+ * - If found, emits that run (in-order).
+ * - Otherwise, emits the single current item.
+ *
+ * @template T extends { amount: number }
+ * @param {T[]} items
+ * @returns {T[]} flat list, reordered by the rule above (stable within each chosen run)
+ */
+export function orderToConsecutiveSum7(
+  orderTxInputsWithDatum: { txInput: TxInput; datum: OrderDatum }[]
+) {
+  const n = orderTxInputsWithDatum.length;
+  const used = Array(n).fill(false);
+  const out: { txInput: TxInput; datum: OrderDatum }[] = [];
 
-  const whitelistedValue = await getWhitelistedValue(
-    initialWhitelistDB,
-    destinationAddress
-  );
-  if (whitelistedValue) {
-    const {
-      newWhitelistedValue: usedWhitelistedValue,
-      remainingOrderedAmount: remainingAmountAfterUsed,
-    } = useWhitelistedValueAsPossible(whitelistedValue, usedCount);
-    if (remainingAmountAfterUsed > 0) {
-      return halNftPrice * BigInt(amount);
-    } else {
-      const { remainingOrderedAmount, spentLovelaceForWhitelisted } =
-        useWhitelistedValueAsPossible(usedWhitelistedValue, amount);
-      return (
-        spentLovelaceForWhitelisted +
-        halNftPrice * BigInt(remainingOrderedAmount)
-      );
+  const pick = (i: number, target: number, len: number): number[] | null => {
+    // earliest, consecutive-in-order combo
+    if (!len) return target ? null : [];
+    for (let j = i + 1; j < n; j++) {
+      if (used[j]) continue;
+      const v = orderTxInputsWithDatum[j].datum.amount;
+      if (v > target) continue; // amounts > 0
+      const tail = pick(j, target - v, len - 1);
+      if (tail) return [j, ...tail];
     }
-  } else {
-    return halNftPrice * BigInt(amount);
-  }
-};
+    return null;
+  };
 
-export type {
-  AggregateOrderTxInputsParams,
-  GetMintingCostParams,
-  PrepareOrdersParams,
-};
-export { aggregateOrderTxInputs, getMintingCost, prepareOrders };
+  for (let i = 0; i < n; i++) {
+    if (used[i]) continue;
+    used[i] = true;
+    out.push(orderTxInputsWithDatum[i]);
+
+    const a = orderTxInputsWithDatum[i].datum.amount;
+    if (a >= 7) continue; // 7 => solo; >7 can’t help with positives
+
+    const need = 7 - a;
+    for (let len = 1; len <= need; len++) {
+      const combo = pick(i, need, len);
+      if (combo) {
+        for (const j of combo) {
+          used[j] = true;
+          out.push(orderTxInputsWithDatum[j]);
+        }
+        break; // prefer the fewest partners
+      }
+    }
+  }
+  return out;
+}

@@ -3,7 +3,7 @@ use aiken/transaction.{InlineDatum, Output, OutputReference, Transaction}
 use aiken/transaction/credential
 use aiken/transaction/value
 use common/royalty.{RoyaltyDatum}
-use common/utils.{get_own_script_hash, get_own_utxo, get_own_utxos_count}
+use common/utils.{get_own_utxo, get_own_utxos_count, get_script_hash_from_utxo}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 
@@ -37,7 +37,7 @@ pub fn can_update(
   let Output { address: own_utxo_address, value: own_utxo_value, .. } = own_utxo
 
   // there must be only one UTxO in transaction inputs from this script.
-  let own_script_hash = get_own_script_hash(own_utxo)
+  let own_script_hash = get_script_hash_from_utxo(own_utxo)
   let own_utxos_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxos_count == 1
 
@@ -95,7 +95,7 @@ pub fn can_migrate(
 
   // there must be only one UTxO in transaction inputs from this script.
   let own_utxo = get_own_utxo(inputs, spending_output_reference)
-  let own_script_hash = get_own_script_hash(own_utxo)
+  let own_script_hash = get_script_hash_from_utxo(own_utxo)
   let own_utxos_count = get_own_utxos_count(inputs, own_script_hash)
   expect own_utxos_count == 1
 

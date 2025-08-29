@@ -16,7 +16,7 @@ use hal_nft_mint/settings.{Settings, find_settings}
 // without changing mint logic
 //
 // WARN >> version must be greater than or equal to 0
-// and settings' mint_version must be same as parameter to mint handles
+// and settings' mint_version must be same as parameter to mint H.A.L. NFTs
 //
 validator(version: Int) {
   pub fn mint(_r: Data, ctx: ScriptContext) {
