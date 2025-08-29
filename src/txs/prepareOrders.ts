@@ -4,6 +4,7 @@ import { Err, Ok, Result } from "ts-res";
 
 import {
   decodeOrderDatumData,
+  OrderDatum,
   SettingsV1,
   WhitelistedValue,
 } from "../contracts/index.js";
@@ -147,19 +148,11 @@ const aggregateOrderTxInputs = async (
   const { hal_nft_price, minting_start_time } = settingsV1;
   const txTimeGap = minting_start_time - mintingTime;
 
-  // NOTE:
-  // sort orderUtxos by their lovelace
-  // so we pick possible UTxO with least lovelace
-  orderTxInputs.sort((a, b) => (a.value.lovelace > b.value.lovelace ? 1 : -1));
-
-  // we keep WhitelistedValue by destination_address CBOR Hex to check
-  const whitelistedValues: Record<string, WhitelistedValue | null> = {};
-  const availableWhitelistedValues: Record<string, WhitelistedValue | null> =
-    {};
-
-  // this is processing state
-  const validOrders: ValidOrder[] = [];
-
+  // get Order Datum
+  const orderTxInputsWithDatum: {
+    txInput: TxInput;
+    datum: OrderDatum;
+  }[] = [];
   for (const orderTxInput of orderTxInputs) {
     const decodedResult = mayFail(() =>
       decodeOrderDatumData(orderTxInput.datum, isMainnet)
@@ -171,7 +164,37 @@ const aggregateOrderTxInputs = async (
         )
       );
     }
-    const { destination_address, amount } = decodedResult.data;
+
+    if (decodedResult.data.amount === 0) {
+      invalidOrderTxInputs.push(orderTxInput);
+      continue;
+    }
+
+    orderTxInputsWithDatum.push({
+      txInput: orderTxInput,
+      datum: decodedResult.data,
+    });
+  }
+
+  // NOTE:
+  // sort orderUtxos by average nft price (lovelace / amount)
+  // so we pick possible UTxO with least lovelace
+  orderTxInputsWithDatum.sort((a, b) => {
+    const aAverageNftPrice = a.txInput.value.lovelace / BigInt(a.datum.amount);
+    const bAverageNftPrice = b.txInput.value.lovelace / BigInt(b.datum.amount);
+    return Number(aAverageNftPrice - bAverageNftPrice);
+  });
+
+  // we keep WhitelistedValue by destination_address CBOR Hex to check
+  const whitelistedValues: Record<string, WhitelistedValue | null> = {};
+  const availableWhitelistedValues: Record<string, WhitelistedValue | null> =
+    {};
+
+  // this is processing state
+  const validOrders: ValidOrder[] = [];
+
+  for (const { txInput, datum } of orderTxInputsWithDatum) {
+    const { destination_address, amount } = datum;
 
     // get whitelisted value if destination_address is not in whitelistedValues
     const destinationAddressKey =
@@ -192,10 +215,10 @@ const aggregateOrderTxInputs = async (
 
     // check orderInput is valid to mint or not
     const canMintResult = checkCanMintOrder(
-      orderTxInput.id.toString(),
+      txInput.id.toString(),
       destination_address.toBech32(),
       amount,
-      orderTxInput.value.lovelace,
+      txInput.value.lovelace,
       hal_nft_price,
       txTimeGap,
       availableWhitelistedValue,
@@ -208,7 +231,7 @@ const aggregateOrderTxInputs = async (
         canMintResult.newWhitelistedValue;
 
       validOrders.push({
-        txInput: orderTxInput,
+        txInput,
         destinationAddress: destination_address,
         amount,
         needWhitelistProof: canMintResult.needWhitelistProof,
@@ -217,7 +240,7 @@ const aggregateOrderTxInputs = async (
     } else {
       // we will refund unprocessable orders
       // users can wait to get this UTxO minted but we refund them.
-      invalidOrderTxInputs.push(orderTxInput);
+      invalidOrderTxInputs.push(txInput);
     }
   }
 
