@@ -59,6 +59,10 @@ pub fn are_all_orders_fulfilled(
       expect [proofs, ..rest_proofs_list] = proofs_list
       let (asset_name_proofs, whitelist_proof_opt) = proofs
 
+      // asset_name_proofs length must be same as ordered_amount
+      let assets_count = list.length(asset_name_proofs)
+      expect assets_count == ordered_amount
+
       // update mpt root
       let new_root = update_mpt_root(root, asset_name_proofs)
 
@@ -437,7 +441,7 @@ pub fn aggregate_orders_information(
           expect order_datum: OrderDatum = datum
           let OrderDatum { destination_address, amount, .. } = order_datum
 
-          // ordered_amount must be positive
+          // ordered amount must be positive
           expect amount > 0
 
           // sum up to total paid lovelace
