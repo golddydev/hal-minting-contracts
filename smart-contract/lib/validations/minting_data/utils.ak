@@ -59,6 +59,10 @@ pub fn are_all_orders_fulfilled(
       expect [proofs, ..rest_proofs_list] = proofs_list
       let (asset_name_proofs, whitelist_proof_opt) = proofs
 
+      // asset_name_proofs length must be same as ordered_amount
+      let assets_count = list.length(asset_name_proofs)
+      expect assets_count == ordered_amount
+
       // update mpt root
       let new_root = update_mpt_root(root, asset_name_proofs)
 
@@ -155,7 +159,7 @@ pub fn update_mpt_root(
 
 // This function updates whitelisted_mpt
 // where key is destination_address
-// We spend whitelisted value's amount as much as we can agains ordered_amount
+// We spend whitelisted value's amount as much as we can against `ordered_amount`
 // and for those amounts, price will be discounted (those costs will be added to spent_lovelace_for_whitelisted)
 //
 // Returns: (updated_whitelisted_mpt, remaining_ordered_amount, spent_lovelace_for_whitelisted)
@@ -240,7 +244,7 @@ pub fn update_whitelisted_value(
           tx_time_gap,
         )
       } else {
-        // tx_time_gap is available with whitelisted_item's time_gap
+        // check tx_time_gap is available against whitelisted_item's time_gap
         if tx_time_gap > time_gap {
           // if tx starts too early than whitelisted_time,
           // then we can't use this whitelisted_item
@@ -436,6 +440,9 @@ pub fn aggregate_orders_information(
           expect InlineDatum(datum) = datum
           expect order_datum: OrderDatum = datum
           let OrderDatum { destination_address, amount, .. } = order_datum
+
+          // ordered amount must be positive
+          expect amount > 0
 
           // sum up to total paid lovelace
           let new_total_paid_lovelace =

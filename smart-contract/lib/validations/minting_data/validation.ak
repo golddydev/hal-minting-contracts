@@ -1,4 +1,3 @@
-use aiken/cbor.{diagnostic}
 use aiken/list
 use aiken/merkle_patricia_forestry as mpt
 use aiken/transaction.{
@@ -79,11 +78,9 @@ pub fn can_mint(
     aggregated_orders,
     total_paid_lovelace,
   <- aggregate_orders_information(inputs, [], 0, orders_spend_script_hash)
-  trace @"before"
-  trace diagnostic(aggregated_orders)
+
+  // sort aggregated orders by their destination address.
   let aggregated_orders = aggregated_orders |> sort_aggregated_orders
-  trace @"after"
-  trace diagnostic(aggregated_orders)
   let aggregated_orders_count = list.length(aggregated_orders)
 
   // parse outputs
