@@ -1,7 +1,6 @@
 use aiken/list
 use aiken/transaction.{Transaction}
 use aiken/transaction/value.{AssetName}
-use common/hashes.{VerificationKeyHash}
 use hal_nft_mint/settings.{Settings, find_settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
 use validations/ref_spend/utils.{
@@ -14,16 +13,12 @@ use validations/ref_spend/utils.{
 //
 // Checks:
 // - must attach `Settings` NFT in reference inputs.
-// - must be signed by `ref_spend_admin` from parameter.
+// - must be signed by `ref_spend_admin` from SettingsV1.
 // - must spend H.A.L. User Asset whose name is `asset_name` from redeemer.
 // - there must be only one transaction input with H.A.L. Reference Asset.
 // - the first output must be `reference_output`.
 //
-pub fn can_update(
-  transaction: Transaction,
-  ref_spend_admin: VerificationKeyHash,
-  asset_name: AssetName,
-) -> Bool {
+pub fn can_update(transaction: Transaction, asset_name: AssetName) -> Bool {
   trace @"can_update"
   let Transaction { inputs, reference_inputs, outputs, extra_signatories, .. } =
     transaction
@@ -31,10 +26,14 @@ pub fn can_update(
   // must attach `Settings` NFT in reference inputs.
   let Settings { data: settings_data, .. } = find_settings(reference_inputs)
   expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { policy_id: hal_policy_id, ref_spend_proxy_script_hash, .. } =
-    settings_datum
+  let SettingsV1 {
+    policy_id: hal_policy_id,
+    ref_spend_proxy_script_hash,
+    ref_spend_admin,
+    ..
+  } = settings_datum
 
-  // must be signed by `ref_spend_admin` from parameter.
+  // must be signed by `ref_spend_admin` from SettingsV1.
   expect list.has(extra_signatories, ref_spend_admin)
 
   // must spend H.A.L. User Asset whose name is `asset_name` from redeemer.

@@ -137,7 +137,6 @@ const buildSettingsDataCbor = () => {
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
-    ref_spend_admin: REF_SPEND_ADMIN,
   });
   const {
     halPolicyHash,
@@ -160,7 +159,6 @@ const buildSettingsDataCbor = () => {
       ordersSpendConfig.ordersSpendValidatorHash.toHex(),
     ref_spend_proxy_script_hash:
       refSpendProxyConfig.refSpendProxyValidatorHash.toHex(),
-    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
     ref_spend_admin: REF_SPEND_ADMIN,
     royalty_spend_script_hash:
       royaltySpendConfig.royaltySpendValidatorHash.toHex(),
@@ -169,6 +167,7 @@ const buildSettingsDataCbor = () => {
   };
   const settings: Settings = {
     mint_governor: mintConfig.mintValidatorHash.toHex(),
+    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
     mint_version: MINT_VERSION,
     data: buildSettingsV1Data(settingsV1),
   };
@@ -178,19 +177,14 @@ const buildSettingsDataCbor = () => {
 
 const getStakingAddresses = () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const {
-    MINT_VERSION,
-    ADMIN_VERIFICATION_KEY_HASH,
-    ORDERS_SPEND_RANDOMIZER,
-    REF_SPEND_ADMIN,
-  } = configs;
+  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
+    configs;
 
   const contractsConfig = buildContracts({
     isMainnet: (NETWORK as NetworkName) == "mainnet",
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
-    ref_spend_admin: REF_SPEND_ADMIN,
   });
   const { mint: mintConfig, refSpend: refSpendConfig } = contractsConfig;
 
@@ -202,12 +196,8 @@ const getStakingAddresses = () => {
 
 const doDeployActions = async () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const {
-    MINT_VERSION,
-    ADMIN_VERIFICATION_KEY_HASH,
-    ORDERS_SPEND_RANDOMIZER,
-    REF_SPEND_ADMIN,
-  } = configs;
+  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
+    configs;
 
   let finished: boolean = false;
   while (!finished) {
@@ -225,7 +215,6 @@ const doDeployActions = async () => {
               mintVersion: MINT_VERSION,
               adminVerificationKeyHash: ADMIN_VERIFICATION_KEY_HASH,
               ordersSpendRandomizer: ORDERS_SPEND_RANDOMIZER,
-              refSpendAdmin: REF_SPEND_ADMIN,
               contractName: contract,
             });
 

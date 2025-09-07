@@ -1,9 +1,16 @@
 import { UplcData } from "@helios-lang/uplc";
 
 interface Settings {
-  mint_governor: string; // withdrawal script hash
+  // mint withdrawal validator hash
+  // this is mint_proxy governor
+  mint_governor: string;
+  // ref_spend withdrawal validator hash
+  // this is ref_spend_proxy governor
+  ref_spend_governor: string;
+  // H.A.L. NFT's version
   mint_version: bigint;
-  data: UplcData; // settings v1 data
+  // setting v1 data
+  data: UplcData;
 }
 
 export type { Settings };

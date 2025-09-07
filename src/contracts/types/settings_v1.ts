@@ -15,10 +15,7 @@ interface SettingsV1 {
   // ref_spend_proxy Spending validator hash
   // ref asset is sent to this script
   ref_spend_proxy_script_hash: string;
-  // ref_spend withdrawal validator hash
-  // this is ref_spend_proxy governor
-  ref_spend_governor: string;
-  // ref_spend admin is used to authorize updating CIP68 Datum
+  // ref_spend_admin is used to authorize updating CIP68 Datum
   // this is referred to as `ref_spend_admin` in `ref_spend` withdrawal validator
   ref_spend_admin: string;
   // royalty spend script hash
