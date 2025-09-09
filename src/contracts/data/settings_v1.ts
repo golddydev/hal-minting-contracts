@@ -20,6 +20,7 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     minting_data_script_hash,
     orders_spend_script_hash,
     ref_spend_proxy_script_hash,
+    ref_spend_governor,
     ref_spend_admin,
     royalty_spend_script_hash,
     minting_start_time,
@@ -33,6 +34,7 @@ const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
     makeByteArrayData(minting_data_script_hash),
     makeByteArrayData(orders_spend_script_hash),
     makeByteArrayData(ref_spend_proxy_script_hash),
+    makeByteArrayData(ref_spend_governor),
     makeByteArrayData(ref_spend_admin),
     makeByteArrayData(royalty_spend_script_hash),
     makeIntData(minting_start_time),
@@ -44,7 +46,7 @@ const decodeSettingsV1Data = (
   data: UplcData,
   isMainnet: boolean
 ): SettingsV1 => {
-  const settingsV1ConstrData = expectConstrData(data, 0, 10);
+  const settingsV1ConstrData = expectConstrData(data, 0, 11);
 
   // policy_id
   const policy_id = expectByteArrayData(
@@ -82,29 +84,35 @@ const decodeSettingsV1Data = (
     "ref_spend_proxy_script_hash must be ByteArray"
   ).toHex();
 
+  // ref_spend_governor
+  const ref_spend_governor = expectByteArrayData(
+    settingsV1ConstrData.fields[6],
+    "ref_spend_governor must be ByteArray"
+  ).toHex();
+
   // ref_spend_admin
   const ref_spend_admin = expectByteArrayData(
-    settingsV1ConstrData.fields[6],
+    settingsV1ConstrData.fields[7],
     "ref_spend_admin must be ByteArray"
   ).toHex();
 
   // royalty_spend_script_hash
   const royalty_spend_script_hash = expectByteArrayData(
-    settingsV1ConstrData.fields[7],
+    settingsV1ConstrData.fields[8],
     "royalty_spend_script_hash must be ByteArray"
   ).toHex();
 
   // minting_start_time
   const minting_start_time = Number(
     expectIntData(
-      settingsV1ConstrData.fields[8],
+      settingsV1ConstrData.fields[9],
       "minting_start_time must be Int"
     ).value
   );
 
   // payment_address
   const payment_address = decodeAddressFromData(
-    settingsV1ConstrData.fields[9],
+    settingsV1ConstrData.fields[10],
     isMainnet
   );
 
@@ -115,6 +123,7 @@ const decodeSettingsV1Data = (
     minting_data_script_hash,
     orders_spend_script_hash,
     ref_spend_proxy_script_hash,
+    ref_spend_governor,
     ref_spend_admin,
     royalty_spend_script_hash,
     minting_start_time,
