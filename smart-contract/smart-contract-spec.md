@@ -404,7 +404,7 @@ This is withdrawal validator which governs `ref_spend_proxy` spending validator.
 
 #### 3.6.1 Parameter
 
-None
+- _ref_spend_admin_: This is wallet's public key hash. This is `Ref Spend` `Admin`'s wallet and is used to authorize updating CIP68 Datum.
 
 #### 3.6.2 Datum
 
@@ -418,7 +418,7 @@ None (withdrawal validator)
 
 - must attach `Settings` NFT in reference inputs.
 
-- must be signed by `ref_spend_admin` from `SettingsV1`.
+- must be signed by `ref_spend_admin` from parameter.
 
 - must spend H.A.L. User Asset whose name is `asset_name` from redeemer.
 

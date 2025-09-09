@@ -190,18 +190,14 @@ pub fn make_settings_reference_input() -> Input {
       minting_data_script_hash,
       orders_spend_script_hash,
       ref_spend_proxy_script_hash,
+      ref_spend_governor,
       ref_spend_admin,
       royalty_spend_script_hash,
       minting_start_time,
       payment_address: payment_address(),
     }
   let settings: Settings =
-    Settings {
-      mint_governor,
-      ref_spend_governor,
-      mint_version,
-      data: settings_v1,
-    }
+    Settings { mint_governor, mint_version, data: settings_v1 }
 
   Input {
     output_reference: OutputReference {

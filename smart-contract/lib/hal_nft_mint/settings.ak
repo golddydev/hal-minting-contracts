@@ -11,13 +11,7 @@ const settings_asset_policy_id =
 const settings_asset_name = #"000de14068616c4068616e646c655f73657474696e6773"
 
 pub type Settings {
-  // mint withdrawal validator hash
-  // this is mint_proxy governor
   mint_governor: ScriptHash,
-  // ref_spend withdrawal validator hash
-  // this is ref_spend_proxy governor
-  ref_spend_governor: ScriptHash,
-  // H.A.L. NFT's version
   mint_version: Int,
   // setting v1 data
   data: Data,

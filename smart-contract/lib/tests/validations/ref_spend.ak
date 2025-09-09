@@ -45,7 +45,7 @@ test can_update_0() {
       [ref_spend_admin],
       interval.everything(),
     )
-  can_update(transaction, asset_name)
+  can_update(transaction, ref_spend_admin, asset_name)
 }
 
 test cannot_update_if_not_signed_by_ref_spend_admin() fail {
@@ -79,7 +79,7 @@ test cannot_update_if_not_signed_by_ref_spend_admin() fail {
       [],
       interval.everything(),
     )
-  can_update(transaction, asset_name)
+  can_update(transaction, ref_spend_admin, asset_name)
 }
 
 test cannot_update_if_not_spend_user_asset() fail {
@@ -111,7 +111,7 @@ test cannot_update_if_not_spend_user_asset() fail {
       [ref_spend_admin],
       interval.everything(),
     )
-  can_update(transaction, asset_name)
+  can_update(transaction, ref_spend_admin, asset_name)
 }
 
 test cannot_update_two_reference_assets() fail {
@@ -160,5 +160,5 @@ test cannot_update_two_reference_assets() fail {
       [ref_spend_admin],
       interval.everything(),
     )
-  can_update(transaction, asset_name_1)
+  can_update(transaction, ref_spend_admin, asset_name_1)
 }

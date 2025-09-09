@@ -176,6 +176,7 @@ const setup = async () => {
     mint_version: mintVersion,
     admin_verification_key_hash: adminPubKeyHash,
     orders_spend_randomizer: "",
+    ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
   });
   const {
     halPolicyHash,
@@ -199,6 +200,7 @@ const setup = async () => {
       ordersSpendConfig.ordersSpendValidatorHash.toHex(),
     ref_spend_proxy_script_hash:
       refSpendProxyConfig.refSpendProxyValidatorHash.toHex(),
+    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
     ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
     royalty_spend_script_hash:
       royaltySpendConfig.royaltySpendValidatorHash.toHex(),
@@ -207,7 +209,6 @@ const setup = async () => {
   };
   const settings: Settings = {
     mint_governor: mintConfig.mintValidatorHash.toHex(),
-    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
     mint_version: mintVersion,
     data: buildSettingsV1Data(settingsV1),
   };

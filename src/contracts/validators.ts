@@ -8,6 +8,7 @@ import {
   makeMintingDataUplcProgramParameter,
   makeMintProxyUplcProgramParameter,
   makeOrdersSpendUplcProgramParameter,
+  makeRefSpendUplcProgramParameter,
 } from "./utils.js";
 
 const getMintProxyMintUplcProgram = (mint_version: bigint): UplcProgramV2 => {
@@ -112,7 +113,7 @@ const getRefSpendProxyUplcProgram = (): UplcProgramV2 => {
   );
 };
 
-const getRefSpendUplcProgram = (): UplcProgramV2 => {
+const getRefSpendUplcProgram = (ref_spend_admin: string): UplcProgramV2 => {
   const optimizedFoundValidator = optimizedBlueprint.validators.find(
     (validator) => validator.title == CONTRACT_NAME.REF_SPEND_WITHDRAW
   );
@@ -123,11 +124,13 @@ const getRefSpendUplcProgram = (): UplcProgramV2 => {
     !!optimizedFoundValidator && !!unOptimizedFoundValidator,
     "Ref Spend Validator not found"
   );
-  return decodeUplcProgramV2FromCbor(
-    optimizedFoundValidator.compiledCode
-  ).withAlt(
-    decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode)
-  );
+  return decodeUplcProgramV2FromCbor(optimizedFoundValidator.compiledCode)
+    .apply(makeRefSpendUplcProgramParameter(ref_spend_admin))
+    .withAlt(
+      decodeUplcProgramV2FromCbor(unOptimizedFoundValidator.compiledCode).apply(
+        makeRefSpendUplcProgramParameter(ref_spend_admin)
+      )
+    );
 };
 
 const getRoyaltySpendUplcProgram = (): UplcProgramV2 => {
