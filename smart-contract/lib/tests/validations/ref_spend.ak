@@ -9,8 +9,8 @@ use tests/mocks/fake_constants.{
 }
 use tests/mocks/fake_tx.{
   make_cip68_datum, make_ref_spend_proxy_input,
-  make_ref_spend_proxy_user_input_and_output, make_ref_spend_settings_reference_input,
-  make_transaction,
+  make_ref_spend_proxy_user_input_and_output,
+  make_ref_spend_settings_reference_input, make_transaction,
 }
 use validations/ref_spend/validation.{can_update}
 
