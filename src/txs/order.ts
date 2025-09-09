@@ -323,6 +323,14 @@ const isOrderTxInputValid = (
     makeValidatorHash(orders_spend_script_hash)
   );
 
+  console.log(
+    "IS_ORDER_TX_VALID",
+    makeAddress(orderTxInput.address).toBech32(),
+    orders_spend_script_hash,
+    ordersSpendScriptAddress.toBech32(),
+    orderTxInput.address.isEqual(ordersSpendScriptAddress)
+  );
+
   // check if address matches
   if (!orderTxInput.address.isEqual(ordersSpendScriptAddress)) {
     return Err(

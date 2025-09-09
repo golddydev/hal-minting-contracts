@@ -1,6 +1,6 @@
 {
   "name": "@koralabs/hal-minting-contracts",
-  "version": "1.2.22",
+  "version": "1.2.23",
   "license": "MIT",
   "main": "index.js",
   "type": "module",
@@ -11,6 +11,7 @@
     "build": "rm -rf lib/ && tsc",
     "lint": "npx eslint './src/**/*.{ts,mjs}' --max-warnings=0",
     "test": "vitest run",
+    "start:mainnet": "cd scripts/ && NODE_ENV=mainnet NETWORK=mainnet tsx ./run/index.ts",
     "start:preview": "cd scripts/ && NODE_ENV=preview tsx ./run/index.ts",
     "start:preprod": "cd scripts/ && NODE_ENV=preprod tsx ./run/index.ts"
   },
