@@ -13,11 +13,19 @@ pub const settings_asset_name: AssetName =
 pub const minting_data_asset_policy_id: PolicyId =
   #"f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"
 
+// hal_pz@handle_settings
+
+pub const ref_spend_settings_asset_policy_id: AssetName =
+  #"f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"
+
+pub const ref_spend_settings_asset_name: AssetName =
+  #"000de14068616c5f707a4068616e646c655f73657474696e6773"
+
 // hal_root@handle_settings
 pub const minting_data_asset_name: AssetName =
   #"000de14068616c5f726f6f744068616e646c655f73657474696e6773"
 
-// settings
+// mint settings
 
 pub const mint_governor: ScriptHash = #"0000"
 
@@ -26,7 +34,7 @@ pub const mint_version: Int = 0
 pub const admin_verification_key_hash: VerificationKeyHash =
   #"1b3d235a54e52b00e9152df2481c5c569f03eb47977f13e2f6ea897e"
 
-// settings v1
+// mint settings v1
 
 pub const hal_policy_id: PolicyId =
   #"c499deafed36ff9c272e2c335062df6e4bad2861d4c6c47fe682606d"
@@ -45,12 +53,6 @@ pub const orders_spend_script_hash: ScriptHash =
 pub const ref_spend_proxy_script_hash: ScriptHash =
   #"1e843c41938b993a874c08ba9d2a122aa5b26da477c586ec8ab0f09a"
 
-pub const ref_spend_governor: ScriptHash =
-  #"cca2044fe962ae536e833f5b02896f33e621ebbe13ac220960e2cf8e"
-
-pub const ref_spend_admin: VerificationKeyHash =
-  #"199e5911d352ef0a0d3582f09ce865924fcf7bd063a45d34414ac58b"
-
 pub const royalty_spend_script_hash: ScriptHash =
   #"362755f51869d07968af9f0230f9a6f55edbf3b71931e8aeb2752f1c"
 
@@ -64,6 +66,16 @@ pub fn payment_address() -> Address {
         #"9c0f7872826c9e888fad5658571e3e78b2dbb77a8d24a4a39cc6a578",
       )
 }
+
+// ref spend settings
+
+pub const ref_spend_governor: ScriptHash =
+  #"cca2044fe962ae536e833f5b02896f33e621ebbe13ac220960e2cf8e"
+
+// ref_spend settings v1
+
+pub const ref_spend_admin: VerificationKeyHash =
+  #"199e5911d352ef0a0d3582f09ce865924fcf7bd063a45d34414ac58b"
 
 // User wallets
 pub fn user_1_address() -> Address {

@@ -17,13 +17,16 @@ use hal_nft_mint/minting_data.{MintingData}
 use hal_nft_mint/orders.{OrderDatum}
 use hal_nft_mint/settings.{Settings}
 use hal_nft_mint/settings_v1.{SettingsV1}
+use ref_spend/settings.{RefSpendSettings} as ref_spend_settings
+use ref_spend/settings_v1.{RefSpendSettingsV1} as ref_spend_settings_v1
 use tests/mocks/fake_constants.{
   allowed_minter, hal_nft_price, hal_policy_id, mint_governor, mint_version,
   minting_data_asset_name, minting_data_asset_policy_id,
   minting_data_script_hash, minting_start_time, orders_spend_script_hash,
   payment_address, ref_spend_admin, ref_spend_governor,
-  ref_spend_proxy_script_hash, royalty_spend_script_hash, settings_asset_name,
-  settings_asset_policy_id,
+  ref_spend_proxy_script_hash, ref_spend_settings_asset_name,
+  ref_spend_settings_asset_policy_id, royalty_spend_script_hash,
+  settings_asset_name, settings_asset_policy_id,
 }
 
 pub fn make_order_datum(user_address: Address, amount: Int) -> OrderDatum {
@@ -208,6 +211,31 @@ pub fn make_settings_reference_input() -> Input {
       address: credential.from_verification_key(#"aaaa"),
       value: value.zero()
         |> value.add(settings_asset_policy_id, settings_asset_name, 1),
+      datum: InlineDatum(settings),
+      reference_script: None,
+    },
+  }
+}
+
+pub fn make_ref_spend_settings_reference_input() -> Input {
+  let settings_v1: RefSpendSettingsV1 =
+    RefSpendSettingsV1 { policy_id: hal_policy_id, ref_spend_admin }
+  let settings: RefSpendSettings =
+    RefSpendSettings { ref_spend_governor, data: settings_v1 }
+
+  Input {
+    output_reference: OutputReference {
+      transaction_id: TransactionId { hash: #"aaaa" },
+      output_index: 0,
+    },
+    output: Output {
+      address: credential.from_verification_key(#"aaaa"),
+      value: value.zero()
+        |> value.add(
+            ref_spend_settings_asset_policy_id,
+            ref_spend_settings_asset_name,
+            1,
+          ),
       datum: InlineDatum(settings),
       reference_script: None,
     },

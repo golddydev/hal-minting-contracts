@@ -9,7 +9,7 @@ import {
   UplcData,
 } from "@helios-lang/uplc";
 
-import { SettingsV1 } from "../types/index.js";
+import { RefSpendSettingsV1, SettingsV1 } from "../types/index.js";
 import { buildAddressData, decodeAddressFromData } from "./common.js";
 
 const buildSettingsV1Data = (settings: SettingsV1): UplcData => {
@@ -131,4 +131,41 @@ const decodeSettingsV1Data = (
   };
 };
 
-export { buildSettingsV1Data, decodeSettingsV1Data };
+const buildRefSpendSettingsV1Data = (
+  settings: RefSpendSettingsV1
+): UplcData => {
+  const { policy_id, ref_spend_admin } = settings;
+
+  return makeConstrData(0, [
+    makeByteArrayData(policy_id),
+    makeByteArrayData(ref_spend_admin),
+  ]);
+};
+
+const decodeRefSpendSettingsV1Data = (data: UplcData): RefSpendSettingsV1 => {
+  const refSpendSettingsV1ConstrData = expectConstrData(data, 0, 2);
+
+  // policy_id
+  const policy_id = expectByteArrayData(
+    refSpendSettingsV1ConstrData.fields[0],
+    "policy_id must be ByteArray"
+  ).toHex();
+
+  // ref_spend_admin
+  const ref_spend_admin = expectByteArrayData(
+    refSpendSettingsV1ConstrData.fields[1],
+    "ref_spend_admin must be ByteArray"
+  ).toHex();
+
+  return {
+    policy_id,
+    ref_spend_admin,
+  };
+};
+
+export {
+  buildRefSpendSettingsV1Data,
+  buildSettingsV1Data,
+  decodeRefSpendSettingsV1Data,
+  decodeSettingsV1Data,
+};

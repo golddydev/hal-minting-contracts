@@ -58,20 +58,6 @@ const makeOrdersSpendUplcProgramParameterDatum = (
   );
 };
 
-const makeRefSpendUplcProgramParameter = (
-  ref_spend_admin: string
-): UplcValue[] => {
-  return [makeUplcDataValue(makeByteArrayData(ref_spend_admin))];
-};
-
-const makeRefSpendUplcProgramParameterDatum = (
-  ref_spend_admin: string
-): InlineTxOutputDatum => {
-  return makeInlineTxOutputDatum(
-    makeListData([makeByteArrayData(ref_spend_admin)])
-  );
-};
-
 export {
   makeMintingDataUplcProgramParameter,
   makeMintingDataUplcProgramParameterDatum,
@@ -79,6 +65,4 @@ export {
   makeMintProxyUplcProgramParameterDatum,
   makeOrdersSpendUplcProgramParameter,
   makeOrdersSpendUplcProgramParameterDatum,
-  makeRefSpendUplcProgramParameter,
-  makeRefSpendUplcProgramParameterDatum,
 };
