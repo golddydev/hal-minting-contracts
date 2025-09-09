@@ -10,4 +10,12 @@ interface Settings {
   data: UplcData;
 }
 
-export type { Settings };
+interface RefSpendSettings {
+  // ref_spend withdrawal validator hash
+  // this is ref_spend_proxy governor
+  ref_spend_governor: string;
+  // setting v1 data
+  data: UplcData;
+}
+
+export type { RefSpendSettings, Settings };

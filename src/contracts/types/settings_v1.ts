@@ -30,4 +30,11 @@ interface SettingsV1 {
   payment_address: Address;
 }
 
-export type { SettingsV1 };
+interface RefSpendSettingsV1 {
+  policy_id: string;
+  // ref_spend admin is used to authorize updating CIP68 Datum
+  // this is referred to as `ref_spend_admin` in `ref_spend` withdrawal validator
+  ref_spend_admin: string;
+}
+
+export type { RefSpendSettingsV1, SettingsV1 };

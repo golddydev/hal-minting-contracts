@@ -1,12 +1,10 @@
 import {
   InlineTxOutputDatum,
-  makeAddress,
   makeAssetClass,
   makeAssets,
   makePubKeyHash,
   makeStakingAddress,
   makeStakingValidatorHash,
-  makeValidatorHash,
   makeValue,
   TxInput,
 } from "@helios-lang/ledger";
@@ -16,8 +14,8 @@ import { Err, Ok, Result } from "ts-res";
 import { PREFIX_100, PREFIX_222 } from "../constants/index.js";
 import {
   buildRefSpendRedeemer,
-  decodeSettingsDatum,
-  decodeSettingsV1Data,
+  decodeRefSpendSettingsDatum,
+  decodeRefSpendSettingsV1Data,
   makeVoidData,
 } from "../contracts/index.js";
 import { mayFail } from "../helpers/index.js";
@@ -30,7 +28,7 @@ interface UpdateParams {
   userTxInput: TxInput;
   newDatum: InlineTxOutputDatum;
   deployedScripts: DeployedScripts;
-  settingsAssetTxInput: TxInput;
+  refSpendSettingsAssetTxInput: TxInput;
 }
 
 /**
@@ -47,8 +45,8 @@ const update = async (
     refTxInput,
     userTxInput,
     newDatum,
-    settingsAssetTxInput,
     deployedScripts,
+    refSpendSettingsAssetTxInput,
   } = params;
   const assetHexName = Buffer.from(assetUtf8Name).toString("hex");
 
@@ -60,27 +58,25 @@ const update = async (
 
   // decode settings
   const settingsResult = mayFail(() =>
-    decodeSettingsDatum(settingsAssetTxInput.datum)
+    decodeRefSpendSettingsDatum(refSpendSettingsAssetTxInput.datum)
   );
   if (!settingsResult.ok) {
-    return Err(new Error(`Failed to decode settings: ${settingsResult.error}`));
+    return Err(
+      new Error(`Failed to decode ref spend settings: ${settingsResult.error}`)
+    );
   }
   const { data: settingsV1Data } = settingsResult.data;
   const settingsV1Result = mayFail(() =>
-    decodeSettingsV1Data(settingsV1Data, isMainnet)
+    decodeRefSpendSettingsV1Data(settingsV1Data)
   );
   if (!settingsV1Result.ok) {
     return Err(
-      new Error(`Failed to decode settings v1: ${settingsV1Result.error}`)
+      new Error(
+        `Failed to decode ref spend settings v1: ${settingsV1Result.error}`
+      )
     );
   }
-  const { policy_id, ref_spend_proxy_script_hash, ref_spend_admin } =
-    settingsV1Result.data;
-
-  const refSpendProxyScriptAddress = makeAddress(
-    isMainnet,
-    makeValidatorHash(ref_spend_proxy_script_hash)
-  );
+  const { policy_id, ref_spend_admin } = settingsV1Result.data;
 
   // reference asset value
   const refAssetName = `${PREFIX_100}${assetHexName}`;
@@ -111,7 +107,7 @@ const update = async (
   });
 
   // <-- attach Settings asset
-  txBuilder.refer(settingsAssetTxInput);
+  txBuilder.refer(refSpendSettingsAssetTxInput);
 
   // <-- attach ref_spend_proxy, ref_spend scripts
   txBuilder.refer(refSpendProxyScriptTxInput, refSpendScriptTxInput);
@@ -136,11 +132,7 @@ const update = async (
   txBuilder.spendUnsafe(userTxInput);
 
   // <-- pay ref asset with updated datum
-  txBuilder.payUnsafe(
-    refSpendProxyScriptAddress,
-    makeValue(0n, refAsset),
-    newDatum
-  );
+  txBuilder.payUnsafe(refTxInput.address, makeValue(0n, refAsset), newDatum);
 
   return Ok(txBuilder);
 };

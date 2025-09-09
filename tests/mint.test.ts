@@ -16,6 +16,7 @@ import {
   decodeMintingDataDatum,
   fetchMintingData,
   fetchOrderTxInputs,
+  fetchRefSpendSettings,
   fetchSettings,
   HalAssetInfo,
   invariant,
@@ -472,8 +473,13 @@ describe.sequential("Koralab H.A.L Tests", () => {
 
       const settingsResult = await fetchSettings(isMainnet);
       invariant(settingsResult.ok, "Settings Fetch Failed");
-      const { settingsAssetTxInput, settingsV1 } = settingsResult.data;
+      const { settingsV1 } = settingsResult.data;
       const { policy_id, ref_spend_proxy_script_hash } = settingsV1;
+
+      const refSpendSettingsResult = await fetchRefSpendSettings();
+      invariant(refSpendSettingsResult.ok, "Ref Spend Settings Fetch Failed");
+      const { refSpendSettingsAssetTxInput } = refSpendSettingsResult.data;
+
       const refSpendProxyScriptAddress = makeAddress(
         isMainnet,
         makeValidatorHash(ref_spend_proxy_script_hash)
@@ -506,8 +512,8 @@ describe.sequential("Koralab H.A.L Tests", () => {
         newDatum,
         refTxInput: foundRefUtxo,
         userTxInput: foundUserUtxo,
-        settingsAssetTxInput,
         deployedScripts,
+        refSpendSettingsAssetTxInput,
       });
       invariant(txBuilderResult.ok, "Update Tx Building failed");
 

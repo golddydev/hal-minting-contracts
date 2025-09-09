@@ -22,7 +22,6 @@ interface BuildContractsParams {
   mint_version: bigint;
   admin_verification_key_hash: string;
   orders_spend_randomizer?: string | undefined;
-  ref_spend_admin: string;
 }
 
 /**
@@ -36,7 +35,6 @@ const buildContracts = (params: BuildContractsParams) => {
     mint_version,
     admin_verification_key_hash,
     orders_spend_randomizer = "",
-    ref_spend_admin,
   } = params;
 
   // "mint_proxy.mint"
@@ -93,7 +91,7 @@ const buildContracts = (params: BuildContractsParams) => {
   );
 
   // "ref_spend.withdrawe"
-  const refSpendUplcProgram = getRefSpendUplcProgram(ref_spend_admin);
+  const refSpendUplcProgram = getRefSpendUplcProgram();
   const refSpendValidatorHash = makeValidatorHash(refSpendUplcProgram.hash());
   const refSpendStakingAddress = makeStakingAddress(
     isMainnet,

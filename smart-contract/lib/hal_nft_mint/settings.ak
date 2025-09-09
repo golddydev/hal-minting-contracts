@@ -7,11 +7,14 @@ const settings_asset_policy_id =
   #"f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a"
 
 // hal@handle_settings
-// hold the settings for the decentralized minting contract
+// hold the settings for the H.A.L. NFT minting contracts
 const settings_asset_name = #"000de14068616c4068616e646c655f73657474696e6773"
 
 pub type Settings {
+  // mint withdrawal validator hash
+  // this is mint_proxy governor
   mint_governor: ScriptHash,
+  // H.A.L. NFT's version
   mint_version: Int,
   // setting v1 data
   data: Data,

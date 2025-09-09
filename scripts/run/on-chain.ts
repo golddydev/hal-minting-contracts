@@ -1,11 +1,6 @@
 import { BlockFrostAPI } from "@blockfrost/blockfrost-js";
 import { bytesToHex } from "@helios-lang/codec-utils";
-import {
-  hashNativeScript,
-  makeAddress,
-  makePubKeyHash,
-  makeSigScript,
-} from "@helios-lang/ledger";
+import { makeAddress } from "@helios-lang/ledger";
 import { NetworkName } from "@helios-lang/tx-utils";
 import fs from "fs/promises";
 import prompts from "prompts";
@@ -17,11 +12,15 @@ import {
 } from "../../src/constants/index.js";
 import {
   buildContracts,
+  buildRefSpendSettingsData,
+  buildRefSpendSettingsV1Data,
   buildSettingsData,
   buildSettingsV1Data,
   checkAccountRegistrationStatus,
   deploy,
   getBlockfrostV0Client,
+  RefSpendSettings,
+  RefSpendSettingsV1,
   registerStakingAddresses,
   Settings,
   SettingsV1,
@@ -51,6 +50,16 @@ const doOnChainActions = async (commandImpl: CommandImpl) => {
             const settingsCbor = buildSettingsDataCbor();
             console.log("\n\n------- Settings CBOR -------\n");
             console.log(settingsCbor);
+            console.log("\n");
+          },
+        },
+        {
+          title: "ref spend settings",
+          description: "Build Ref Spend Settings Datum CBOR",
+          value: async () => {
+            const refSpendSettingsCbor = buildRefSpendSettingsDataCbor();
+            console.log("\n\n------- Ref Spend Settings CBOR -------\n");
+            console.log(refSpendSettingsCbor);
             console.log("\n");
           },
         },
@@ -112,16 +121,6 @@ const doOnChainActions = async (commandImpl: CommandImpl) => {
           disabled: !commandImpl.mpt,
         },
         {
-          title: "make pz contract",
-          description: "Make H.A.L. PZ Contract as Plutus Native Script",
-          value: async () => {
-            const hash = await makePzContract();
-            console.log("\n\n------- PZ Contract Script Hash -------\n");
-            console.log(hash);
-            console.log("\n");
-          },
-        },
-        {
           title: "back",
           description: "Back to main actions",
           value: () => {
@@ -152,7 +151,6 @@ const buildSettingsDataCbor = () => {
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
-    ref_spend_admin: REF_SPEND_ADMIN,
   });
   const {
     halPolicyHash,
@@ -191,7 +189,7 @@ const buildSettingsDataCbor = () => {
   return bytesToHex(buildSettingsData(settings).toCbor());
 };
 
-const getStakingAddresses = () => {
+const buildRefSpendSettingsDataCbor = () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
   const {
     MINT_VERSION,
@@ -205,7 +203,32 @@ const getStakingAddresses = () => {
     mint_version: MINT_VERSION,
     admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
     orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
+  });
+  const { halPolicyHash, refSpend: refSpendConfig } = contractsConfig;
+
+  // we already have settings asset using legacy handle.
+  const refSpendSettingsV1: RefSpendSettingsV1 = {
+    policy_id: halPolicyHash.toHex(),
     ref_spend_admin: REF_SPEND_ADMIN,
+  };
+  const refSpendSettings: RefSpendSettings = {
+    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
+    data: buildRefSpendSettingsV1Data(refSpendSettingsV1),
+  };
+
+  return bytesToHex(buildRefSpendSettingsData(refSpendSettings).toCbor());
+};
+
+const getStakingAddresses = () => {
+  const configs = GET_CONFIGS(NETWORK as NetworkName);
+  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
+    configs;
+
+  const contractsConfig = buildContracts({
+    isMainnet: (NETWORK as NetworkName) == "mainnet",
+    mint_version: MINT_VERSION,
+    admin_verification_key_hash: ADMIN_VERIFICATION_KEY_HASH,
+    orders_spend_randomizer: ORDERS_SPEND_RANDOMIZER,
   });
   const { mint: mintConfig, refSpend: refSpendConfig } = contractsConfig;
 
@@ -215,37 +238,10 @@ const getStakingAddresses = () => {
   };
 };
 
-const makePzContract = async (): Promise<string> => {
-  const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const { REF_SPEND_ADMIN } = configs;
-
-  const script = makeSigScript(makePubKeyHash(REF_SPEND_ADMIN));
-  const cbor = bytesToHex(script.toCbor());
-  const hash = bytesToHex(hashNativeScript(script));
-
-  const { filepath } = await prompts({
-    name: "filepath",
-    type: "text",
-    message: "File Path to save PZ Contract CBOR",
-  });
-  await fs.writeFile(
-    filepath,
-    JSON.stringify({
-      cbor: cbor,
-    })
-  );
-
-  return hash;
-};
-
 const doDeployActions = async () => {
   const configs = GET_CONFIGS(NETWORK as NetworkName);
-  const {
-    MINT_VERSION,
-    ADMIN_VERIFICATION_KEY_HASH,
-    ORDERS_SPEND_RANDOMIZER,
-    REF_SPEND_ADMIN,
-  } = configs;
+  const { MINT_VERSION, ADMIN_VERIFICATION_KEY_HASH, ORDERS_SPEND_RANDOMIZER } =
+    configs;
 
   let finished: boolean = false;
   while (!finished) {
@@ -263,7 +259,6 @@ const doDeployActions = async () => {
               mintVersion: MINT_VERSION,
               adminVerificationKeyHash: ADMIN_VERIFICATION_KEY_HASH,
               ordersSpendRandomizer: ORDERS_SPEND_RANDOMIZER,
-              refSpendAdmin: REF_SPEND_ADMIN,
               contractName: contract,
             });
 

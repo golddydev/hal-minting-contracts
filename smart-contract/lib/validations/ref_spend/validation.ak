@@ -1,37 +1,33 @@
 use aiken/list
-use aiken/transaction.{Transaction}
+use aiken/transaction.{InlineDatum, Output, Transaction}
 use aiken/transaction/value.{AssetName}
-use common/hashes.{VerificationKeyHash}
-use hal_nft_mint/settings.{Settings, find_settings}
-use hal_nft_mint/settings_v1.{SettingsV1}
+use common/cip68.{CIP68Datum}
+use ref_spend/settings.{RefSpendSettings, find_ref_spend_settings}
+use ref_spend/settings_v1.{RefSpendSettingsV1}
 use validations/ref_spend/utils.{
   does_spend_user_asset, has_only_one_utxo_with_ref_asset,
-  resolve_ref_spend_proxy_output_datum,
 }
 
 // Validation:
 // When user updates H.A.L. NFT's datum.
 //
 // Checks:
-// - must attach `Settings` NFT in reference inputs.
-// - must be signed by `ref_spend_admin` from parameter.
+// - must attach `RefSpendSettings` NFT in reference inputs.
+// - must be signed by `ref_spend_admin` from RefSpendSettingsV1.
 // - must spend H.A.L. User Asset whose name is `asset_name` from redeemer.
 // - there must be only one transaction input with H.A.L. Reference Asset.
 // - the first output must be `reference_output`.
 //
-pub fn can_update(
-  transaction: Transaction,
-  ref_spend_admin: VerificationKeyHash,
-  asset_name: AssetName,
-) -> Bool {
+pub fn can_update(transaction: Transaction, asset_name: AssetName) -> Bool {
   trace @"can_update"
   let Transaction { inputs, reference_inputs, outputs, extra_signatories, .. } =
     transaction
 
-  // must attach `Settings` NFT in reference inputs.
-  let Settings { data: settings_data, .. } = find_settings(reference_inputs)
-  expect settings_datum: SettingsV1 = settings_data
-  let SettingsV1 { policy_id: hal_policy_id, ref_spend_proxy_script_hash, .. } =
+  // must attach `RefSpendSettings` NFT in reference inputs.
+  let RefSpendSettings { data: settings_data, .. } =
+    find_ref_spend_settings(reference_inputs)
+  expect settings_datum: RefSpendSettingsV1 = settings_data
+  let RefSpendSettingsV1 { policy_id: hal_policy_id, ref_spend_admin } =
     settings_datum
 
   // must be signed by `ref_spend_admin` from parameter.
@@ -45,26 +41,32 @@ pub fn can_update(
   // there must be only one transaction input with H.A.L. Reference Asset.
   let ref_spend_proxy_utxo =
     has_only_one_utxo_with_ref_asset(inputs, hal_policy_id)
-  let old_datum =
-    resolve_ref_spend_proxy_output_datum(
-      ref_spend_proxy_utxo,
-      ref_spend_proxy_script_hash,
-      hal_policy_id,
-      asset_name,
-    )
+  let Output { address: input_address, value: input_value, .. } =
+    ref_spend_proxy_utxo
 
   // the first output must be `reference_output`.
   expect [ref_spend_proxy_output, ..] = outputs
-  let new_datum =
-    resolve_ref_spend_proxy_output_datum(
-      ref_spend_proxy_output,
-      ref_spend_proxy_script_hash,
-      hal_policy_id,
-      asset_name,
-    )
+  let Output {
+    address: output_address,
+    value: output_value,
+    datum: output_datum,
+    reference_script: output_reference_script,
+  } = ref_spend_proxy_output
 
-  let datum_changed = old_datum != new_datum
-  expect datum_changed
+  // address must stay same
+  expect input_address == output_address
+
+  // value must stay same
+  let value_stay_same =
+    value.without_lovelace(input_value) == value.without_lovelace(output_value)
+  expect value_stay_same
+
+  // datum must be CIP68Datum
+  expect InlineDatum(output_datum) = output_datum
+  expect _: CIP68Datum = output_datum
+
+  // reference_script must be none
+  expect output_reference_script == None
 
   True
 }

@@ -10,7 +10,7 @@ import {
 } from "@helios-lang/uplc";
 
 import { invariant } from "../../helpers/index.js";
-import { Settings } from "../types/index.js";
+import { RefSpendSettings, Settings } from "../types/index.js";
 
 const buildSettingsData = (settings: Settings): UplcData => {
   const { mint_governor, mint_version, data } = settings;
@@ -45,4 +45,37 @@ const decodeSettingsDatum = (datum: TxOutputDatum | undefined): Settings => {
   };
 };
 
-export { buildSettingsData, decodeSettingsDatum };
+const buildRefSpendSettingsData = (settings: RefSpendSettings): UplcData => {
+  const { ref_spend_governor, data } = settings;
+  return makeConstrData(0, [makeByteArrayData(ref_spend_governor), data]);
+};
+
+const decodeRefSpendSettingsDatum = (
+  datum: TxOutputDatum | undefined
+): RefSpendSettings => {
+  invariant(
+    datum?.kind == "InlineTxOutputDatum",
+    "RefSpendSettings must be inline datum"
+  );
+  const datumData = datum.data;
+  const refSpendSettingsConstrData = expectConstrData(datumData, 0, 2);
+
+  const ref_spend_governor = expectByteArrayData(
+    refSpendSettingsConstrData.fields[0],
+    "ref_spend_governor must be ByteArray"
+  ).toHex();
+
+  const data = refSpendSettingsConstrData.fields[1];
+
+  return {
+    ref_spend_governor,
+    data,
+  };
+};
+
+export {
+  buildRefSpendSettingsData,
+  buildSettingsData,
+  decodeRefSpendSettingsDatum,
+  decodeSettingsDatum,
+};

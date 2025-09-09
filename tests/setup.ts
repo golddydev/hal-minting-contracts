@@ -27,6 +27,8 @@ import { test, vi } from "vitest";
 import {
   buildContracts,
   buildMintingData,
+  buildRefSpendSettingsData,
+  buildRefSpendSettingsV1Data,
   buildSettingsData,
   buildSettingsV1Data,
   DeployedScripts,
@@ -35,6 +37,8 @@ import {
   init,
   makeWhitelistedValueData,
   MintingData,
+  RefSpendSettings,
+  RefSpendSettingsV1,
   Settings,
   SettingsV1,
   WhitelistedValue,
@@ -52,6 +56,9 @@ const initialWhitelistDBPath = "./tests/initial-whitelist-test-db";
 
 const settingsAssetClass = makeAssetClass(
   "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c4068616e646c655f73657474696e6773"
+);
+const refSpendSettingsAssetClass = makeAssetClass(
+  "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c5f707a4068616e646c655f73657474696e6773"
 );
 const mintingDataAssetClass = makeAssetClass(
   "f0ff48bbb7bbe9d59a40f1ce90e9e9d0ff5002ec48f232b49ca0fb9a.000de14068616c5f726f6f744068616e646c655f73657474696e6773"
@@ -114,6 +121,7 @@ const setup = async () => {
     ACCOUNT_LOVELACE * 100n,
     makeAssets([
       [settingsAssetClass, 1n],
+      [refSpendSettingsAssetClass, 1n],
       [mintingDataAssetClass, 1n],
     ])
   );
@@ -176,7 +184,6 @@ const setup = async () => {
     mint_version: mintVersion,
     admin_verification_key_hash: adminPubKeyHash,
     orders_spend_randomizer: "",
-    ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
   });
   const {
     halPolicyHash,
@@ -211,6 +218,14 @@ const setup = async () => {
     mint_governor: mintConfig.mintValidatorHash.toHex(),
     mint_version: mintVersion,
     data: buildSettingsV1Data(settingsV1),
+  };
+  const refSpendSettingsV1: RefSpendSettingsV1 = {
+    policy_id: halPolicyHash.toHex(),
+    ref_spend_admin: refSpendAdminWallet.spendingPubKeyHash.toHex(),
+  };
+  const refSpendSettings: RefSpendSettings = {
+    ref_spend_governor: refSpendConfig.refSpendValidatorHash.toHex(),
+    data: buildRefSpendSettingsV1Data(refSpendSettingsV1),
   };
 
   // prepare db
@@ -283,6 +298,11 @@ const setup = async () => {
     makeInlineTxOutputDatum(buildSettingsData(settings))
   );
   prepareAssetsTxBuilder.payUnsafe(
+    adminWallet.address,
+    makeValue(MIN_LOVELACE, makeAssets([[refSpendSettingsAssetClass, 1n]])),
+    makeInlineTxOutputDatum(buildRefSpendSettingsData(refSpendSettings))
+  );
+  prepareAssetsTxBuilder.payUnsafe(
     mintingDataConfig.mintingDataValidatorAddress,
     makeValue(MIN_LOVELACE, makeAssets([[mintingDataAssetClass, 1n]])),
     makeInlineTxOutputDatum(buildMintingData(mintingData))
@@ -296,8 +316,11 @@ const setup = async () => {
   const settingsAssetTxInput = await emulator.getUtxo(
     makeTxOutputId(prepareAssetsTxId, 0)
   );
-  const mintingDataAssetTxInput = await emulator.getUtxo(
+  const refSpendSettingsAssetTxInput = await emulator.getUtxo(
     makeTxOutputId(prepareAssetsTxId, 1)
+  );
+  const mintingDataAssetTxInput = await emulator.getUtxo(
+    makeTxOutputId(prepareAssetsTxId, 2)
   );
 
   // ============ Deploy Scripts ============
@@ -391,6 +414,7 @@ const setup = async () => {
   const {
     mockedFetchAllDeployedScripts,
     mockedFetchSettings,
+    mockedFetchRefSpendSettings,
     mockedFetchMintingData,
     mockedGetBlockfrostV0Client,
     mockedGetNetwork,
@@ -398,6 +422,7 @@ const setup = async () => {
     return {
       mockedFetchAllDeployedScripts: vi.fn(),
       mockedFetchSettings: vi.fn(),
+      mockedFetchRefSpendSettings: vi.fn(),
       mockedFetchMintingData: vi.fn(),
       mockedGetBlockfrostV0Client: vi.fn(),
       mockedGetNetwork: vi.fn(),
@@ -416,12 +441,24 @@ const setup = async () => {
   vi.mock("../src/configs/index.js", () => {
     return {
       fetchSettings: mockedFetchSettings,
+      fetchRefSpendSettings: mockedFetchRefSpendSettings,
       fetchMintingData: mockedFetchMintingData,
     };
   });
   mockedFetchSettings.mockReturnValue(
     new Promise((resolve) =>
       resolve(Ok({ settings, settingsV1: settingsV1, settingsAssetTxInput }))
+    )
+  );
+  mockedFetchRefSpendSettings.mockReturnValue(
+    new Promise((resolve) =>
+      resolve(
+        Ok({
+          refSpendSettings,
+          refSpendSettingsV1,
+          refSpendSettingsAssetTxInput,
+        })
+      )
     )
   );
   mockedFetchMintingData.mockReturnValue(
@@ -468,6 +505,7 @@ const setup = async () => {
     mockedFunctions: {
       mockedFetchAllDeployedScripts,
       mockedFetchSettings,
+      mockedFetchRefSpendSettings,
       mockedFetchMintingData,
       mockedGetBlockfrostV0Client,
       mockedGetNetwork,

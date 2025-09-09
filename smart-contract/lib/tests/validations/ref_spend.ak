@@ -9,13 +9,13 @@ use tests/mocks/fake_constants.{
 }
 use tests/mocks/fake_tx.{
   make_cip68_datum, make_ref_spend_proxy_input,
-  make_ref_spend_proxy_user_input_and_output, make_settings_reference_input,
+  make_ref_spend_proxy_user_input_and_output, make_ref_spend_settings_reference_input,
   make_transaction,
 }
 use validations/ref_spend/validation.{can_update}
 
 test can_update_0() {
-  let settings_reference_input = make_settings_reference_input()
+  let settings_reference_input = make_ref_spend_settings_reference_input()
   let spending_tx_hash = #"0000"
   let asset_name = "hal-2"
   let refined_asset_name = "hal-2-refined"
@@ -45,11 +45,11 @@ test can_update_0() {
       [ref_spend_admin],
       interval.everything(),
     )
-  can_update(transaction, ref_spend_admin, asset_name)
+  can_update(transaction, asset_name)
 }
 
 test cannot_update_if_not_signed_by_ref_spend_admin() fail {
-  let settings_reference_input = make_settings_reference_input()
+  let settings_reference_input = make_ref_spend_settings_reference_input()
   let spending_tx_hash = #"0000"
   let asset_name = "hal-2"
   let refined_asset_name = "hal-2-refined"
@@ -79,11 +79,11 @@ test cannot_update_if_not_signed_by_ref_spend_admin() fail {
       [],
       interval.everything(),
     )
-  can_update(transaction, ref_spend_admin, asset_name)
+  can_update(transaction, asset_name)
 }
 
 test cannot_update_if_not_spend_user_asset() fail {
-  let settings_reference_input = make_settings_reference_input()
+  let settings_reference_input = make_ref_spend_settings_reference_input()
   let spending_tx_hash = #"0000"
   let asset_name = "hal-2"
   let refined_asset_name = "hal-2-refined"
@@ -111,11 +111,11 @@ test cannot_update_if_not_spend_user_asset() fail {
       [ref_spend_admin],
       interval.everything(),
     )
-  can_update(transaction, ref_spend_admin, asset_name)
+  can_update(transaction, asset_name)
 }
 
 test cannot_update_two_reference_assets() fail {
-  let settings_reference_input = make_settings_reference_input()
+  let settings_reference_input = make_ref_spend_settings_reference_input()
   let spending_tx_hash = #"0000"
   let asset_name_1 = "hal-2"
   let asset_name_2 = "hal-3"
@@ -160,5 +160,5 @@ test cannot_update_two_reference_assets() fail {
       [ref_spend_admin],
       interval.everything(),
     )
-  can_update(transaction, ref_spend_admin, asset_name_1)
+  can_update(transaction, asset_name_1)
 }
